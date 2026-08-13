@@ -102,26 +102,16 @@ export default function AdminAparencia() {
   const salvarConfiguracao = () => {
     try {
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
+      
+      // Disparar evento customizado para atualizar toda a página
+      window.dispatchEvent(new Event('aparenciaAlterada'));
+      
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
-      aplicarTemasGlobal(config);
     } catch (error) {
       console.error('Erro ao salvar:', error);
       alert('Erro ao salvar configurações');
     }
-  };
-
-  const aplicarTemasGlobal = (novaConfig) => {
-    const root = document.documentElement;
-    root.style.setProperty('--cor-primaria', novaConfig.corPrimaria);
-    root.style.setProperty('--cor-secundaria', novaConfig.corSecundaria);
-    root.style.setProperty('--cor-sucesso', novaConfig.corSucesso);
-    root.style.setProperty('--cor-erro', novaConfig.corErro);
-    root.style.setProperty('--cor-fundo', novaConfig.corFundo);
-    root.style.setProperty('--cor-texto', novaConfig.corTexto);
-    root.style.setProperty('--fonte', novaConfig.fonte);
-    root.style.setProperty('--tamanho-titulo', `${novaConfig.tamanhoTitulo}px`);
-    root.style.setProperty('--tamanho-corp', `${novaConfig.tamanhoCorp}px`);
   };
 
   return (
@@ -145,7 +135,7 @@ export default function AdminAparencia() {
                 onClick={() => aplicarTema(t)}
                 style={{
                   ...styles.botaoTema,
-                  backgroundColor: tema === t ? '#8B4513' : '#ddd',
+                  backgroundColor: tema === t ? config.corPrimaria : '#ddd',
                   color: tema === t ? 'white' : '#333',
                 }}
               >
@@ -260,7 +250,7 @@ export default function AdminAparencia() {
         </div>
 
         <div style={styles.secao}>
-          <button onClick={() => setPreview(!preview)} style={styles.botaoPreview}>
+          <button onClick={() => setPreview(!preview)} style={{...styles.botaoPreview, backgroundColor: config.corPrimaria}}>
             {preview ? 'Esconder Preview' : 'Ver Preview'}
           </button>
           {preview && (
@@ -286,7 +276,7 @@ export default function AdminAparencia() {
         </div>
 
         <div style={styles.footer}>
-          <button onClick={salvarConfiguracao} style={styles.botaoSalvar}>
+          <button onClick={salvarConfiguracao} style={{...styles.botaoSalvar, backgroundColor: config.corSucesso}}>
             Salvar Configurações
           </button>
         </div>
@@ -423,7 +413,6 @@ const styles = {
   },
   botaoPreview: {
     padding: '10px 20px',
-    backgroundColor: '#8B4513',
     color: 'white',
     border: 'none',
     borderRadius: '5px',
@@ -435,7 +424,6 @@ const styles = {
   },
   botaoSalvar: {
     padding: '15px 40px',
-    backgroundColor: '#4CAF50',
     color: 'white',
     border: 'none',
     borderRadius: '5px',
