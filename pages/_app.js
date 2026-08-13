@@ -1,15 +1,10 @@
 import { useEffect } from 'react';
-import '../styles/globals.css';
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
-    // Aplicar aparência ao carregar a página
     aplicarAparencia();
-
-    // Ouvir mudanças de aparência em tempo real
     window.addEventListener('storage', aplicarAparencia);
     
-    // Verificar a cada 500ms se houve mudança (fallback)
     const interval = setInterval(aplicarAparencia, 500);
     
     return () => {
@@ -24,7 +19,6 @@ function MyApp({ Component, pageProps }) {
       if (config) {
         const aparencia = JSON.parse(config);
         
-        // Aplicar cores via CSS Variables
         const root = document.documentElement;
         root.style.setProperty('--cor-primaria', aparencia.corPrimaria || '#8B4513');
         root.style.setProperty('--cor-secundaria', aparencia.corSecundaria || '#D2691E');
@@ -35,22 +29,6 @@ function MyApp({ Component, pageProps }) {
         root.style.setProperty('--fonte', aparencia.fonte || 'Arial');
         root.style.setProperty('--tamanho-titulo', `${aparencia.tamanhoTitulo || 28}px`);
         root.style.setProperty('--tamanho-corp', `${aparencia.tamanhoCorp || 14}px`);
-        
-        // Aplicar logo se existir
-        if (aparencia.logoBase64) {
-          const logos = document.querySelectorAll('[data-logo-empresa]');
-          logos.forEach(logo => {
-            logo.src = aparencia.logoBase64;
-          });
-        }
-        
-        // Aplicar nome da empresa
-        if (aparencia.nomeEmpresa) {
-          const nomes = document.querySelectorAll('[data-nome-empresa]');
-          nomes.forEach(nome => {
-            nome.textContent = aparencia.nomeEmpresa;
-          });
-        }
       }
     } catch (error) {
       console.error('Erro ao aplicar aparência:', error);
