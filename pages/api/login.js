@@ -1,10 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-);
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ mensagem: 'Método não permitido' });
@@ -17,32 +10,41 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Buscar usuário no banco
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email)
-      .single();
+    // Fazer requisição HTTP direto ao Supabase
+    const response = await fetch(
+      'https://eyqfqsltavikhnxhanbf.supabase.co/rest/v1/usuarios?email=eq.' + encodeURIComponent(email),
+      {
+        method: 'GET',
+        headers: {
+          'apikey': 'sb_publishable_uKSNMYA2r2KmGN3B95-7tw_VHrCv2Z9',
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-    if (error || !data) {
+    const data = await response.json();
+
+    if (!data || data.length === 0) {
       return res.status(401).json({ mensagem: 'Email ou senha inválidos' });
     }
 
-    // Verificar senha (NOTA: Em produção, use hash bcrypt!)
-    if (data.senha !== senha) {
+    const usuario = data[0];
+
+    // Verificar senha
+    if (usuario.senha !== senha) {
       return res.status(401).json({ mensagem: 'Email ou senha inválidos' });
     }
 
-    // Retornar usuário e token fake
+    // Sucesso!
     const token = Buffer.from(`${email}:${Date.now()}`).toString('base64');
 
     res.status(200).json({
       sucesso: true,
       usuario: {
-        id: data.id,
-        email: data.email,
-        nome: data.nome,
-        perfil: data.perfil,
+        id: usuario.id,
+        email: usuario.email,
+        nome: usuario.nome,
+        perfil: usuario.perfil,
       },
       token,
     });
