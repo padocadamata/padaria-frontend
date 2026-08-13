@@ -7,6 +7,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState('inicio');
+  const [menuAberto, setMenuAberto] = useState(false);
 
   useEffect(() => {
     const usuarioLocal = localStorage.getItem('usuario');
@@ -49,9 +50,55 @@ export default function Dashboard() {
         <h1 style={styles.titulo}>🍞 Padaria Sistema</h1>
         <div style={styles.userInfo}>
           <span>👋 {usuario.nome}</span>
-          <button onClick={handleLogout} style={styles.botaoLogout}>
-            Sair
-          </button>
+          
+          {/* MENU DE CONFIGURAÇÕES */}
+          <div style={styles.menuContainer}>
+            <button 
+              onClick={() => setMenuAberto(!menuAberto)}
+              style={styles.botaoMenu}
+            >
+              ⚙️ Opções
+            </button>
+            
+            {menuAberto && (
+              <div style={styles.dropdown}>
+                <button 
+                  onClick={() => {
+                    router.push('/perfil');
+                    setMenuAberto(false);
+                  }}
+                  style={styles.itemDropdown}
+                >
+                  👤 Meu Perfil
+                </button>
+                <button 
+                  onClick={() => {
+                    router.push('/admin-aparencia');
+                    setMenuAberto(false);
+                  }}
+                  style={styles.itemDropdown}
+                >
+                  🎨 Aparência
+                </button>
+                <button 
+                  onClick={() => {
+                    router.push('/preferencias');
+                    setMenuAberto(false);
+                  }}
+                  style={styles.itemDropdown}
+                >
+                  ⚙️ Preferências
+                </button>
+                <hr style={styles.divisor} />
+                <button 
+                  onClick={handleLogout}
+                  style={{...styles.itemDropdown, color: '#f44336'}}
+                >
+                  🚪 Sair
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -174,7 +221,10 @@ const styles = {
     gap: '15px',
     alignItems: 'center',
   },
-  botaoLogout: {
+  menuContainer: {
+    position: 'relative',
+  },
+  botaoMenu: {
     padding: '8px 15px',
     backgroundColor: 'white',
     color: '#8B4513',
@@ -182,6 +232,32 @@ const styles = {
     borderRadius: '5px',
     cursor: 'pointer',
     fontWeight: 'bold',
+  },
+  dropdown: {
+    position: 'absolute',
+    top: '45px',
+    right: '0',
+    backgroundColor: 'white',
+    border: '1px solid #ddd',
+    borderRadius: '5px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+    zIndex: 1000,
+    minWidth: '180px',
+  },
+  itemDropdown: {
+    width: '100%',
+    padding: '12px 15px',
+    border: 'none',
+    background: 'none',
+    textAlign: 'left',
+    cursor: 'pointer',
+    color: '#333',
+    fontSize: '14px',
+  },
+  divisor: {
+    margin: '5px 0',
+    border: 'none',
+    borderTop: '1px solid #eee',
   },
   menu: {
     display: 'flex',

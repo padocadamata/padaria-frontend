@@ -30,15 +30,15 @@ export default function AdminAparencia() {
     }
   }, []);
 
-  const carregarConfiguracao = async () => {
+  const carregarConfiguracao = () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/aparencia`);
-      const data = await response.json();
-      if (data.success && data.data) {
-        setConfig(data.data);
+      // Carregar do localStorage
+      const configSalva = localStorage.getItem('aparenciaConfig');
+      if (configSalva) {
+        setConfig(JSON.parse(configSalva));
       }
     } catch (error) {
-      console.error('Erro ao carregar configuração:', error);
+      console.error('Erro ao carregar:', error);
     }
   };
 
@@ -78,7 +78,9 @@ export default function AdminAparencia() {
         corTexto: '#212121',
       },
     };
-    setConfig({ ...config, ...temas[nomeTema] });
+    const novaConfig = { ...config, ...temas[nomeTema] };
+    setConfig(novaConfig);
+    setSalvo(false);
   };
 
   const handleChange = (campo, valor) => {
@@ -86,22 +88,17 @@ export default function AdminAparencia() {
     setSalvo(false);
   };
 
-  const salvarConfiguracao = async () => {
+  const salvarConfiguracao = () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/aparencia`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setSalvo(true);
-        setTimeout(() => setSalvo(false), 3000);
-        // Aplicar mudanças em tempo real
-        aplicarTemasGlobal(config);
-      }
+      // Salvar no localStorage
+      localStorage.setItem('aparenciaConfig', JSON.stringify(config));
+      setSalvo(true);
+      setTimeout(() => setSalvo(false), 3000);
+      // Aplicar mudanças em tempo real
+      aplicarTemasGlobal(config);
     } catch (error) {
       console.error('Erro ao salvar:', error);
+      alert('Erro ao salvar configurações');
     }
   };
 
@@ -339,6 +336,7 @@ const styles = {
     display: 'flex',
     gap: '10px',
     marginTop: '10px',
+    flexWrap: 'wrap',
   },
   botaoTema: {
     padding: '10px 20px',
