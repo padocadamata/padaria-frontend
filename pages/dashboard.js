@@ -47,9 +47,9 @@ export default function Dashboard() {
     <div style={styles.container}>
       {/* HEADER */}
       <div style={styles.header}>
-        <h1 style={styles.titulo}>🍞 Padaria Sistema</h1>
+        <h1 style={styles.titulo}>Padaria Sistema</h1>
         <div style={styles.userInfo}>
-          <span>👋 {usuario.nome}</span>
+          <span>{usuario.nome}</span>
           
           {/* MENU DE CONFIGURAÇÕES */}
           <div style={styles.menuContainer}>
@@ -57,7 +57,7 @@ export default function Dashboard() {
               onClick={() => setMenuAberto(!menuAberto)}
               style={styles.botaoMenu}
             >
-              ⚙️ Opções
+              Opções
             </button>
             
             {menuAberto && (
@@ -69,7 +69,7 @@ export default function Dashboard() {
                   }}
                   style={styles.itemDropdown}
                 >
-                  👤 Meu Perfil
+                  Meu Perfil
                 </button>
                 <button 
                   onClick={() => {
@@ -78,7 +78,7 @@ export default function Dashboard() {
                   }}
                   style={styles.itemDropdown}
                 >
-                  🎨 Aparência
+                  Aparência
                 </button>
                 <button 
                   onClick={() => {
@@ -87,14 +87,14 @@ export default function Dashboard() {
                   }}
                   style={styles.itemDropdown}
                 >
-                  ⚙️ Preferências
+                  Preferências
                 </button>
                 <hr style={styles.divisor} />
                 <button 
                   onClick={handleLogout}
                   style={{...styles.itemDropdown, color: '#f44336'}}
                 >
-                  🚪 Sair
+                  Sair
                 </button>
               </div>
             )}
@@ -112,7 +112,7 @@ export default function Dashboard() {
             color: aba === 'inicio' ? 'white' : '#333',
           }}
         >
-          📊 Dashboard
+          Dashboard
         </button>
         <button
           onClick={() => setAba('fornecedores')}
@@ -122,7 +122,7 @@ export default function Dashboard() {
             color: aba === 'fornecedores' ? 'white' : '#333',
           }}
         >
-          📋 Fornecedores
+          Fornecedores
         </button>
         <button
           onClick={() => setAba('producao')}
@@ -132,7 +132,7 @@ export default function Dashboard() {
             color: aba === 'producao' ? 'white' : '#333',
           }}
         >
-          🥖 Produção
+          Produção
         </button>
       </div>
 
@@ -140,25 +140,25 @@ export default function Dashboard() {
       <div style={styles.conteudo}>
         {aba === 'inicio' && (
           <div>
-            <h2>Bem-vindo ao Dashboard!</h2>
+            <h2>Bem-vindo ao Dashboard</h2>
             {loading ? (
               <p>Carregando dados...</p>
             ) : stats ? (
               <div style={styles.cards}>
                 <div style={styles.card}>
-                  <h3>📦 Fornecedores</h3>
+                  <h3>Fornecedores</h3>
                   <p style={styles.numero}>{stats.total_fornecedores}</p>
                 </div>
                 <div style={styles.card}>
-                  <h3>🛍️ Produtos</h3>
+                  <h3>Produtos</h3>
                   <p style={styles.numero}>{stats.total_produtos}</p>
                 </div>
                 <div style={styles.card}>
-                  <h3>🥖 Receitas</h3>
+                  <h3>Receitas</h3>
                   <p style={styles.numero}>{stats.total_receitas}</p>
                 </div>
                 <div style={styles.card}>
-                  <h3>📊 Registros Produção</h3>
+                  <h3>Registros de Produção</h3>
                   <p style={styles.numero}>{stats.registros_producao}</p>
                 </div>
               </div>

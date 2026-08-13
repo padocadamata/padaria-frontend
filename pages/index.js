@@ -2,15 +2,15 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 
 export default function Login() {
+  const router = useRouter();
   const [email, setEmail] = useState('gerente@padoca.com.br');
   const [senha, setSenha] = useState('senha123');
+  const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
-  const [carregando, setCarregando] = useState(false);
-  const router = useRouter();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setCarregando(true);
+    setLoading(true);
     setErro('');
 
     try {
@@ -22,7 +22,7 @@ export default function Login() {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (data.success) {
         localStorage.setItem('usuario', JSON.stringify(data.usuario));
         localStorage.setItem('token', data.token);
         router.push('/dashboard');
@@ -30,55 +30,54 @@ export default function Login() {
         setErro(data.mensagem || 'Erro ao fazer login');
       }
     } catch (error) {
-      setErro('Erro de conexão. Tente novamente.');
+      setErro('Erro ao conectar ao servidor');
     } finally {
-      setCarregando(false);
+      setLoading(false);
     }
   };
 
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.titulo}>🍞 Padaria Sistema</h1>
-        <p style={styles.subtitulo}>Sistema de Gestão</p>
+      <div style={styles.formulario}>
+        <h1 style={styles.titulo}>Padaria Sistema</h1>
+        <p style={styles.subtitulo}>Faça login para continuar</p>
 
-        <form onSubmit={handleLogin} style={styles.form}>
+        {erro && <div style={styles.erro}>{erro}</div>}
+
+        <form onSubmit={handleLogin}>
           <div style={styles.grupo}>
-            <label style={styles.label}>Email:</label>
+            <label>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={styles.input}
-              disabled={carregando}
+              required
             />
           </div>
 
           <div style={styles.grupo}>
-            <label style={styles.label}>Senha:</label>
+            <label>Senha</label>
             <input
               type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               style={styles.input}
-              disabled={carregando}
+              required
             />
           </div>
-
-          {erro && <p style={styles.erro}>❌ {erro}</p>}
 
           <button 
             type="submit" 
             style={styles.botao}
-            disabled={carregando}
+            disabled={loading}
           >
-            {carregando ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 
-        <p style={styles.dica}>
-          Email: gerente@padoca.com.br<br/>
-          Senha: senha123
+        <p style={styles.texto}>
+          Demo: gerente@padoca.com.br / senha123
         </p>
       </div>
     </div>
@@ -87,14 +86,14 @@ export default function Login() {
 
 const styles = {
   container: {
+    minHeight: '100vh',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '100vh',
     backgroundColor: '#f5f5f5',
     fontFamily: 'Arial, sans-serif',
   },
-  card: {
+  formulario: {
     backgroundColor: 'white',
     padding: '40px',
     borderRadius: '10px',
@@ -104,38 +103,36 @@ const styles = {
   },
   titulo: {
     margin: '0 0 10px 0',
+    fontSize: '28px',
     color: '#8B4513',
     textAlign: 'center',
-    fontSize: '28px',
   },
   subtitulo: {
     margin: '0 0 30px 0',
     color: '#666',
     textAlign: 'center',
-    fontSize: '14px',
   },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '15px',
+  erro: {
+    backgroundColor: '#f44336',
+    color: 'white',
+    padding: '12px',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center',
   },
   grupo: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  label: {
-    marginBottom: '5px',
-    fontWeight: 'bold',
-    color: '#333',
+    marginBottom: '20px',
   },
   input: {
+    width: '100%',
     padding: '10px',
     border: '1px solid #ddd',
     borderRadius: '5px',
     fontSize: '14px',
-    fontFamily: 'Arial',
+    boxSizing: 'border-box',
   },
   botao: {
+    width: '100%',
     padding: '12px',
     backgroundColor: '#8B4513',
     color: 'white',
@@ -146,16 +143,10 @@ const styles = {
     cursor: 'pointer',
     marginTop: '10px',
   },
-  erro: {
-    color: '#d32f2f',
-    fontSize: '14px',
-    margin: '10px 0',
-  },
-  dica: {
-    fontSize: '12px',
-    color: '#999',
+  texto: {
     marginTop: '20px',
     textAlign: 'center',
-    lineHeight: '1.6',
+    color: '#999',
+    fontSize: '12px',
   },
 };

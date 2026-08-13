@@ -14,7 +14,7 @@ export default function AdminAparencia() {
     tamanhoTitulo: '28',
     tamanhoCorp: '14',
     nomeEmpresa: 'Padaria Sistema',
-    logoUrl: '/logo-default.png',
+    logoBase64: null,
   });
 
   const [tema, setTema] = useState('padrao');
@@ -32,7 +32,6 @@ export default function AdminAparencia() {
 
   const carregarConfiguracao = () => {
     try {
-      // Carregar do localStorage
       const configSalva = localStorage.getItem('aparenciaConfig');
       if (configSalva) {
         setConfig(JSON.parse(configSalva));
@@ -88,13 +87,23 @@ export default function AdminAparencia() {
     setSalvo(false);
   };
 
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setConfig({ ...config, logoBase64: event.target.result });
+        setSalvo(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const salvarConfiguracao = () => {
     try {
-      // Salvar no localStorage
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
-      // Aplicar mudanças em tempo real
       aplicarTemasGlobal(config);
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -118,16 +127,15 @@ export default function AdminAparencia() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.titulo}>🎨 Edição de Aparência</h1>
+        <h1 style={styles.titulo}>Configuração de Aparência</h1>
         <button onClick={() => router.push('/dashboard')} style={styles.botaoVoltar}>
-          ← Voltar
+          Voltar
         </button>
       </div>
 
       <div style={styles.conteudo}>
-        {salvo && <div style={styles.mensagemSucesso}>✅ Configurações salvas com sucesso!</div>}
+        {salvo && <div style={styles.mensagemSucesso}>Configurações salvas com sucesso!</div>}
 
-        {/* Temas Pré-definidos */}
         <div style={styles.secao}>
           <h2>Temas Pré-definidos</h2>
           <div style={styles.temas}>
@@ -147,7 +155,6 @@ export default function AdminAparencia() {
           </div>
         </div>
 
-        {/* Cores */}
         <div style={styles.secao}>
           <h2>Cores</h2>
           <div style={styles.grade}>
@@ -180,7 +187,6 @@ export default function AdminAparencia() {
           </div>
         </div>
 
-        {/* Fontes */}
         <div style={styles.secao}>
           <h2>Fontes e Tamanhos</h2>
           <div style={styles.grade}>
@@ -222,7 +228,6 @@ export default function AdminAparencia() {
           </div>
         </div>
 
-        {/* Branding */}
         <div style={styles.secao}>
           <h2>Branding</h2>
           <div style={styles.grade}>
@@ -236,22 +241,27 @@ export default function AdminAparencia() {
               />
             </div>
             <div style={styles.grupo}>
-              <label>URL da Logo</label>
+              <label>Logo da Empresa</label>
               <input
-                type="text"
-                value={config.logoUrl}
-                onChange={(e) => handleChange('logoUrl', e.target.value)}
-                placeholder="/images/logo.png"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
                 style={styles.input}
               />
+              {config.logoBase64 && (
+                <img 
+                  src={config.logoBase64} 
+                  style={styles.logoPreview}
+                  alt="Logo"
+                />
+              )}
             </div>
           </div>
         </div>
 
-        {/* Preview */}
         <div style={styles.secao}>
           <button onClick={() => setPreview(!preview)} style={styles.botaoPreview}>
-            {preview ? '✓ Esconder Preview' : '👁 Ver Preview'}
+            {preview ? 'Esconder Preview' : 'Ver Preview'}
           </button>
           {preview && (
             <div style={{
@@ -270,15 +280,14 @@ export default function AdminAparencia() {
               <button style={{
                 ...styles.previewBotao,
                 backgroundColor: config.corSucesso,
-              }}>Botão de Sucesso</button>
+              }}>Botão</button>
             </div>
           )}
         </div>
 
-        {/* Salvar */}
         <div style={styles.footer}>
           <button onClick={salvarConfiguracao} style={styles.botaoSalvar}>
-            💾 Salvar Configurações
+            Salvar Configurações
           </button>
         </div>
       </div>
@@ -384,6 +393,12 @@ const styles = {
   input: {
     padding: '8px',
     border: '1px solid #ddd',
+    borderRadius: '5px',
+  },
+  logoPreview: {
+    maxWidth: '150px',
+    maxHeight: '150px',
+    marginTop: '10px',
     borderRadius: '5px',
   },
   preview: {
