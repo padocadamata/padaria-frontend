@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useAparencia } from '../hooks/useAparencia';
 
 export default function Producao() {
   const router = useRouter();
+  const aparencia = useAparencia();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState('');
 
   useEffect(() => {
     const usuario = localStorage.getItem('usuario');
@@ -18,30 +19,21 @@ export default function Producao() {
 
   const carregarProducao = async () => {
     try {
-      setErro('');
-      console.log('Buscando produção...');
-      
+      setLoading(true);
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/producao?limit=30`
       );
-      
-      console.log('Status:', response.status);
-      
       const data = await response.json();
-      console.log('Dados recebidos:', data);
       
       if (data.success && data.data) {
         setRegistros(data.data);
       } else if (Array.isArray(data)) {
-        // Se a resposta for diretamente um array
         setRegistros(data);
       } else {
-        setErro('Nenhum dado de produção disponível');
         setRegistros([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar:', error);
-      setErro('Erro ao carregar dados de produção');
+      console.error('Erro:', error);
       setRegistros([]);
     } finally {
       setLoading(false);
@@ -49,22 +41,61 @@ export default function Producao() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.titulo}>Histórico de Produção</h1>
-        <button onClick={() => router.push('/dashboard')} style={styles.botaoVoltar}>
-          Voltar
+    <div style={{ ...styles.container, backgroundColor: aparencia.corFundo }}>
+      <div style={{ ...styles.header, backgroundColor: aparencia.corPrimaria }}>
+        <div style={styles.headerContent}>
+          <h1 style={styles.titulo}>Histórico de Produção</h1>
+          <div style={styles.userSection}>
+            <span style={styles.userName}>Gerente Padoca</span>
+            <button
+              onClick={() => router.push('/admin-aparencia')}
+              style={{ ...styles.botaoOpcoes, backgroundColor: 'white', color: aparencia.corPrimaria }}
+            >
+              Opções
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={styles.navBar}>
+        <button
+          onClick={() => router.push('/dashboard')}
+          style={{
+            ...styles.navBotao,
+            backgroundColor: 'white',
+            color: aparencia.corPrimaria,
+          }}
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => router.push('/fornecedores')}
+          style={{
+            ...styles.navBotao,
+            backgroundColor: 'white',
+            color: aparencia.corPrimaria,
+          }}
+        >
+          Fornecedores
+        </button>
+        <button
+          onClick={() => router.push('/producao')}
+          style={{
+            ...styles.navBotao,
+            backgroundColor: aparencia.corPrimaria,
+            color: 'white',
+          }}
+        >
+          Produção
         </button>
       </div>
 
       <div style={styles.conteudo}>
-        {erro && <div style={styles.msgErro}>{erro}</div>}
-        
         {loading ? (
           <p>Carregando dados...</p>
         ) : registros.length > 0 ? (
           <div style={styles.tabela}>
-            <div style={styles.linhaHeader}>
+            <div style={{ ...styles.linhaHeader, backgroundColor: aparencia.corPrimaria, color: 'white' }}>
               <div style={styles.coluna}>Data</div>
               <div style={styles.coluna}>Produção Manhã</div>
               <div style={styles.coluna}>Produção Tarde</div>
@@ -103,41 +134,56 @@ export default function Producao() {
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
     fontFamily: 'Arial, sans-serif',
   },
   header: {
-    backgroundColor: '#8B4513',
     color: 'white',
     padding: '20px',
+  },
+  headerContent: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    maxWidth: '1200px',
+    margin: '0 auto',
   },
   titulo: {
     margin: 0,
+    fontSize: '28px',
   },
-  botaoVoltar: {
-    padding: '10px 20px',
-    backgroundColor: 'white',
-    color: '#8B4513',
+  userSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+  },
+  userName: {
+    color: 'white',
+  },
+  botaoOpcoes: {
+    padding: '8px 15px',
     border: 'none',
     borderRadius: '5px',
     cursor: 'pointer',
     fontWeight: 'bold',
   },
-  conteudo: {
+  navBar: {
+    display: 'flex',
+    gap: '0',
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '30px 20px',
+    padding: '0 20px',
+    borderBottom: '1px solid #ddd',
   },
-  msgErro: {
-    backgroundColor: '#f44336',
-    color: 'white',
-    padding: '15px',
-    borderRadius: '5px',
-    marginBottom: '20px',
-    textAlign: 'center',
+  navBotao: {
+    padding: '12px 20px',
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  },
+  conteudo: {
+    maxWidth: '1200px',
+    margin: '30px auto',
+    padding: '0 20px',
   },
   tabela: {
     backgroundColor: 'white',
@@ -148,8 +194,6 @@ const styles = {
   linhaHeader: {
     display: 'grid',
     gridTemplateColumns: 'repeat(6, 1fr)',
-    backgroundColor: '#8B4513',
-    color: 'white',
     fontWeight: 'bold',
     padding: '15px',
   },

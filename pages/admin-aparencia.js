@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useAparencia } from '../hooks/useAparencia';
 
 export default function AdminAparencia() {
   const router = useRouter();
+  const aparenciaAtual = useAparencia();
+  
   const [config, setConfig] = useState({
     corPrimaria: '#8B4513',
     corSecundaria: '#D2691E',
@@ -19,6 +22,7 @@ export default function AdminAparencia() {
 
   const [tema, setTema] = useState('padrao');
   const [preview, setPreview] = useState(false);
+  const [aplicado, setAplicado] = useState(false);
   const [salvo, setSalvo] = useState(false);
 
   useEffect(() => {
@@ -34,7 +38,9 @@ export default function AdminAparencia() {
     try {
       const configSalva = localStorage.getItem('aparenciaConfig');
       if (configSalva) {
-        setConfig(JSON.parse(configSalva));
+        const aparencia = JSON.parse(configSalva);
+        setConfig(aparencia);
+        console.log('Configuração carregada:', aparencia);
       }
     } catch (error) {
       console.error('Erro ao carregar:', error);
@@ -79,11 +85,13 @@ export default function AdminAparencia() {
     };
     const novaConfig = { ...config, ...temas[nomeTema] };
     setConfig(novaConfig);
+    setAplicado(false);
     setSalvo(false);
   };
 
   const handleChange = (campo, valor) => {
     setConfig({ ...config, [campo]: valor });
+    setAplicado(false);
     setSalvo(false);
   };
 
@@ -93,9 +101,28 @@ export default function AdminAparencia() {
       const reader = new FileReader();
       reader.onload = (event) => {
         setConfig({ ...config, logoBase64: event.target.result });
+        setAplicado(false);
         setSalvo(false);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const aplicarConfiguracao = () => {
+    try {
+      // Aplicar no localStorage temporariamente
+      localStorage.setItem('aparenciaConfig', JSON.stringify(config));
+      
+      // Disparar evento para todas as páginas atualizarem
+      window.dispatchEvent(new Event('aparenciaAlterada'));
+      
+      console.log('Tema aplicado nas outras páginas:', config.corPrimaria);
+      
+      setAplicado(true);
+      setTimeout(() => setAplicado(false), 3000);
+    } catch (error) {
+      console.error('Erro ao aplicar:', error);
+      alert('Erro ao aplicar configurações');
     }
   };
 
@@ -103,25 +130,10 @@ export default function AdminAparencia() {
     try {
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
       
-      // Disparar evento customizado
-      window.dispatchEvent(new Event('aparenciaAlterada'));
-      
-      // Também tentar forçar atualização dos styles
-      const root = document.documentElement;
-      root.style.setProperty('--cor-primaria', config.corPrimaria);
-      root.style.setProperty('--cor-secundaria', config.corSecundaria);
-      root.style.setProperty('--cor-sucesso', config.corSucesso);
-      root.style.setProperty('--cor-erro', config.corErro);
-      root.style.setProperty('--cor-fundo', config.corFundo);
-      root.style.setProperty('--cor-texto', config.corTexto);
-      root.style.setProperty('--fonte', config.fonte);
-      root.style.setProperty('--tamanho-titulo', `${config.tamanhoTitulo}px`);
-      root.style.setProperty('--tamanho-corp', `${config.tamanhoCorp}px`);
+      console.log('Configurações salvas:', config);
       
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
-      
-      console.log('Configurações salvas:', config);
     } catch (error) {
       console.error('Erro ao salvar:', error);
       alert('Erro ao salvar configurações');
@@ -129,8 +141,8 @@ export default function AdminAparencia() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
+    <div style={{ ...styles.container, backgroundColor: aparenciaAtual.corFundo }}>
+      <div style={{ ...styles.header, backgroundColor: aparenciaAtual.corPrimaria }}>
         <h1 style={styles.titulo}>Configuração de Aparência</h1>
         <button onClick={() => router.push('/dashboard')} style={styles.botaoVoltar}>
           Voltar
@@ -138,7 +150,16 @@ export default function AdminAparencia() {
       </div>
 
       <div style={styles.conteudo}>
-        {salvo && <div style={styles.mensagemSucesso}>Configurações salvas com sucesso!</div>}
+        {aplicado && (
+          <div style={{ ...styles.mensagemAplicado, backgroundColor: aparenciaAtual.corSucesso }}>
+            Tema aplicado nas outras páginas! Volte para ver as mudanças.
+          </div>
+        )}
+        {salvo && (
+          <div style={{ ...styles.mensagemSalvo, backgroundColor: aparenciaAtual.corSucesso }}>
+            Configurações salvas com sucesso!
+          </div>
+        )}
 
         <div style={styles.secao}>
           <h2>Temas Pré-definidos</h2>
@@ -264,7 +285,13 @@ export default function AdminAparencia() {
         </div>
 
         <div style={styles.secao}>
-          <button onClick={() => setPreview(!preview)} style={{...styles.botaoPreview, backgroundColor: config.corPrimaria}}>
+          <button 
+            onClick={() => setPreview(!preview)} 
+            style={{
+              ...styles.botaoPreview, 
+              backgroundColor: config.corPrimaria
+            }}
+          >
             {preview ? 'Esconder Preview' : 'Ver Preview'}
           </button>
           {preview && (
@@ -290,7 +317,22 @@ export default function AdminAparencia() {
         </div>
 
         <div style={styles.footer}>
-          <button onClick={salvarConfiguracao} style={{...styles.botaoSalvar, backgroundColor: config.corSucesso}}>
+          <button 
+            onClick={aplicarConfiguracao} 
+            style={{
+              ...styles.botaoAplicar,
+              backgroundColor: config.corPrimaria
+            }}
+          >
+            Aplicar Tema
+          </button>
+          <button 
+            onClick={salvarConfiguracao} 
+            style={{
+              ...styles.botaoSalvar,
+              backgroundColor: config.corSucesso
+            }}
+          >
             Salvar Configurações
           </button>
         </div>
@@ -302,14 +344,12 @@ export default function AdminAparencia() {
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
     fontFamily: 'Arial, sans-serif',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#8B4513',
     color: 'white',
     padding: '20px',
   },
@@ -330,8 +370,14 @@ const styles = {
     margin: '20px auto',
     padding: '20px',
   },
-  mensagemSucesso: {
-    backgroundColor: '#4CAF50',
+  mensagemAplicado: {
+    color: 'white',
+    padding: '15px',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center',
+  },
+  mensagemSalvo: {
     color: 'white',
     padding: '15px',
     borderRadius: '5px',
@@ -433,11 +479,22 @@ const styles = {
     cursor: 'pointer',
   },
   footer: {
-    textAlign: 'center',
+    display: 'flex',
+    gap: '15px',
+    justifyContent: 'center',
     marginTop: '30px',
   },
+  botaoAplicar: {
+    padding: '12px 30px',
+    color: 'white',
+    border: 'none',
+    borderRadius: '5px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
   botaoSalvar: {
-    padding: '15px 40px',
+    padding: '12px 30px',
     color: 'white',
     border: 'none',
     borderRadius: '5px',

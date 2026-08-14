@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useAparencia } from '../hooks/useAparencia';
 
 export default function Fornecedores() {
   const router = useRouter();
+  const aparencia = useAparencia();
   const [fornecedores, setFornecedores] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const usuario = localStorage.getItem('usuario');
@@ -18,61 +20,109 @@ export default function Fornecedores() {
 
   const carregarFornecedores = async () => {
     try {
+      setLoading(true);
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/fornecedores`
+        `${process.env.NEXT_PUBLIC_API_URL}/api/fornecedores?limit=100`
       );
       const data = await response.json();
-      if (data.success) {
-        setFornecedores(data.data || []);
+      
+      if (data.success && data.data) {
+        setFornecedores(data.data);
+      } else if (Array.isArray(data)) {
+        setFornecedores(data);
+      } else {
+        setFornecedores([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar:', error);
+      console.error('Erro:', error);
+      setFornecedores([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filtrados = fornecedores.filter(f =>
-    f.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    f.cnpj.includes(busca)
+  const fornecedoresFiltrados = fornecedores.filter(f =>
+    f.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+    f.cnpj?.toLowerCase().includes(busca.toLowerCase())
   );
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.titulo}>Fornecedores</h1>
-        <button onClick={() => router.push('/dashboard')} style={styles.botaoVoltar}>
-          Voltar
+    <div style={{ ...styles.container, backgroundColor: aparencia.corFundo }}>
+      <div style={{ ...styles.header, backgroundColor: aparencia.corPrimaria }}>
+        <div style={styles.headerContent}>
+          <h1 style={styles.titulo}>Fornecedores</h1>
+          <div style={styles.userSection}>
+            <span style={styles.userName}>Gerente Padoca</span>
+            <button
+              onClick={() => router.push('/admin-aparencia')}
+              style={{ ...styles.botaoOpcoes, backgroundColor: 'white', color: aparencia.corPrimaria }}
+            >
+              Opções
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={styles.navBar}>
+        <button
+          onClick={() => router.push('/dashboard')}
+          style={{
+            ...styles.navBotao,
+            backgroundColor: 'white',
+            color: aparencia.corPrimaria,
+          }}
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => router.push('/fornecedores')}
+          style={{
+            ...styles.navBotao,
+            backgroundColor: aparencia.corPrimaria,
+            color: 'white',
+          }}
+        >
+          Fornecedores
+        </button>
+        <button
+          onClick={() => router.push('/producao')}
+          style={{
+            ...styles.navBotao,
+            backgroundColor: 'white',
+            color: aparencia.corPrimaria,
+          }}
+        >
+          Produção
         </button>
       </div>
 
       <div style={styles.conteudo}>
-        <div style={styles.barra}>
+        <div style={styles.busca}>
           <input
             type="text"
             placeholder="Buscar por nome ou CNPJ..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            style={styles.input}
+            style={styles.inputBusca}
           />
         </div>
 
         {loading ? (
-          <p>Carregando...</p>
-        ) : filtrados.length > 0 ? (
+          <p>Carregando fornecedores...</p>
+        ) : fornecedoresFiltrados.length > 0 ? (
           <div style={styles.tabela}>
-            <div style={styles.linhaHeader}>
+            <div style={{ ...styles.linhaHeader, backgroundColor: aparencia.corPrimaria, color: 'white' }}>
               <div style={styles.coluna}>Nome</div>
               <div style={styles.coluna}>CNPJ</div>
-              <div style={styles.coluna}>Telefone</div>
-              <div style={styles.coluna}>Forma de Pagamento</div>
+              <div style={styles.coluna}>Contato</div>
+              <div style={styles.coluna}>Email</div>
             </div>
-            {filtrados.map((f) => (
-              <div key={f.id} style={styles.linha}>
+            {fornecedoresFiltrados.map((f, idx) => (
+              <div key={idx} style={styles.linha}>
                 <div style={styles.coluna}>{f.nome}</div>
                 <div style={styles.coluna}>{f.cnpj}</div>
-                <div style={styles.coluna}>{f.telefone}</div>
-                <div style={styles.coluna}>{f.forma_pagamento}</div>
+                <div style={styles.coluna}>{f.telefone || '-'}</div>
+                <div style={styles.coluna}>{f.email || '-'}</div>
               </div>
             ))}
           </div>
@@ -80,7 +130,7 @@ export default function Fornecedores() {
           <p>Nenhum fornecedor encontrado</p>
         )}
 
-        <p style={styles.total}>Total: {filtrados.length} fornecedores</p>
+        <p style={styles.total}>Total: {fornecedoresFiltrados.length} fornecedores</p>
       </div>
     </div>
   );
@@ -89,41 +139,63 @@ export default function Fornecedores() {
 const styles = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
     fontFamily: 'Arial, sans-serif',
   },
   header: {
-    backgroundColor: '#8B4513',
     color: 'white',
     padding: '20px',
+  },
+  headerContent: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    maxWidth: '1200px',
+    margin: '0 auto',
   },
   titulo: {
     margin: 0,
+    fontSize: '28px',
   },
-  botaoVoltar: {
-    padding: '10px 20px',
-    backgroundColor: 'white',
-    color: '#8B4513',
+  userSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+  },
+  userName: {
+    color: 'white',
+  },
+  botaoOpcoes: {
+    padding: '8px 15px',
     border: 'none',
     borderRadius: '5px',
     cursor: 'pointer',
     fontWeight: 'bold',
   },
-  conteudo: {
+  navBar: {
+    display: 'flex',
+    gap: '0',
     maxWidth: '1200px',
     margin: '0 auto',
-    padding: '30px 20px',
+    padding: '0 20px',
+    borderBottom: '1px solid #ddd',
   },
-  barra: {
+  navBotao: {
+    padding: '12px 20px',
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+  },
+  conteudo: {
+    maxWidth: '1200px',
+    margin: '30px auto',
+    padding: '0 20px',
+  },
+  busca: {
     marginBottom: '20px',
   },
-  input: {
+  inputBusca: {
     width: '100%',
-    maxWidth: '400px',
-    padding: '10px',
+    padding: '12px',
     border: '1px solid #ddd',
     borderRadius: '5px',
     fontSize: '14px',
@@ -136,15 +208,13 @@ const styles = {
   },
   linhaHeader: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr 1fr',
-    backgroundColor: '#8B4513',
-    color: 'white',
+    gridTemplateColumns: 'repeat(4, 1fr)',
     fontWeight: 'bold',
     padding: '15px',
   },
   linha: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr 1fr',
+    gridTemplateColumns: 'repeat(4, 1fr)',
     borderBottom: '1px solid #eee',
     padding: '15px',
   },
