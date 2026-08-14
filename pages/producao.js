@@ -5,6 +5,7 @@ export default function Producao() {
   const router = useRouter();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
 
   useEffect(() => {
     const usuario = localStorage.getItem('usuario');
@@ -17,15 +18,31 @@ export default function Producao() {
 
   const carregarProducao = async () => {
     try {
+      setErro('');
+      console.log('Buscando produção...');
+      
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/producao?limit=30`
       );
+      
+      console.log('Status:', response.status);
+      
       const data = await response.json();
-      if (data.success) {
-        setRegistros(data.data || []);
+      console.log('Dados recebidos:', data);
+      
+      if (data.success && data.data) {
+        setRegistros(data.data);
+      } else if (Array.isArray(data)) {
+        // Se a resposta for diretamente um array
+        setRegistros(data);
+      } else {
+        setErro('Nenhum dado de produção disponível');
+        setRegistros([]);
       }
     } catch (error) {
       console.error('Erro ao carregar:', error);
+      setErro('Erro ao carregar dados de produção');
+      setRegistros([]);
     } finally {
       setLoading(false);
     }
@@ -41,8 +58,10 @@ export default function Producao() {
       </div>
 
       <div style={styles.conteudo}>
+        {erro && <div style={styles.msgErro}>{erro}</div>}
+        
         {loading ? (
-          <p>Carregando...</p>
+          <p>Carregando dados...</p>
         ) : registros.length > 0 ? (
           <div style={styles.tabela}>
             <div style={styles.linhaHeader}>
@@ -53,18 +72,23 @@ export default function Producao() {
               <div style={styles.coluna}>Vendas</div>
               <div style={styles.coluna}>Sobra</div>
             </div>
-            {registros.map((r, idx) => (
-              <div key={idx} style={styles.linha}>
-                <div style={styles.coluna}>
-                  {new Date(r.data).toLocaleDateString('pt-BR')}
+            {registros.map((r, idx) => {
+              const data = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '-';
+              const prodManha = r.producao_manha || 0;
+              const prodTarde = r.producao_tarde || 0;
+              const total = prodManha + prodTarde;
+              
+              return (
+                <div key={idx} style={styles.linha}>
+                  <div style={styles.coluna}>{data}</div>
+                  <div style={styles.coluna}>{prodManha}</div>
+                  <div style={styles.coluna}>{prodTarde}</div>
+                  <div style={styles.coluna}>{total}</div>
+                  <div style={styles.coluna}>{r.vendas || 0}</div>
+                  <div style={styles.coluna}>{r.sobra || 0}</div>
                 </div>
-                <div style={styles.coluna}>{r.producao_manha || 0}</div>
-                <div style={styles.coluna}>{r.producao_tarde || 0}</div>
-                <div style={styles.coluna}>{(r.producao_manha || 0) + (r.producao_tarde || 0)}</div>
-                <div style={styles.coluna}>{r.vendas || 0}</div>
-                <div style={styles.coluna}>{r.sobra || 0}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p>Nenhum registro de produção encontrado</p>
@@ -106,6 +130,14 @@ const styles = {
     maxWidth: '1200px',
     margin: '0 auto',
     padding: '30px 20px',
+  },
+  msgErro: {
+    backgroundColor: '#f44336',
+    color: 'white',
+    padding: '15px',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center',
   },
   tabela: {
     backgroundColor: 'white',

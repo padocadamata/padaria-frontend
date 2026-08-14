@@ -103,11 +103,25 @@ export default function AdminAparencia() {
     try {
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
       
-      // Disparar evento customizado para atualizar toda a página
+      // Disparar evento customizado
       window.dispatchEvent(new Event('aparenciaAlterada'));
+      
+      // Também tentar forçar atualização dos styles
+      const root = document.documentElement;
+      root.style.setProperty('--cor-primaria', config.corPrimaria);
+      root.style.setProperty('--cor-secundaria', config.corSecundaria);
+      root.style.setProperty('--cor-sucesso', config.corSucesso);
+      root.style.setProperty('--cor-erro', config.corErro);
+      root.style.setProperty('--cor-fundo', config.corFundo);
+      root.style.setProperty('--cor-texto', config.corTexto);
+      root.style.setProperty('--fonte', config.fonte);
+      root.style.setProperty('--tamanho-titulo', `${config.tamanhoTitulo}px`);
+      root.style.setProperty('--tamanho-corp', `${config.tamanhoCorp}px`);
       
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
+      
+      console.log('Configurações salvas:', config);
     } catch (error) {
       console.error('Erro ao salvar:', error);
       alert('Erro ao salvar configurações');
