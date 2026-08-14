@@ -57,7 +57,7 @@ export default function MenuOpcoes({ corPrimaria }) {
         >
           <button
             onClick={() => {
-              router.push('/admin-aparencia');
+              router.push('/dashboard');
               setAberto(false);
             }}
             style={{
@@ -75,7 +75,7 @@ export default function MenuOpcoes({ corPrimaria }) {
             onMouseOver={(e) => (e.target.style.backgroundColor = '#f5f5f5')}
             onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
           >
-            🎨 Aparência
+            🏠 Início
           </button>
 
           <button
@@ -103,7 +103,7 @@ export default function MenuOpcoes({ corPrimaria }) {
 
           <button
             onClick={() => {
-              router.push('/preferencias');
+              router.push('/admin-aparencia');
               setAberto(false);
             }}
             style={{
@@ -121,7 +121,7 @@ export default function MenuOpcoes({ corPrimaria }) {
             onMouseOver={(e) => (e.target.style.backgroundColor = '#f5f5f5')}
             onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
           >
-            ⚡ Preferências
+            🎨 Aparência
           </button>
 
           <button
