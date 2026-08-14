@@ -35,6 +35,7 @@ export default function Producao() {
   // EDIÇÃO
   const [editandoId, setEditandoId] = useState(null);
   const [editData, setEditData] = useState({});
+  const [hoverObs, setHoverObs] = useState(null);
 
   useEffect(() => {
     const config = localStorage.getItem('aparenciaConfig');
@@ -472,35 +473,65 @@ export default function Producao() {
                               <td style={{ padding: '10px', textAlign: 'center', borderRight: '1px solid #eee' }}>{totalVend > 0 ? totalVend : '-'}</td>
 
                               <td style={{ padding: '10px', textAlign: 'center' }}>
-                                <button
-                                  onClick={() => iniciarEdicao(registros.find(r => r.data === linha.data && r.produto === linha.produto))}
-                                  style={{
-                                    padding: '5px 10px',
-                                    backgroundColor: '#4CAF50',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '3px',
-                                    cursor: 'pointer',
-                                    marginRight: '5px',
-                                    fontSize: '12px',
-                                  }}
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  onClick={() => deletarRegistro(registros.find(r => r.data === linha.data && r.produto === linha.produto).id)}
-                                  style={{
-                                    padding: '5px 10px',
-                                    backgroundColor: '#f44336',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '3px',
-                                    cursor: 'pointer',
-                                    fontSize: '12px',
-                                  }}
-                                >
-                                  🗑️
-                                </button>
+                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', alignItems: 'center' }}>
+                                  {linha.observacao && (
+                                    <div 
+                                      style={{ position: 'relative', display: 'inline-block' }}
+                                      onMouseEnter={() => setHoverObs(idx)}
+                                      onMouseLeave={() => setHoverObs(null)}
+                                    >
+                                      <span style={{ cursor: 'pointer', fontSize: '16px' }}>💬</span>
+                                      {hoverObs === idx && (
+                                        <div style={{
+                                          position: 'absolute',
+                                          bottom: '100%',
+                                          left: '-100px',
+                                          backgroundColor: aparencia.corPrimaria,
+                                          color: 'white',
+                                          padding: '10px',
+                                          borderRadius: '5px',
+                                          whiteSpace: 'normal',
+                                          width: '250px',
+                                          marginBottom: '10px',
+                                          zIndex: 100,
+                                          fontSize: '12px',
+                                          lineHeight: '1.4',
+                                          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                        }}>
+                                          {linha.observacao}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={() => iniciarEdicao(registros.find(r => r.data === linha.data && r.produto === linha.produto))}
+                                    style={{
+                                      padding: '5px 10px',
+                                      backgroundColor: '#4CAF50',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '3px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                    }}
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={() => deletarRegistro(registros.find(r => r.data === linha.data && r.produto === linha.produto).id)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      backgroundColor: '#f44336',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '3px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                    }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
