@@ -1,50 +1,7 @@
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corSecundaria: '#D2691E',
-    corSucesso: '#4CAF50',
-    corErro: '#f44336',
-    corFundo: '#f5f5f5',
-    corTexto: '#333',
-    nomeEmpresa: 'Padaria Sistema',
-    logoBase64: null,
-  });
-
-  useEffect(() => {
-    console.log('✅ Dashboard carregado');
-    carregarAparencia();
-
-    // Listener para evento customizado
-    const handleAparenciaAlterada = () => {
-      console.log('🎨 Evento aparenciaAlterada recebido!');
-      carregarAparencia();
-    };
-
-    window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
-    
-    return () => {
-      window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
-    };
-  }, []);
-
-  const carregarAparencia = () => {
-    try {
-      const config = localStorage.getItem('aparenciaConfig');
-      if (config) {
-        const aparenciaCarregada = JSON.parse(config);
-        setAparencia(aparenciaCarregada);
-        console.log('✅ Aparência carregada no Dashboard:', aparenciaCarregada.corPrimaria);
-      } else {
-        console.log('⚠️ Nenhuma aparência salva no localStorage');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar aparência:', error);
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('usuario');
@@ -53,93 +10,64 @@ export default function Dashboard() {
   };
 
   return (
-    <div style={{ ...styles.container, backgroundColor: aparencia.corFundo }}>
-      <div style={{ ...styles.header, backgroundColor: aparencia.corPrimaria }}>
-        <div style={styles.headerContent}>
-          <div style={styles.nomeSection}>
-            {aparencia.logoBase64 && (
-              <img 
-                src={aparencia.logoBase64} 
-                style={styles.logo}
-                alt="Logo"
-              />
-            )}
-            <h1 style={styles.titulo}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
-          </div>
-          <div style={styles.userSection}>
-            <span style={styles.userName}>Gerente Padoca</span>
-            <button
-              onClick={() => router.push('/admin-aparencia')}
-              style={{ ...styles.botaoOpcoes, backgroundColor: 'white', color: aparencia.corPrimaria }}
-            >
-              Opções
-            </button>
-          </div>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
+      <div style={{ backgroundColor: '#8B4513', color: 'white', padding: '20px' }}>
+        <h1 style={{ margin: 0 }}>Padaria Sistema - Dashboard</h1>
+      </div>
+
+      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{ padding: '10px 20px', backgroundColor: '#8B4513', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '5px' }}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => router.push('/fornecedores')}
+            style={{ padding: '10px 20px', backgroundColor: 'white', color: '#8B4513', border: '1px solid #8B4513', cursor: 'pointer', borderRadius: '5px' }}
+          >
+            Fornecedores
+          </button>
+          <button
+            onClick={() => router.push('/producao')}
+            style={{ padding: '10px 20px', backgroundColor: 'white', color: '#8B4513', border: '1px solid #8B4513', cursor: 'pointer', borderRadius: '5px' }}
+          >
+            Produção
+          </button>
+          <button
+            onClick={() => router.push('/admin-aparencia')}
+            style={{ padding: '10px 20px', backgroundColor: 'white', color: '#8B4513', border: '1px solid #8B4513', cursor: 'pointer', borderRadius: '5px', marginLeft: 'auto' }}
+          >
+            Opções
+          </button>
         </div>
-      </div>
 
-      <div style={styles.navBar}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            ...styles.navBotao,
-            backgroundColor: aparencia.corPrimaria,
-            color: 'white',
-          }}
-        >
-          Dashboard
-        </button>
-        <button
-          onClick={() => router.push('/fornecedores')}
-          style={{
-            ...styles.navBotao,
-            backgroundColor: 'white',
-            color: aparencia.corPrimaria,
-          }}
-        >
-          Fornecedores
-        </button>
-        <button
-          onClick={() => router.push('/producao')}
-          style={{
-            ...styles.navBotao,
-            backgroundColor: 'white',
-            color: aparencia.corPrimaria,
-          }}
-        >
-          Produção
-        </button>
-      </div>
+        <h2 style={{ color: '#8B4513' }}>Bem-vindo ao Dashboard</h2>
 
-      <div style={styles.conteudo}>
-        <h2 style={{ color: aparencia.corPrimaria }}>Bem-vindo ao Dashboard</h2>
-
-        <div style={styles.cards}>
-          <div style={{ ...styles.card, borderTopColor: aparencia.corPrimaria }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid #8B4513' }}>
             <h3>Fornecedores</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px' }}>28</p>
+            <p style={{ color: '#8B4513', fontSize: '32px' }}>28</p>
           </div>
-          <div style={{ ...styles.card, borderTopColor: aparencia.corPrimaria }}>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid #8B4513' }}>
             <h3>Produtos</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px' }}>390</p>
+            <p style={{ color: '#8B4513', fontSize: '32px' }}>390</p>
           </div>
-          <div style={{ ...styles.card, borderTopColor: aparencia.corPrimaria }}>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid #8B4513' }}>
             <h3>Receitas</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px' }}>45</p>
+            <p style={{ color: '#8B4513', fontSize: '32px' }}>45</p>
           </div>
-          <div style={{ ...styles.card, borderTopColor: aparencia.corPrimaria }}>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid #8B4513' }}>
             <h3>Registros de Produção</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px' }}>0</p>
+            <p style={{ color: '#8B4513', fontSize: '32px' }}>0</p>
           </div>
         </div>
 
         <div style={{ marginTop: '30px', textAlign: 'center' }}>
           <button
             onClick={handleLogout}
-            style={{
-              ...styles.botaoSair,
-              backgroundColor: aparencia.corErro,
-            }}
+            style={{ padding: '12px 30px', backgroundColor: '#f44336', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '5px', fontSize: '16px' }}
           >
             Sair
           </button>
@@ -148,91 +76,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    fontFamily: 'Arial, sans-serif',
-  },
-  header: {
-    color: 'white',
-    padding: '20px',
-  },
-  headerContent: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  },
-  nomeSection: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-  },
-  logo: {
-    height: '50px',
-    maxWidth: '150px',
-    borderRadius: '5px',
-  },
-  titulo: {
-    margin: 0,
-    fontSize: '28px',
-  },
-  userSection: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-  },
-  userName: {
-    color: 'white',
-  },
-  botaoOpcoes: {
-    padding: '8px 15px',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-  },
-  navBar: {
-    display: 'flex',
-    gap: '0',
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '0 20px',
-    borderBottom: '1px solid #ddd',
-  },
-  navBotao: {
-    padding: '12px 20px',
-    border: 'none',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-  },
-  conteudo: {
-    maxWidth: '1200px',
-    margin: '30px auto',
-    padding: '0 20px',
-  },
-  cards: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '20px',
-    marginTop: '20px',
-  },
-  card: {
-    backgroundColor: 'white',
-    padding: '20px',
-    borderRadius: '5px',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-    borderTop: '4px solid',
-  },
-  botaoSair: {
-    padding: '12px 30px',
-    color: 'white',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: 'bold',
-  },
-};
