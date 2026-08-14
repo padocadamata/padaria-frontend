@@ -40,7 +40,6 @@ export default function AdminAparencia() {
       if (configSalva) {
         const aparencia = JSON.parse(configSalva);
         setConfig(aparencia);
-        console.log('Configuração carregada:', aparencia);
       }
     } catch (error) {
       console.error('Erro ao carregar:', error);
@@ -110,33 +109,23 @@ export default function AdminAparencia() {
 
   const aplicarConfiguracao = () => {
     try {
-      // Aplicar no localStorage temporariamente
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
-      
-      // Disparar evento para todas as páginas atualizarem
       window.dispatchEvent(new Event('aparenciaAlterada'));
-      
-      console.log('Tema aplicado nas outras páginas:', config.corPrimaria);
       
       setAplicado(true);
       setTimeout(() => setAplicado(false), 3000);
     } catch (error) {
       console.error('Erro ao aplicar:', error);
-      alert('Erro ao aplicar configurações');
     }
   };
 
   const salvarConfiguracao = () => {
     try {
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
-      
-      console.log('Configurações salvas:', config);
-      
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar configurações');
     }
   };
 
@@ -151,13 +140,13 @@ export default function AdminAparencia() {
 
       <div style={styles.conteudo}>
         {aplicado && (
-          <div style={{ ...styles.mensagemAplicado, backgroundColor: aparenciaAtual.corSucesso }}>
-            Tema aplicado nas outras páginas! Volte para ver as mudanças.
+          <div style={{ ...styles.msgSucesso, backgroundColor: '#4CAF50' }}>
+            ✅ Tema aplicado nas outras páginas! Volte para ver as mudanças.
           </div>
         )}
         {salvo && (
-          <div style={{ ...styles.mensagemSalvo, backgroundColor: aparenciaAtual.corSucesso }}>
-            Configurações salvas com sucesso!
+          <div style={{ ...styles.msgSucesso, backgroundColor: '#4CAF50' }}>
+            ✅ Configurações salvas com sucesso!
           </div>
         )}
 
@@ -321,19 +310,19 @@ export default function AdminAparencia() {
             onClick={aplicarConfiguracao} 
             style={{
               ...styles.botaoAplicar,
-              backgroundColor: config.corPrimaria
+              backgroundColor: config.corPrimaria,
             }}
           >
-            Aplicar Tema
+            🎨 Aplicar Tema
           </button>
           <button 
             onClick={salvarConfiguracao} 
             style={{
               ...styles.botaoSalvar,
-              backgroundColor: config.corSucesso
+              backgroundColor: config.corSucesso,
             }}
           >
-            Salvar Configurações
+            💾 Salvar Configurações
           </button>
         </div>
       </div>
@@ -359,7 +348,6 @@ const styles = {
   botaoVoltar: {
     padding: '10px 20px',
     backgroundColor: 'white',
-    color: '#8B4513',
     border: 'none',
     borderRadius: '5px',
     cursor: 'pointer',
@@ -370,19 +358,13 @@ const styles = {
     margin: '20px auto',
     padding: '20px',
   },
-  mensagemAplicado: {
+  msgSucesso: {
     color: 'white',
     padding: '15px',
     borderRadius: '5px',
     marginBottom: '20px',
     textAlign: 'center',
-  },
-  mensagemSalvo: {
-    color: 'white',
-    padding: '15px',
-    borderRadius: '5px',
-    marginBottom: '20px',
-    textAlign: 'center',
+    fontWeight: 'bold',
   },
   secao: {
     backgroundColor: 'white',
@@ -483,9 +465,10 @@ const styles = {
     gap: '15px',
     justifyContent: 'center',
     marginTop: '30px',
+    flexWrap: 'wrap',
   },
   botaoAplicar: {
-    padding: '12px 30px',
+    padding: '14px 35px',
     color: 'white',
     border: 'none',
     borderRadius: '5px',
@@ -494,7 +477,7 @@ const styles = {
     cursor: 'pointer',
   },
   botaoSalvar: {
-    padding: '12px 30px',
+    padding: '14px 35px',
     color: 'white',
     border: 'none',
     borderRadius: '5px',

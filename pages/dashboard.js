@@ -15,7 +15,16 @@ export default function Dashboard() {
     <div style={{ ...styles.container, backgroundColor: aparencia.corFundo }}>
       <div style={{ ...styles.header, backgroundColor: aparencia.corPrimaria }}>
         <div style={styles.headerContent}>
-          <h1 style={styles.titulo}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
+          <div style={styles.nomeSection}>
+            {aparencia.logoBase64 && (
+              <img 
+                src={aparencia.logoBase64} 
+                style={styles.logo}
+                alt="Logo"
+              />
+            )}
+            <h1 style={styles.titulo}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
+          </div>
           <div style={styles.userSection}>
             <span style={styles.userName}>Gerente Padoca</span>
             <button
@@ -114,6 +123,16 @@ const styles = {
     alignItems: 'center',
     maxWidth: '1200px',
     margin: '0 auto',
+  },
+  nomeSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+  },
+  logo: {
+    height: '50px',
+    maxWidth: '150px',
+    borderRadius: '5px',
   },
   titulo: {
     margin: 0,
