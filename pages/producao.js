@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import MenuOpcoes from '../components/MenuOpcoes';
 
 export default function Producao() {
   const router = useRouter();
@@ -13,7 +14,6 @@ export default function Producao() {
   });
 
   useEffect(() => {
-    // Carrega aparência
     const config = localStorage.getItem('aparenciaConfig');
     if (config) {
       try {
@@ -23,7 +23,6 @@ export default function Producao() {
       }
     }
 
-    // Escuta mudanças de aparência
     const handleAparenciaAlterada = () => {
       const config = localStorage.getItem('aparenciaConfig');
       if (config) {
@@ -37,7 +36,6 @@ export default function Producao() {
 
     window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
 
-    // Carrega produção da API
     fetch('https://padaria-api-5l4u.onrender.com/producao')
       .then(res => res.json())
       .then(data => {
@@ -67,12 +65,7 @@ export default function Producao() {
             )}
             <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
           </div>
-          <button
-            onClick={() => router.push('/admin-aparencia')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: 'none', cursor: 'pointer', borderRadius: '5px', fontWeight: 'bold' }}
-          >
-            Opções
-          </button>
+          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
         </div>
       </div>
 

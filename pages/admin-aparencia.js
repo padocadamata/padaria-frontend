@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import MenuOpcoes from '../components/MenuOpcoes';
 
 export default function AdminAparencia() {
   const router = useRouter();
@@ -11,15 +12,11 @@ export default function AdminAparencia() {
     corErro: '#f44336',
     corFundo: '#f5f5f5',
     corTexto: '#333',
-    fonte: 'Arial',
-    tamanhoTitulo: '28',
-    tamanhoCorp: '14',
     nomeEmpresa: 'Padaria Sistema',
     logoBase64: null,
   });
 
   const [tema, setTema] = useState('padrao');
-  const [preview, setPreview] = useState(false);
   const [status, setStatus] = useState('');
 
   useEffect(() => {
@@ -126,9 +123,7 @@ export default function AdminAparencia() {
       <div style={{ backgroundColor: config.corPrimaria, color: 'white', padding: '20px' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: 0 }}>Configuração de Aparência</h1>
-          <button onClick={() => router.push('/dashboard')} style={{ padding: '10px 20px', backgroundColor: 'white', color: config.corPrimaria, border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-            Voltar
-          </button>
+          <MenuOpcoes corPrimaria={config.corPrimaria} />
         </div>
       </div>
 

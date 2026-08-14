@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import MenuOpcoes from '../components/MenuOpcoes';
 
 export default function Fornecedores() {
   const router = useRouter();
@@ -13,7 +14,6 @@ export default function Fornecedores() {
   });
 
   useEffect(() => {
-    // Carrega aparência
     const config = localStorage.getItem('aparenciaConfig');
     if (config) {
       try {
@@ -23,7 +23,6 @@ export default function Fornecedores() {
       }
     }
 
-    // Escuta mudanças de aparência
     const handleAparenciaAlterada = () => {
       const config = localStorage.getItem('aparenciaConfig');
       if (config) {
@@ -37,7 +36,6 @@ export default function Fornecedores() {
 
     window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
 
-    // Carrega fornecedores da API
     fetch('https://padaria-api-5l4u.onrender.com/fornecedores')
       .then(res => res.json())
       .then(data => {
@@ -67,12 +65,7 @@ export default function Fornecedores() {
             )}
             <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
           </div>
-          <button
-            onClick={() => router.push('/admin-aparencia')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: 'none', cursor: 'pointer', borderRadius: '5px', fontWeight: 'bold' }}
-          >
-            Opções
-          </button>
+          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
         </div>
       </div>
 
@@ -117,7 +110,7 @@ export default function Fornecedores() {
               </thead>
               <tbody>
                 {fornecedores.map((f, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #ddd', hover: 'background-color: #f9f9f9' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
                     <td style={{ padding: '12px' }}>{f.nome || '-'}</td>
                     <td style={{ padding: '12px' }}>{f.email || '-'}</td>
                     <td style={{ padding: '12px' }}>{f.telefone || '-'}</td>

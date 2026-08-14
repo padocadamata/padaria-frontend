@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
+import MenuOpcoes from '../components/MenuOpcoes';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -11,7 +12,6 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    // Carrega aparência do localStorage
     const config = localStorage.getItem('aparenciaConfig');
     if (config) {
       try {
@@ -21,7 +21,6 @@ export default function Dashboard() {
       }
     }
 
-    // Escuta mudanças de aparência
     const handleAparenciaAlterada = () => {
       const config = localStorage.getItem('aparenciaConfig');
       if (config) {
@@ -37,12 +36,6 @@ export default function Dashboard() {
     return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('token');
-    router.push('/');
-  };
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
       <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
@@ -57,12 +50,7 @@ export default function Dashboard() {
             )}
             <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
           </div>
-          <button
-            onClick={() => router.push('/admin-aparencia')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: 'none', cursor: 'pointer', borderRadius: '5px', fontWeight: 'bold' }}
-          >
-            Opções
-          </button>
+          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
         </div>
       </div>
 
@@ -107,15 +95,6 @@ export default function Dashboard() {
             <h3>Registros de Produção</h3>
             <p style={{ color: aparencia.corPrimaria, fontSize: '32px', margin: '10px 0' }}>0</p>
           </div>
-        </div>
-
-        <div style={{ marginTop: '30px', textAlign: 'center' }}>
-          <button
-            onClick={handleLogout}
-            style={{ padding: '12px 30px', backgroundColor: '#f44336', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '5px', fontSize: '16px' }}
-          >
-            Sair
-          </button>
         </div>
       </div>
     </div>
