@@ -1,9 +1,50 @@
 import { useRouter } from 'next/router';
-import { useAparencia } from '../hooks/useAparencia';
+import { useState, useEffect } from 'react';
 
 export default function Dashboard() {
   const router = useRouter();
-  const aparencia = useAparencia();
+  const [aparencia, setAparencia] = useState({
+    corPrimaria: '#8B4513',
+    corSecundaria: '#D2691E',
+    corSucesso: '#4CAF50',
+    corErro: '#f44336',
+    corFundo: '#f5f5f5',
+    corTexto: '#333',
+    nomeEmpresa: 'Padaria Sistema',
+    logoBase64: null,
+  });
+
+  useEffect(() => {
+    console.log('✅ Dashboard carregado');
+    carregarAparencia();
+
+    // Listener para evento customizado
+    const handleAparenciaAlterada = () => {
+      console.log('🎨 Evento aparenciaAlterada recebido!');
+      carregarAparencia();
+    };
+
+    window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
+    
+    return () => {
+      window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
+    };
+  }, []);
+
+  const carregarAparencia = () => {
+    try {
+      const config = localStorage.getItem('aparenciaConfig');
+      if (config) {
+        const aparenciaCarregada = JSON.parse(config);
+        setAparencia(aparenciaCarregada);
+        console.log('✅ Aparência carregada no Dashboard:', aparenciaCarregada.corPrimaria);
+      } else {
+        console.log('⚠️ Nenhuma aparência salva no localStorage');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar aparência:', error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('usuario');

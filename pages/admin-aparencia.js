@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useAparencia } from '../hooks/useAparencia';
 
 export default function AdminAparencia() {
   const router = useRouter();
-  const aparenciaAtual = useAparencia();
   
   const [config, setConfig] = useState({
     corPrimaria: '#8B4513',
@@ -22,8 +20,7 @@ export default function AdminAparencia() {
 
   const [tema, setTema] = useState('padrao');
   const [preview, setPreview] = useState(false);
-  const [aplicado, setAplicado] = useState(false);
-  const [salvo, setSalvo] = useState(false);
+  const [status, setStatus] = useState('');
 
   useEffect(() => {
     const usuario = localStorage.getItem('usuario');
@@ -31,6 +28,7 @@ export default function AdminAparencia() {
       router.push('/');
     } else {
       carregarConfiguracao();
+      console.log('✅ Página de Aparência carregada');
     }
   }, []);
 
@@ -40,14 +38,17 @@ export default function AdminAparencia() {
       if (configSalva) {
         const aparencia = JSON.parse(configSalva);
         setConfig(aparencia);
+        console.log('✅ Config carregada:', aparencia);
       }
     } catch (error) {
-      console.error('Erro ao carregar:', error);
+      console.error('❌ Erro ao carregar:', error);
     }
   };
 
   const aplicarTema = (nomeTema) => {
+    console.log('🎨 Aplicando tema:', nomeTema);
     setTema(nomeTema);
+    
     const temas = {
       padrao: {
         corPrimaria: '#8B4513',
@@ -82,16 +83,14 @@ export default function AdminAparencia() {
         corTexto: '#212121',
       },
     };
+    
     const novaConfig = { ...config, ...temas[nomeTema] };
     setConfig(novaConfig);
-    setAplicado(false);
-    setSalvo(false);
+    console.log('✅ Tema alterado para:', novaConfig.corPrimaria);
   };
 
   const handleChange = (campo, valor) => {
     setConfig({ ...config, [campo]: valor });
-    setAplicado(false);
-    setSalvo(false);
   };
 
   const handleLogoUpload = (e) => {
@@ -100,8 +99,6 @@ export default function AdminAparencia() {
       const reader = new FileReader();
       reader.onload = (event) => {
         setConfig({ ...config, logoBase64: event.target.result });
-        setAplicado(false);
-        setSalvo(false);
       };
       reader.readAsDataURL(file);
     }
@@ -109,29 +106,47 @@ export default function AdminAparencia() {
 
   const aplicarConfiguracao = () => {
     try {
-      localStorage.setItem('aparenciaConfig', JSON.stringify(config));
-      window.dispatchEvent(new Event('aparenciaAlterada'));
+      console.log('🎯 APLICANDO TEMA NAS PÁGINAS...', config);
       
-      setAplicado(true);
-      setTimeout(() => setAplicado(false), 3000);
+      // Salvar no localStorage
+      localStorage.setItem('aparenciaConfig', JSON.stringify(config));
+      console.log('✅ Salvo no localStorage');
+      
+      // Disparar evento
+      window.dispatchEvent(new Event('aparenciaAlterada'));
+      console.log('✅ Evento disparado');
+      
+      setStatus('✅ Tema aplicado! Volte para Dashboard para ver as mudanças.');
+      setTimeout(() => setStatus(''), 4000);
+      
+      // Forçar atualização do root
+      const root = document.documentElement;
+      root.style.setProperty('--cor-primaria', config.corPrimaria);
+      console.log('✅ CSS variables atualizadas');
+      
     } catch (error) {
-      console.error('Erro ao aplicar:', error);
+      console.error('❌ Erro ao aplicar:', error);
+      setStatus('❌ Erro ao aplicar tema');
     }
   };
 
   const salvarConfiguracao = () => {
     try {
+      console.log('💾 SALVANDO CONFIGURAÇÕES...', config);
       localStorage.setItem('aparenciaConfig', JSON.stringify(config));
-      setSalvo(true);
-      setTimeout(() => setSalvo(false), 3000);
+      console.log('✅ Configurações salvas no localStorage');
+      
+      setStatus('✅ Configurações salvas com sucesso!');
+      setTimeout(() => setStatus(''), 4000);
     } catch (error) {
-      console.error('Erro ao salvar:', error);
+      console.error('❌ Erro ao salvar:', error);
+      setStatus('❌ Erro ao salvar');
     }
   };
 
   return (
-    <div style={{ ...styles.container, backgroundColor: aparenciaAtual.corFundo }}>
-      <div style={{ ...styles.header, backgroundColor: aparenciaAtual.corPrimaria }}>
+    <div style={{ ...styles.container, backgroundColor: config.corFundo }}>
+      <div style={{ ...styles.header, backgroundColor: config.corPrimaria }}>
         <h1 style={styles.titulo}>Configuração de Aparência</h1>
         <button onClick={() => router.push('/dashboard')} style={styles.botaoVoltar}>
           Voltar
@@ -139,16 +154,20 @@ export default function AdminAparencia() {
       </div>
 
       <div style={styles.conteudo}>
-        {aplicado && (
-          <div style={{ ...styles.msgSucesso, backgroundColor: '#4CAF50' }}>
-            ✅ Tema aplicado nas outras páginas! Volte para ver as mudanças.
+        {status && (
+          <div style={{
+            ...styles.status,
+            backgroundColor: status.includes('Erro') ? '#f44336' : '#4CAF50',
+          }}>
+            {status}
           </div>
         )}
-        {salvo && (
-          <div style={{ ...styles.msgSucesso, backgroundColor: '#4CAF50' }}>
-            ✅ Configurações salvas com sucesso!
-          </div>
-        )}
+
+        <div style={styles.debug}>
+          <p style={{ fontSize: '12px', color: '#666' }}>
+            💡 Abra o Console (F12) para ver os logs de debug
+          </p>
+        </div>
 
         <div style={styles.secao}>
           <h2>Temas Pré-definidos</h2>
@@ -202,47 +221,6 @@ export default function AdminAparencia() {
         </div>
 
         <div style={styles.secao}>
-          <h2>Fontes e Tamanhos</h2>
-          <div style={styles.grade}>
-            <div style={styles.grupo}>
-              <label>Tipo de Fonte</label>
-              <select
-                value={config.fonte}
-                onChange={(e) => handleChange('fonte', e.target.value)}
-                style={styles.select}
-              >
-                <option>Arial</option>
-                <option>Roboto</option>
-                <option>Times New Roman</option>
-                <option>Courier New</option>
-              </select>
-            </div>
-            <div style={styles.grupo}>
-              <label>Tamanho Título ({config.tamanhoTitulo}px)</label>
-              <input
-                type="range"
-                min="20"
-                max="36"
-                value={config.tamanhoTitulo}
-                onChange={(e) => handleChange('tamanhoTitulo', e.target.value)}
-                style={styles.slider}
-              />
-            </div>
-            <div style={styles.grupo}>
-              <label>Tamanho Corpo ({config.tamanhoCorp}px)</label>
-              <input
-                type="range"
-                min="12"
-                max="18"
-                value={config.tamanhoCorp}
-                onChange={(e) => handleChange('tamanhoCorp', e.target.value)}
-                style={styles.slider}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div style={styles.secao}>
           <h2>Branding</h2>
           <div style={styles.grade}>
             <div style={styles.grupo}>
@@ -255,7 +233,7 @@ export default function AdminAparencia() {
               />
             </div>
             <div style={styles.grupo}>
-              <label>Logo da Empresa</label>
+              <label>Logo</label>
               <input
                 type="file"
                 accept="image/*"
@@ -263,46 +241,10 @@ export default function AdminAparencia() {
                 style={styles.input}
               />
               {config.logoBase64 && (
-                <img 
-                  src={config.logoBase64} 
-                  style={styles.logoPreview}
-                  alt="Logo"
-                />
+                <img src={config.logoBase64} style={styles.logoPreview} alt="Logo" />
               )}
             </div>
           </div>
-        </div>
-
-        <div style={styles.secao}>
-          <button 
-            onClick={() => setPreview(!preview)} 
-            style={{
-              ...styles.botaoPreview, 
-              backgroundColor: config.corPrimaria
-            }}
-          >
-            {preview ? 'Esconder Preview' : 'Ver Preview'}
-          </button>
-          {preview && (
-            <div style={{
-              ...styles.preview,
-              backgroundColor: config.corFundo,
-              color: config.corTexto,
-              fontFamily: config.fonte,
-            }}>
-              <div style={{
-                ...styles.previewHeader,
-                backgroundColor: config.corPrimaria,
-              }}>
-                <h1>{config.nomeEmpresa}</h1>
-              </div>
-              <p>Este é um preview de como seu sistema ficará com as novas cores e fontes.</p>
-              <button style={{
-                ...styles.previewBotao,
-                backgroundColor: config.corSucesso,
-              }}>Botão</button>
-            </div>
-          )}
         </div>
 
         <div style={styles.footer}>
@@ -358,13 +300,20 @@ const styles = {
     margin: '20px auto',
     padding: '20px',
   },
-  msgSucesso: {
+  status: {
     color: 'white',
     padding: '15px',
     borderRadius: '5px',
     marginBottom: '20px',
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  debug: {
+    backgroundColor: '#FFF3CD',
+    border: '1px solid #FFC107',
+    padding: '10px',
+    borderRadius: '5px',
+    marginBottom: '20px',
   },
   secao: {
     backgroundColor: 'white',
@@ -414,51 +363,17 @@ const styles = {
     border: '1px solid #ddd',
     borderRadius: '5px',
   },
-  select: {
-    padding: '8px',
-    border: '1px solid #ddd',
-    borderRadius: '5px',
-  },
-  slider: {
-    width: '100%',
-  },
   input: {
     padding: '8px',
     border: '1px solid #ddd',
     borderRadius: '5px',
+    width: '100%',
   },
   logoPreview: {
     maxWidth: '150px',
     maxHeight: '150px',
     marginTop: '10px',
     borderRadius: '5px',
-  },
-  preview: {
-    padding: '20px',
-    borderRadius: '5px',
-    marginTop: '15px',
-    border: '2px solid #ddd',
-  },
-  previewHeader: {
-    color: 'white',
-    padding: '15px',
-    borderRadius: '5px',
-    marginBottom: '10px',
-  },
-  previewBotao: {
-    color: 'white',
-    padding: '10px 20px',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
-    marginTop: '10px',
-  },
-  botaoPreview: {
-    padding: '10px 20px',
-    color: 'white',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
   },
   footer: {
     display: 'flex',
