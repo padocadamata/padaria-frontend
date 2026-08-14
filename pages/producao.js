@@ -4,8 +4,7 @@ import MenuOpcoes from '../components/MenuOpcoes';
 
 export default function Producao() {
   const router = useRouter();
-  const [producoes, setProducoes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [abaAtiva, setAbaAtiva] = useState('vendas');
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
     corFundo: '#f5f5f5',
@@ -35,24 +34,18 @@ export default function Producao() {
     };
 
     window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
-
-    fetch('https://padaria-api-5l4u.onrender.com/producao')
-      .then(res => res.json())
-      .then(data => {
-        console.log('Produção carregada:', data);
-        setProducoes(Array.isArray(data) ? data : []);
-        setCarregando(false);
-      })
-      .catch(err => {
-        console.error('Erro ao carregar produção:', err);
-        setCarregando(false);
-      });
-
     return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
   }, []);
 
+  const abas = [
+    { id: 'vendas', nome: '📊 Vendas e Sobras', icone: '📊' },
+    { id: 'fluxo', nome: '📦 Fluxo de Mercadorias', icone: '📦' },
+    { id: 'estoque', nome: '🧊 Controle de Estoque', icone: '🧊' },
+  ];
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
+      {/* HEADER */}
       <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -69,6 +62,7 @@ export default function Producao() {
         </div>
       </div>
 
+      {/* NAVEGAÇÃO PRINCIPAL */}
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
           <button
@@ -91,39 +85,126 @@ export default function Producao() {
           </button>
         </div>
 
-        <h2 style={{ color: aparencia.corPrimaria }}>Registros de Produção</h2>
-
-        {carregando ? (
-          <p>Carregando registros de produção...</p>
-        ) : producoes.length === 0 ? (
-          <p>Nenhum registro de produção encontrado.</p>
-        ) : (
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>Data</th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>Produto</th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>Quantidade</th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>Descrição</th>
-                </tr>
-              </thead>
-              <tbody>
-                {producoes.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '12px' }}>{p.data || '-'}</td>
-                    <td style={{ padding: '12px' }}>{p.produto || '-'}</td>
-                    <td style={{ padding: '12px' }}>{p.quantidade || '-'}</td>
-                    <td style={{ padding: '12px' }}>{p.descricao || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p style={{ marginTop: '15px', color: '#666', fontSize: '14px' }}>
-              Total de registros: <strong>{producoes.length}</strong>
-            </p>
+        {/* ABAS DE PRODUÇÃO */}
+        <div style={{ backgroundColor: 'white', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+          {/* HEADERS DAS ABAS */}
+          <div style={{ display: 'flex', borderBottom: `2px solid ${aparencia.corPrimaria}` }}>
+            {abas.map((aba) => (
+              <button
+                key={aba.id}
+                onClick={() => setAbaAtiva(aba.id)}
+                style={{
+                  flex: 1,
+                  padding: '15px 20px',
+                  backgroundColor: abaAtiva === aba.id ? aparencia.corPrimaria : 'white',
+                  color: abaAtiva === aba.id ? 'white' : aparencia.corPrimaria,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  transition: 'all 0.3s ease',
+                  borderBottom: abaAtiva === aba.id ? `3px solid ${aparencia.corPrimaria}` : 'none',
+                }}
+                onMouseOver={(e) => {
+                  if (abaAtiva !== aba.id) {
+                    e.target.style.backgroundColor = '#f9f9f9';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (abaAtiva !== aba.id) {
+                    e.target.style.backgroundColor = 'white';
+                  }
+                }}
+              >
+                {aba.nome}
+              </button>
+            ))}
           </div>
-        )}
+
+          {/* CONTEÚDO DAS ABAS */}
+          <div style={{ padding: '20px' }}>
+            {/* ABA: VENDAS E SOBRAS */}
+            {abaAtiva === 'vendas' && (
+              <div>
+                <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>📊 Vendas e Sobras</h2>
+                <p style={{ color: '#666', marginBottom: '20px' }}>
+                  Registre aqui a quantidade de vendas e sobras do dia.
+                </p>
+                
+                <div style={{
+                  backgroundColor: '#f9f9f9',
+                  padding: '20px',
+                  borderRadius: '5px',
+                  border: `2px dashed ${aparencia.corPrimaria}`,
+                  textAlign: 'center',
+                  color: '#999',
+                  minHeight: '300px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                }}>
+                  <p style={{ fontSize: '18px', marginBottom: '10px' }}>🏗️ Base de estrutura</p>
+                  <p>Campos para Vendas e Sobras serão adicionados aqui</p>
+                </div>
+              </div>
+            )}
+
+            {/* ABA: FLUXO DE MERCADORIAS */}
+            {abaAtiva === 'fluxo' && (
+              <div>
+                <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>📦 Fluxo de Mercadorias</h2>
+                <p style={{ color: '#666', marginBottom: '20px' }}>
+                  Controle de produtos dos expositores (Entrada e Saída).
+                </p>
+                
+                <div style={{
+                  backgroundColor: '#f9f9f9',
+                  padding: '20px',
+                  borderRadius: '5px',
+                  border: `2px dashed ${aparencia.corPrimaria}`,
+                  textAlign: 'center',
+                  color: '#999',
+                  minHeight: '300px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                }}>
+                  <p style={{ fontSize: '18px', marginBottom: '10px' }}>🏗️ Base de estrutura</p>
+                  <p>Campos para controle de fluxo de mercadorias serão adicionados aqui</p>
+                </div>
+              </div>
+            )}
+
+            {/* ABA: CONTROLE DE ESTOQUE */}
+            {abaAtiva === 'estoque' && (
+              <div>
+                <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>🧊 Controle de Estoque</h2>
+                <p style={{ color: '#666', marginBottom: '20px' }}>
+                  Controle de sacos congelados dos fornecedores (Entrada e Saída).
+                </p>
+                
+                <div style={{
+                  backgroundColor: '#f9f9f9',
+                  padding: '20px',
+                  borderRadius: '5px',
+                  border: `2px dashed ${aparencia.corPrimaria}`,
+                  textAlign: 'center',
+                  color: '#999',
+                  minHeight: '300px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                }}>
+                  <p style={{ fontSize: '18px', marginBottom: '10px' }}>🏗️ Base de estrutura</p>
+                  <p>Campos para controle de estoque serão adicionados aqui</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
