@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
   const router = useRouter();
-  const [email, setEmail] = useState('gerente@padoca.com.br');
-  const [senha, setSenha] = useState('senha123');
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -13,53 +15,19 @@ export default function Login() {
     setLoading(true);
     setErro('');
 
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha }),
-      });
+    const resultado = await signIn(email, senha);
 
-      const data = await response.json();
-      console.log('Resposta do servidor:', data);
-
-      // Aceita qualquer resposta bem-sucedida
-      if (data.success || (data.usuario && data.usuario.email)) {
-        localStorage.setItem('usuario', JSON.stringify(data.usuario || { email, nome: 'Gerente Padoca' }));
-        localStorage.setItem('token', data.token || 'token123');
-        router.push('/dashboard');
-      } else {
-        // Fallback: faz login local com qualquer credencial
-        if (email && senha) {
-          localStorage.setItem('usuario', JSON.stringify({ 
-            email, 
-            nome: 'Gerente Padoca',
-            perfil: 'gerente'
-          }));
-          localStorage.setItem('token', 'token123');
-          router.push('/dashboard');
-        } else {
-          setErro('Email e senha são obrigatórios');
-        }
-      }
-    } catch (error) {
-      console.error('Erro:', error);
-      
-      // Fallback: faz login mesmo com erro de conexão
-      if (email && senha) {
-        localStorage.setItem('usuario', JSON.stringify({ 
-          email, 
-          nome: 'Gerente Padoca',
-          perfil: 'gerente'
-        }));
-        localStorage.setItem('token', 'token123');
-        router.push('/dashboard');
-      } else {
-        setErro('Erro ao conectar. Email e senha obrigatórios.');
-      }
-    } finally {
-      setLoading(false);
+    if (resultado.sucesso) {
+      router.push('/dashboard');
+    } else {
+      setErro(
+        resultado.erro === 'Invalid login credentials'
+          ? 'Email ou senha incorretos.'
+          : 'Não foi possível entrar. Tente novamente em instantes.'
+      );
     }
+
+    setLoading(false);
   };
 
   return (
@@ -78,6 +46,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={styles.input}
+              autoComplete="username"
               required
             />
           </div>
@@ -89,22 +58,19 @@ export default function Login() {
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               style={styles.input}
+              autoComplete="current-password"
               required
             />
           </div>
 
-          <button 
-            type="submit" 
-            style={styles.botao}
+          <button
+            type="submit"
+            style={{ ...styles.botao, opacity: loading ? 0.7 : 1 }}
             disabled={loading}
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
-
-        <p style={styles.texto}>
-          Demo: gerente@padoca.com.br / senha123
-        </p>
       </div>
     </div>
   );
@@ -168,11 +134,5 @@ const styles = {
     fontWeight: 'bold',
     cursor: 'pointer',
     marginTop: '10px',
-  },
-  texto: {
-    marginTop: '20px',
-    textAlign: 'center',
-    color: '#999',
-    fontSize: '12px',
   },
 };

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import MenuOpcoes from '../components/MenuOpcoes';
+import RequireAuth from '../components/RequireAuth';
+import { PERMISSOES } from '../lib/auth/permissoes';
 
-export default function AdminAparencia() {
-  const router = useRouter();
-  
+function AdminAparenciaConteudo() {
+
   const [config, setConfig] = useState({
     corPrimaria: '#8B4513',
     corSecundaria: '#D2691E',
@@ -20,12 +20,7 @@ export default function AdminAparencia() {
   const [status, setStatus] = useState('');
 
   useEffect(() => {
-    const usuario = localStorage.getItem('usuario');
-    if (!usuario) {
-      router.push('/');
-    } else {
-      carregarConfiguracao();
-    }
+    carregarConfiguracao();
   }, []);
 
   const carregarConfiguracao = () => {
@@ -250,5 +245,13 @@ export default function AdminAparencia() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminAparencia() {
+  return (
+    <RequireAuth permissao={PERMISSOES.APARENCIA_EDITAR}>
+      <AdminAparenciaConteudo />
+    </RequireAuth>
   );
 }

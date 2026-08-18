@@ -1,12 +1,21 @@
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useAuth } from '../hooks/useAuth';
+import { MODULOS, hasPermissao } from '../lib/auth/permissoes';
+
+// Itens do menu na ordem em que devem aparecer. Cada um só é renderizado se
+// o usuário tiver a permissão correspondente (MODULOS, em lib/auth/permissoes.js)
+// — não é mais uma lista de botões fixa. Lembrando: esconder o item do menu
+// é só UX; quem protege de verdade é a policy de RLS no banco (o usuário
+// não conseguiria carregar dado nenhum mesmo digitando a URL direto).
+const ITENS_MENU = ['dashboard', 'perfil', 'aparencia', 'fornecedores', 'producao', 'usuarios'];
 
 export default function MenuOpcoes({ corPrimaria }) {
   const router = useRouter();
+  const { permissoes, signOut } = useAuth();
   const [aberto, setAberto] = useState(false);
   const menuRef = useRef(null);
 
-  // Fecha menu ao clicar fora
   useEffect(() => {
     const handleClickFora = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -18,11 +27,14 @@ export default function MenuOpcoes({ corPrimaria }) {
     return () => document.removeEventListener('mousedown', handleClickFora);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+    await signOut();
     router.push('/');
   };
+
+  const itensVisiveis = ITENS_MENU
+    .map((chave) => MODULOS[chave])
+    .filter((modulo) => hasPermissao(permissoes, modulo.permissao));
 
   return (
     <div style={{ position: 'relative' }} ref={menuRef}>
@@ -55,89 +67,24 @@ export default function MenuOpcoes({ corPrimaria }) {
             minWidth: '200px',
           }}
         >
-          <button
-            onClick={() => {
-              router.push('/dashboard');
-              setAberto(false);
-            }}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '12px 20px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '16px',
-              color: '#333',
-              borderBottom: '1px solid #eee',
-            }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = '#f5f5f5')}
-            onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
-          >
-            🏠 Início
-          </button>
-
-          <button
-            onClick={() => {
-              router.push('/perfil');
-              setAberto(false);
-            }}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '12px 20px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '16px',
-              color: '#333',
-              borderBottom: '1px solid #eee',
-            }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = '#f5f5f5')}
-            onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
-          >
-            👤 Perfil
-          </button>
-
-          <button
-            onClick={() => {
-              router.push('/admin-aparencia');
-              setAberto(false);
-            }}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '12px 20px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '16px',
-              color: '#333',
-              borderBottom: '1px solid #eee',
-            }}
-            onMouseOver={(e) => (e.target.style.backgroundColor = '#f5f5f5')}
-            onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
-          >
-            🎨 Aparência
-          </button>
+          {itensVisiveis.map((modulo) => (
+            <button
+              key={modulo.rota}
+              onClick={() => {
+                router.push(modulo.rota);
+                setAberto(false);
+              }}
+              style={itemEstilo}
+              onMouseOver={(e) => (e.target.style.backgroundColor = '#f5f5f5')}
+              onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
+            >
+              {modulo.label}
+            </button>
+          ))}
 
           <button
             onClick={handleLogout}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '12px 20px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '16px',
-              color: '#f44336',
-              fontWeight: 'bold',
-            }}
+            style={{ ...itemEstilo, color: '#f44336', fontWeight: 'bold', borderBottom: 'none' }}
             onMouseOver={(e) => (e.target.style.backgroundColor = '#ffebee')}
             onMouseOut={(e) => (e.target.style.backgroundColor = 'transparent')}
           >
@@ -148,3 +95,16 @@ export default function MenuOpcoes({ corPrimaria }) {
     </div>
   );
 }
+
+const itemEstilo = {
+  display: 'block',
+  width: '100%',
+  padding: '12px 20px',
+  border: 'none',
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left',
+  fontSize: '16px',
+  color: '#333',
+  borderBottom: '1px solid #eee',
+};

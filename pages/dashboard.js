@@ -1,8 +1,10 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import MenuOpcoes from '../components/MenuOpcoes';
+import RequireAuth from '../components/RequireAuth';
+import { PERMISSOES } from '../lib/auth/permissoes';
 
-export default function Dashboard() {
+function DashboardConteudo() {
   const router = useRouter();
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -98,5 +100,13 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <RequireAuth permissao={PERMISSOES.DASHBOARD_VISUALIZAR}>
+      <DashboardConteudo />
+    </RequireAuth>
   );
 }

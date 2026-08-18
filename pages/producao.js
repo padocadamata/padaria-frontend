@@ -1,8 +1,10 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import MenuOpcoes from '../components/MenuOpcoes';
+import RequireAuth from '../components/RequireAuth';
+import { PERMISSOES } from '../lib/auth/permissoes';
 
-export default function Producao() {
+function ProducaoConteudo() {
   const router = useRouter();
   const [abaAtiva, setAbaAtiva] = useState('vendas');
   const [aparencia, setAparencia] = useState({
@@ -678,5 +680,13 @@ export default function Producao() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Producao() {
+  return (
+    <RequireAuth permissao={PERMISSOES.PRODUCAO_VISUALIZAR}>
+      <ProducaoConteudo />
+    </RequireAuth>
   );
 }

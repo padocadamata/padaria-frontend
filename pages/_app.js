@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { AuthProvider } from '../hooks/useAuth';
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -71,7 +72,11 @@ function MyApp({ Component, pageProps }) {
     }
   };
 
-  return <Component {...pageProps} />;
+  return (
+    <AuthProvider>
+      <Component {...pageProps} />
+    </AuthProvider>
+  );
 }
 
 export default MyApp;
