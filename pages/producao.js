@@ -87,7 +87,12 @@ function ProducaoConteudo() {
         .lt('data', hojeAtual)
         .in('status', ['aberto', 'reaberto'])
         .order('data', { ascending: true }),
-      supabase.from('receitas').select('id, nome').eq('ativo', true).order('nome', { ascending: true }),
+      supabase
+        .from('receitas')
+        .select('id, nome')
+        .eq('ativo', true)
+        .eq('controlado_producao', true)
+        .order('nome', { ascending: true }),
     ]);
 
     const primeiroErro = registrosResp.error || pendenciasResp.error || receitasResp.error;
