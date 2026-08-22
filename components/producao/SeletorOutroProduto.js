@@ -8,27 +8,32 @@ import { useState } from 'react';
 // registro de hoje para ele).
 export default function SeletorOutroProduto({ receitasDisponiveis, corPrimaria, onSelecionar }) {
   const [aberto, setAberto] = useState(false);
-
-  if (!receitasDisponiveis || receitasDisponiveis.length === 0) {
-    return null;
-  }
+  const semOpcoes = !receitasDisponiveis || receitasDisponiveis.length === 0;
 
   if (!aberto) {
     return (
-      <button
-        onClick={() => setAberto(true)}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: corPrimaria,
-          cursor: 'pointer',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          padding: '8px 0',
-        }}
-      >
-        + Outro produto
-      </button>
+      <div>
+        <button
+          onClick={() => setAberto(true)}
+          disabled={semOpcoes}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: semOpcoes ? '#999' : corPrimaria,
+            cursor: semOpcoes ? 'default' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            padding: '8px 0',
+          }}
+        >
+          + Outro produto
+        </button>
+        {semOpcoes && (
+          <p style={{ color: '#999', fontSize: '12px', margin: '0 0 8px 0' }}>
+            Nenhum outro produto habilitado para controle de produção.
+          </p>
+        )}
+      </div>
     );
   }
 
