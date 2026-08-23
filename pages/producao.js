@@ -5,6 +5,7 @@ import RequireAuth from '../components/RequireAuth';
 import CardTurno from '../components/producao/CardTurno';
 import BannerPendencias from '../components/producao/BannerPendencias';
 import SeletorOutroProduto from '../components/producao/SeletorOutroProduto';
+import NavegacaoProducao from '../components/producao/NavegacaoProducao';
 import { PERMISSOES } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -202,6 +203,8 @@ function ProducaoConteudo() {
             Produção
           </button>
         </div>
+
+        <NavegacaoProducao abaAtiva="hoje" corPrimaria={aparencia.corPrimaria} />
 
         <h2 style={{ color: aparencia.corPrimaria, marginBottom: '20px' }}>
           Hoje — {capitalizarPrimeiraLetra(dataLocalExibicao())}
