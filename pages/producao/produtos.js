@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 import MenuOpcoes from '../../components/MenuOpcoes';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
-import { PERMISSOES } from '../../lib/auth/permissoes';
+import ReceitaProducaoForm from '../../components/producao/ReceitaProducaoForm';
+import { PERMISSOES, isAdmin } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
 
 function formatarRendimento(quantidade, unidade) {
   if (quantidade == null || !unidade) {
@@ -52,6 +54,8 @@ function BadgeTelaHoje({ naTelaHoje }) {
 
 function ProdutosProducaoConteudo() {
   const router = useRouter();
+  const { perfilUsuario } = useAuth();
+  const podeEscrever = isAdmin(perfilUsuario);
 
   const [receitas, setReceitas] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -62,6 +66,11 @@ function ProdutosProducaoConteudo() {
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [busca, setBusca] = useState('');
+
+  const [modalAberto, setModalAberto] = useState(false);
+  const [receitaEmEdicao, setReceitaEmEdicao] = useState(null);
+  const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const [recarregarTick, setRecarregarTick] = useState(0);
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -115,7 +124,7 @@ function ProdutosProducaoConteudo() {
       const { data, error } = await supabase
         .from('receitas')
         .select(
-          'id, nome, tipo, grupo, ativo, controlado_producao, rendimento_quantidade, unidade_medida_saida'
+          'id, codigo_g3, nome, tipo, grupo, descricao, temp_forno_celsius, tempo_coccao_minutos, tempo_fermentacao_natural_horas, tempo_fermentacao_climatica_horas, ativo, controlado_producao, rendimento_quantidade, unidade_medida_saida'
         )
         .order('nome', { ascending: true });
 
@@ -139,7 +148,44 @@ function ProdutosProducaoConteudo() {
     return () => {
       efeitoAtivo = false;
     };
-  }, []);
+  }, [recarregarTick]);
+
+  useEffect(() => {
+    if (!mensagemSucesso) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => setMensagemSucesso(''), 4000);
+
+    return () => clearTimeout(timer);
+  }, [mensagemSucesso]);
+
+  function abrirNovaReceita() {
+    setReceitaEmEdicao(null);
+    setModalAberto(true);
+  }
+
+  function abrirEdicao(receita) {
+    setReceitaEmEdicao(receita);
+    setModalAberto(true);
+  }
+
+  function fecharModal() {
+    setModalAberto(false);
+    setReceitaEmEdicao(null);
+  }
+
+  function aoSalvar() {
+    const estaEditando = receitaEmEdicao != null;
+
+    fecharModal();
+
+    setMensagemSucesso(
+      estaEditando ? 'Receita atualizada com sucesso.' : 'Receita cadastrada com sucesso.'
+    );
+
+    setRecarregarTick((tick) => tick + 1);
+  }
 
   const tiposDisponiveis = Array.from(
     new Set(receitas.map((r) => r.tipo).filter((v) => v != null && v !== ''))
@@ -242,9 +288,42 @@ function ProdutosProducaoConteudo() {
 
         <NavegacaoProducao abaAtiva="produtos" corPrimaria={aparencia.corPrimaria} />
 
-        <h2 style={{ color: aparencia.corPrimaria, marginBottom: '20px' }}>Produtos de Produção</h2>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }}
+        >
+          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Produtos de Produção</h2>
 
-        {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
+          {podeEscrever && (
+            <button
+              onClick={abrirNovaReceita}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: aparencia.corPrimaria,
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              + Nova receita
+            </button>
+          )}
+        </div>
+
+        {mensagemSucesso && (
+          <p style={{ color: '#4CAF50', fontWeight: 'bold', marginTop: '10px' }}>
+            {mensagemSucesso}
+          </p>
+        )}
+
+        {erro && <p style={{ color: '#f44336', marginTop: '10px' }}>{erro}</p>}
 
         <div
           style={{
@@ -395,6 +474,9 @@ function ProdutosProducaoConteudo() {
                     Nome
                   </th>
                   <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                    Código G3
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
                     Tipo
                   </th>
                   <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
@@ -409,6 +491,9 @@ function ProdutosProducaoConteudo() {
                   <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
                     Rendimento
                   </th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                    Ações
+                  </th>
                 </tr>
               </thead>
 
@@ -416,6 +501,7 @@ function ProdutosProducaoConteudo() {
                 {receitasFiltradas.map((receita) => (
                   <tr key={receita.id} style={{ borderBottom: '1px solid #ddd' }}>
                     <td style={{ padding: '12px' }}>{receita.nome}</td>
+                    <td style={{ padding: '12px' }}>{receita.codigo_g3 || '—'}</td>
                     <td style={{ padding: '12px' }}>{receita.tipo || '—'}</td>
                     <td style={{ padding: '12px' }}>{receita.grupo || '—'}</td>
                     <td style={{ padding: '12px' }}>
@@ -426,6 +512,24 @@ function ProdutosProducaoConteudo() {
                     </td>
                     <td style={{ padding: '12px' }}>
                       {formatarRendimento(receita.rendimento_quantidade, receita.unidade_medida_saida)}
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      {podeEscrever && (
+                        <button
+                          onClick={() => abrirEdicao(receita)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#2196F3',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                          }}
+                        >
+                          Editar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -438,6 +542,15 @@ function ProdutosProducaoConteudo() {
           </div>
         )}
       </div>
+
+      {modalAberto && (
+        <ReceitaProducaoForm
+          receita={receitaEmEdicao}
+          perfilUsuario={perfilUsuario}
+          onFechar={fecharModal}
+          onSalvo={aoSalvar}
+        />
+      )}
     </div>
   );
 }
