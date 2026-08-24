@@ -4,7 +4,7 @@ import MenuOpcoes from '../../components/MenuOpcoes';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
 import ReceitaProducaoForm from '../../components/producao/ReceitaProducaoForm';
-import { PERMISSOES, isAdmin } from '../../lib/auth/permissoes';
+import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -54,8 +54,11 @@ function BadgeTelaHoje({ naTelaHoje }) {
 
 function ProdutosProducaoConteudo() {
   const router = useRouter();
-  const { perfilUsuario } = useAuth();
-  const podeEscrever = isAdmin(perfilUsuario);
+  // Migration 0016: escrita em receitas/receita_ingredientes passou de
+  // is_admin() puro para has_permissao('produtos_producao.editar') — a RLS
+  // já protege isso; este gate é só a UX correspondente.
+  const { permissoes } = useAuth();
+  const podeEscrever = hasPermissao(permissoes, PERMISSOES.PRODUTOS_PRODUCAO_EDITAR);
 
   const [receitas, setReceitas] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -546,7 +549,6 @@ function ProdutosProducaoConteudo() {
       {modalAberto && (
         <ReceitaProducaoForm
           receita={receitaEmEdicao}
-          perfilUsuario={perfilUsuario}
           onFechar={fecharModal}
           onSalvo={aoSalvar}
         />
@@ -557,7 +559,7 @@ function ProdutosProducaoConteudo() {
 
 export default function ProdutosProducao() {
   return (
-    <RequireAuth permissao={PERMISSOES.PRODUCAO_VISUALIZAR}>
+    <RequireAuth permissao={PERMISSOES.PRODUTOS_PRODUCAO_VISUALIZAR}>
       <ProdutosProducaoConteudo />
     </RequireAuth>
   );

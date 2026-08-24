@@ -45,12 +45,36 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    const { data: permissoesRows } = await supabase
-      .from('perfil_permissoes')
-      .select('permissao')
-      .eq('perfil', usuarioRow.perfil);
+    // Duas fontes, buscadas em paralelo: permissões herdadas do perfil-base
+    // (perfil_permissoes) e overrides individuais deste usuário
+    // (usuario_permissoes, migration 0016). Mesma ordem de resolução da
+    // has_permissao() no banco: perfil-base -> concede adiciona -> nega
+    // remove. Override expirado (expira_em no passado) é ignorado, como se
+    // não existisse — a linha continua no banco, só não é aplicada aqui.
+    const [{ data: permissoesRows }, { data: overridesRows }] = await Promise.all([
+      supabase.from('perfil_permissoes').select('permissao').eq('perfil', usuarioRow.perfil),
+      supabase
+        .from('usuario_permissoes')
+        .select('permissao, efeito, expira_em')
+        .eq('usuario_id', usuarioRow.id),
+    ]);
 
-    setPermissoes(new Set((permissoesRows || []).map((p) => p.permissao)));
+    const efetivas = new Set((permissoesRows || []).map((p) => p.permissao));
+
+    const agora = Date.now();
+    const overridesVigentes = (overridesRows || []).filter(
+      (o) => !o.expira_em || new Date(o.expira_em).getTime() > agora
+    );
+
+    for (const override of overridesVigentes) {
+      if (override.efeito === 'concede') {
+        efetivas.add(override.permissao);
+      } else if (override.efeito === 'nega') {
+        efetivas.delete(override.permissao);
+      }
+    }
+
+    setPermissoes(efetivas);
   }, [supabase]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
-import { isAdmin } from '../../lib/auth/permissoes';
+import { useAuth } from '../../hooks/useAuth';
+import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 
 function estadoInicial(receita) {
   return {
@@ -107,13 +108,16 @@ const tituloBlocoEstilo = {
 const UNIDADES_SAIDA = ['g', 'kg', 'ml', 'L', 'un', 'dz'];
 const GRUPOS_PRODUCAO = ['A', 'B', 'C', 'D'];
 
-export default function ReceitaProducaoForm({ receita, perfilUsuario, onFechar, onSalvo }) {
+export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
   const estaEditando = receita != null;
   const [dados, setDados] = useState(() => estadoInicial(receita));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
-  const podeEscrever = isAdmin(perfilUsuario);
+  // Migration 0016: RLS de receitas/receita_ingredientes passou de
+  // is_admin() puro para has_permissao('produtos_producao.editar').
+  const { permissoes } = useAuth();
+  const podeEscrever = hasPermissao(permissoes, PERMISSOES.PRODUTOS_PRODUCAO_EDITAR);
 
   function atualizarCampo(campo, valor) {
     setDados((atual) => ({ ...atual, [campo]: valor }));

@@ -216,7 +216,14 @@ function HistoricoConteudo() {
     .map((id) => ({ id, nome: receitaNomePorId[id] || id }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  const podeEditar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_EDITAR);
+  // Rota A (decisão de 2026-08-24): historico.editar é o gate de TELA das
+  // ações de edição do Histórico; a RLS real de producao_registros continua
+  // exigindo producao.editar por baixo. Os dois têm que estar vigentes —
+  // ter só um dos dois não é suficiente (evita mostrar um botão que a RLS
+  // recusaria, ou destravar a tela sem a permissão operacional real).
+  const podeEditar =
+    hasPermissao(permissoes, PERMISSOES.HISTORICO_EDITAR) &&
+    hasPermissao(permissoes, PERMISSOES.PRODUCAO_EDITAR);
 
   function podeReabrirRegistro(registro) {
     return registro.origem === 'historico'
@@ -224,8 +231,10 @@ function HistoricoConteudo() {
       : hasPermissao(permissoes, PERMISSOES.PRODUCAO_CANCELAR);
   }
 
-  // Gerenciar sobras: producao.editar para manual (ação operacional, não
-  // estrutural), admin para histórico — mesma regra de CardTurno.js.
+  // Gerenciar sobras: producao.editar (+ historico.editar, gate de tela)
+  // para manual (ação operacional, não estrutural), admin para histórico —
+  // mesma regra de CardTurno.js, mas com o gate de tela do Histórico
+  // aplicado por cima.
   function podeGerenciarSobrasRegistro(registro) {
     return registro.origem === 'historico' ? isAdmin(perfilUsuario) : podeEditar;
   }
@@ -725,7 +734,7 @@ function HistoricoConteudo() {
 
 export default function Historico() {
   return (
-    <RequireAuth permissao={PERMISSOES.PRODUCAO_VISUALIZAR}>
+    <RequireAuth permissao={PERMISSOES.HISTORICO_VISUALIZAR}>
       <HistoricoConteudo />
     </RequireAuth>
   );
