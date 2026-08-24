@@ -7,6 +7,9 @@ import ReaberturaModal from '../../components/producao/ReaberturaModal';
 import FechamentoTurnoForm from '../../components/producao/FechamentoTurnoForm';
 import GerenciarSobrasModal from '../../components/producao/GerenciarSobrasModal';
 import VisualizarRegistroModal from '../../components/producao/VisualizarRegistroModal';
+import LancarProducaoRetroativaModal from '../../components/producao/LancarProducaoRetroativaModal';
+import CompletarProducaoRetroativaModal from '../../components/producao/CompletarProducaoRetroativaModal';
+import EditarProducaoModal from '../../components/producao/EditarProducaoModal';
 import { PERMISSOES, hasPermissao, isAdmin } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -18,7 +21,8 @@ const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 const TURNO_ORDEM = { manha: 0, tarde: 1 };
 
 const STATUS_LABEL = { aberto: 'Aberto', fechado: 'Fechado', reaberto: 'Reaberto' };
-const ORIGEM_LABEL = { manual: 'Manual', historico: 'Histórico' };
+const ORIGEM_LABEL = { manual: 'Manual', historico: 'Histórico', retroativo: 'Retroativo' };
+const ORIGEM_COR = { manual: '#2196F3', historico: '#795548', retroativo: '#9C27B0' };
 
 function formatarDataExibicao(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
@@ -64,8 +68,6 @@ function BadgeStatus({ status }) {
 }
 
 function BadgeOrigem({ origem }) {
-  const historico = origem === 'historico';
-
   return (
     <span
       style={{
@@ -74,7 +76,7 @@ function BadgeOrigem({ origem }) {
         fontSize: '12px',
         fontWeight: 'bold',
         color: 'white',
-        backgroundColor: historico ? '#795548' : '#2196F3',
+        backgroundColor: ORIGEM_COR[origem] || '#9e9e9e',
         whiteSpace: 'nowrap',
       }}
     >
@@ -89,11 +91,14 @@ function HistoricoConteudo() {
 
   const [registros, setRegistros] = useState([]);
   const [receitaNomePorId, setReceitaNomePorId] = useState({});
+  const [produtosAtivos, setProdutosAtivos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
   const [registroVisualizado, setRegistroVisualizado] = useState(null);
-  const [acaoRegistro, setAcaoRegistro] = useState(null); // { tipo: 'reabrir' | 'fechar' | 'sobras', registro }
+  // tipo: 'reabrir' | 'fechar' | 'sobras' | 'completar_retroativo' | 'editar_producao'
+  const [acaoRegistro, setAcaoRegistro] = useState(null);
+  const [mostrarLancarRetroativo, setMostrarLancarRetroativo] = useState(false);
   const [recarregarTick, setRecarregarTick] = useState(0);
 
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
@@ -149,25 +154,31 @@ function HistoricoConteudo() {
 
       const supabase = createClient();
 
-      const [registrosResp, receitasResp] = await Promise.all([
+      const [registrosResp, receitasResp, produtosAtivosResp] = await Promise.all([
         supabase
           .from('producao_registros')
           .select(
             'id, data, turno, receita_id, origem, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, observacoes, criado_em, atualizado_em'
           ),
         supabase.from('receitas').select('id, nome'),
+        // Lista separada da acima: aqui só produtos ativos, para o
+        // seletor de "Lançar produção passada" — a lista acima precisa
+        // incluir também produtos já desativados, para não perder o nome
+        // de registros históricos que os referenciam.
+        supabase.from('receitas').select('id, nome').eq('ativo', true).order('nome', { ascending: true }),
       ]);
 
       if (!efeitoAtivo) {
         return;
       }
 
-      const primeiroErro = registrosResp.error || receitasResp.error;
+      const primeiroErro = registrosResp.error || receitasResp.error || produtosAtivosResp.error;
       if (primeiroErro) {
         console.error('Erro ao carregar histórico de produção:', primeiroErro);
         setErro('Não foi possível carregar o histórico de produção.');
         setRegistros([]);
         setReceitaNomePorId({});
+        setProdutosAtivos([]);
         setCarregando(false);
         return;
       }
@@ -179,6 +190,7 @@ function HistoricoConteudo() {
 
       setRegistros(ordenarRegistros(registrosResp.data || []));
       setReceitaNomePorId(mapa);
+      setProdutosAtivos(produtosAtivosResp.data || []);
       setCarregando(false);
     }
 
@@ -210,6 +222,19 @@ function HistoricoConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
+  function abrirLancarRetroativo() {
+    setMostrarLancarRetroativo(true);
+  }
+
+  function fecharLancarRetroativo() {
+    setMostrarLancarRetroativo(false);
+  }
+
+  function aoLancarRetroativo() {
+    fecharLancarRetroativo();
+    setRecarregarTick((tick) => tick + 1);
+  }
+
   const produtosDisponiveis = Array.from(
     new Set(registros.map((r) => r.receita_id))
   )
@@ -225,10 +250,30 @@ function HistoricoConteudo() {
     hasPermissao(permissoes, PERMISSOES.HISTORICO_EDITAR) &&
     hasPermissao(permissoes, PERMISSOES.PRODUCAO_EDITAR);
 
+  // Mesmo par de gates (tela + RLS real) de podeEditar, mas para a ação
+  // de criar (producao.inserir), não editar.
+  const podeLancarRetroativo =
+    hasPermissao(permissoes, PERMISSOES.HISTORICO_EDITAR) &&
+    hasPermissao(permissoes, PERMISSOES.PRODUCAO_INSERIR);
+
+  // Reabertura clássica (fechado->reaberto) — exclusiva de producao.cancelar
+  // (ou admin para histórico). producao.corrigir NUNCA entra aqui: usada
+  // somente pelo botão "Reabrir" e por qualquer ação real de cancelamento.
   function podeReabrirRegistro(registro) {
     return registro.origem === 'historico'
       ? isAdmin(perfilUsuario)
       : hasPermissao(permissoes, PERMISSOES.PRODUCAO_CANCELAR);
+  }
+
+  // "Editar produção" (correção de quantidade_produzida/sobra, atômica,
+  // migration 0019) — aceita producao.cancelar OU producao.corrigir para
+  // manual/retroativo. Gateia os dois botões "Editar produção" (fechado e
+  // reaberto), nunca o botão "Reabrir".
+  function podeEditarProducaoRegistro(registro) {
+    return registro.origem === 'historico'
+      ? isAdmin(perfilUsuario)
+      : hasPermissao(permissoes, PERMISSOES.PRODUCAO_CANCELAR) ||
+        hasPermissao(permissoes, PERMISSOES.PRODUCAO_CORRIGIR);
   }
 
   // Gerenciar sobras: producao.editar (+ historico.editar, gate de tela)
@@ -323,7 +368,26 @@ function HistoricoConteudo() {
 
         <NavegacaoProducao abaAtiva="historico" corPrimaria={aparencia.corPrimaria} />
 
-        <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Histórico</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Histórico</h2>
+
+          {podeLancarRetroativo && (
+            <button
+              onClick={abrirLancarRetroativo}
+              style={{
+                padding: '10px 18px',
+                backgroundColor: aparencia.corPrimaria,
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              + Lançar produção passada
+            </button>
+          )}
+        </div>
 
         {erro && <p style={{ color: '#f44336', marginTop: '10px' }}>{erro}</p>}
 
@@ -464,6 +528,7 @@ function HistoricoConteudo() {
                 <option value="todos">Todas</option>
                 <option value="manual">Manual</option>
                 <option value="historico">Histórico</option>
+                <option value="retroativo">Retroativo</option>
               </select>
             </div>
           </div>
@@ -604,7 +669,7 @@ function HistoricoConteudo() {
                             Visualizar
                           </button>
 
-                          {registro.status === 'aberto' && podeEditar && (
+                          {registro.status === 'aberto' && registro.origem === 'manual' && podeEditar && (
                             <button
                               onClick={() => abrirAcao('fechar', registro)}
                               style={{
@@ -621,9 +686,26 @@ function HistoricoConteudo() {
                             </button>
                           )}
 
-                          {registro.status === 'reaberto' && podeEditar && (
+                          {registro.status === 'aberto' && registro.origem === 'retroativo' && podeEditar && (
                             <button
-                              onClick={() => abrirAcao('fechar', registro)}
+                              onClick={() => abrirAcao('completar_retroativo', registro)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#FF9800',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                              }}
+                            >
+                              Completar lançamento
+                            </button>
+                          )}
+
+                          {registro.status === 'reaberto' && podeEditarProducaoRegistro(registro) && (
+                            <button
+                              onClick={() => abrirAcao('editar_producao', registro)}
                               style={{
                                 padding: '6px 12px',
                                 backgroundColor: aparencia.corPrimaria,
@@ -634,7 +716,24 @@ function HistoricoConteudo() {
                                 fontSize: '13px',
                               }}
                             >
-                              Corrigir e fechar
+                              Editar produção
+                            </button>
+                          )}
+
+                          {registro.status === 'fechado' && podeEditarProducaoRegistro(registro) && (
+                            <button
+                              onClick={() => abrirAcao('editar_producao', registro)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: aparencia.corPrimaria,
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                              }}
+                            >
+                              Editar produção
                             </button>
                           )}
 
@@ -726,6 +825,37 @@ function HistoricoConteudo() {
           corPrimaria={aparencia.corPrimaria}
           onAtualizado={aoAtualizarRegistro}
           onCancelar={fecharAcao}
+        />
+      )}
+
+      {acaoRegistro?.tipo === 'completar_retroativo' && (
+        <CompletarProducaoRetroativaModal
+          registro={acaoRegistro.registro}
+          receitaNome={receitaNomePorId[acaoRegistro.registro.receita_id] || acaoRegistro.registro.receita_id}
+          turnoLabel={TURNO_LABEL[acaoRegistro.registro.turno] || acaoRegistro.registro.turno}
+          corPrimaria={aparencia.corPrimaria}
+          onCompletado={aoAtualizarRegistro}
+          onCancelar={fecharAcao}
+        />
+      )}
+
+      {acaoRegistro?.tipo === 'editar_producao' && (
+        <EditarProducaoModal
+          registro={acaoRegistro.registro}
+          receitaNome={receitaNomePorId[acaoRegistro.registro.receita_id] || acaoRegistro.registro.receita_id}
+          turnoLabel={TURNO_LABEL[acaoRegistro.registro.turno] || acaoRegistro.registro.turno}
+          corPrimaria={aparencia.corPrimaria}
+          onEditado={aoAtualizarRegistro}
+          onCancelar={fecharAcao}
+        />
+      )}
+
+      {mostrarLancarRetroativo && (
+        <LancarProducaoRetroativaModal
+          produtosAtivos={produtosAtivos}
+          corPrimaria={aparencia.corPrimaria}
+          onLancado={aoLancarRetroativo}
+          onCancelar={fecharLancarRetroativo}
         />
       )}
     </div>
