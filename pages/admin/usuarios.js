@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import MenuOpcoes from '../../components/MenuOpcoes';
 import RequireAuth from '../../components/RequireAuth';
 import { PERMISSOES } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 
 function UsuariosConteudo() {
+  const router = useRouter();
   const [usuarios, setUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -57,10 +59,12 @@ function UsuariosConteudo() {
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
           <p style={{ color: '#666', marginBottom: '16px' }}>
-            Para criar ou editar um usuário nesta etapa, use o painel do Supabase (Authentication → Users) e a
-            migration <code>supabase/migrations/0006_bootstrap_admins_TEMPLATE.sql</code>. Criar/editar usuários
-            direto por aqui exigiria a chave privilegiada (service role), que não deve rodar no navegador — fica
-            para uma etapa futura com uma rota server-side dedicada.
+            Clique em <strong>Gerenciar acessos</strong> para alterar perfil-base, ativar/desativar ou ajustar
+            permissões individuais de um usuário. Criar um usuário novo ainda exige o painel do Supabase
+            (Authentication → Users) e a migration{' '}
+            <code>supabase/migrations/0006_bootstrap_admins_TEMPLATE.sql</code> — isso depende da chave privilegiada
+            (service role), que não deve rodar no navegador, e fica para uma etapa futura com uma rota server-side
+            dedicada.
           </p>
 
           {carregando ? (
@@ -78,6 +82,7 @@ function UsuariosConteudo() {
                   <th style={thStyle(aparencia)}>Perfil</th>
                   <th style={thStyle(aparencia)}>Status</th>
                   <th style={thStyle(aparencia)}>Último acesso</th>
+                  <th style={thStyle(aparencia)}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -89,6 +94,22 @@ function UsuariosConteudo() {
                     <td style={{ padding: '12px' }}>{u.ativo ? 'Ativo' : 'Inativo'}</td>
                     <td style={{ padding: '12px' }}>
                       {u.ultimo_acesso_em ? new Date(u.ultimo_acesso_em).toLocaleString('pt-BR') : 'Nunca'}
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <button
+                        onClick={() => router.push(`/admin/usuarios/${u.id}`)}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: aparencia.corPrimaria,
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                        }}
+                      >
+                        Gerenciar acessos
+                      </button>
                     </td>
                   </tr>
                 ))}
