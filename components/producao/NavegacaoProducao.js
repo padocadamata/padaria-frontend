@@ -5,18 +5,12 @@ import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 // Navegação interna do módulo Produção (não é o menu principal
 // Dashboard/Fornecedores/Produção — essa continua intacta em cada página).
 // Cada aba só aparece se o usuário tiver a permissão correspondente — regra
-// centralizada aqui (não duplicada em producao.js/historico.js/produtos.js),
-// no mesmo espírito de MenuOpcoes.js.
-//
-// Planejamento fica de fora desta lista de propósito: pages/producao/
-// planejamento.js ainda não está versionado (frente separada, commit
-// próprio no futuro) — apontar uma rota para ele aqui publicaria um link
-// que 404 num checkout limpo. Reintroduzir a aba (com
-// permissao: PERMISSOES.PLANEJAMENTO_VISUALIZAR) faz parte do commit que
-// versionar aquela página.
+// centralizada aqui (não duplicada em producao.js/historico.js/
+// planejamento.js/produtos.js), no mesmo espírito de MenuOpcoes.js.
 const ABAS = [
   { chave: 'hoje', label: 'Hoje', rota: '/producao', permissao: PERMISSOES.PRODUCAO_VISUALIZAR },
   { chave: 'historico', label: 'Histórico', rota: '/producao/historico', permissao: PERMISSOES.HISTORICO_VISUALIZAR },
+  { chave: 'planejamento', label: 'Planejamento', rota: '/producao/planejamento', permissao: PERMISSOES.PLANEJAMENTO_VISUALIZAR },
   { chave: 'produtos', label: 'Produtos de Produção', rota: '/producao/produtos', permissao: PERMISSOES.PRODUTOS_PRODUCAO_VISUALIZAR },
 ];
 
