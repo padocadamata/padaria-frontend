@@ -1,10 +1,35 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
-import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
 
 function mensagemErro(error) {
   if (!error) return '';
-  return 'Não foi possível fechar o turno. Confira os valores informados ou avise um administrador.';
+  const msg = error.message || '';
+
+  if (msg.includes('motivo e obrigatorio')) {
+    return 'Informe o motivo da alteração.';
+  }
+  if (msg.includes('nao encontrado')) {
+    return 'Este registro não está mais disponível — atualize a página.';
+  }
+  if (msg.includes('informe ao menos sobra_total')) {
+    return 'Informe ao menos a sobra total.';
+  }
+  if (msg.includes('nao pode ser negativa')) {
+    return 'Os valores de sobra não podem ser negativos.';
+  }
+  if (msg.includes('nao pode ultrapassar sobra_total')) {
+    return 'Sobra aproveitável + perda/descarte não pode ultrapassar a sobra total.';
+  }
+  if (msg.includes('nao pode ser maior que quantidade_produzida')) {
+    return 'A sobra total não pode ser maior que a quantidade produzida.';
+  }
+  if (msg.includes('producao.editar')) {
+    return 'Você não tem permissão para gerenciar sobras deste registro.';
+  }
+  if (msg.includes('administrador')) {
+    return 'Gerenciar sobras de um registro histórico exige um administrador.';
+  }
+  return 'Não foi possível salvar as sobras. Tente novamente ou avise um administrador.';
 }
 
 const overlayEstilo = {
@@ -18,14 +43,15 @@ const overlayEstilo = {
   alignItems: 'center',
   justifyContent: 'center',
   zIndex: 1000,
+  padding: '20px',
 };
 
 const caixaEstilo = {
   backgroundColor: 'white',
   padding: '25px',
   borderRadius: '10px',
-  maxWidth: '420px',
-  width: '90%',
+  maxWidth: '450px',
+  width: '100%',
   boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
 };
 
@@ -47,24 +73,14 @@ const campoCalculadoEstilo = {
   fontWeight: 'bold',
 };
 
-// Modal único para as duas situações que terminam em status='fechado':
-//   - fechar um turno 'aberto' pela primeira vez (quantidade_produzida
-//     fica fixa, só leitura);
-//   - salvar a correção de um turno 'reaberto' (quantidade_produzida
-//     também fica editável, porque a correção pode incluir refazer a
-//     contagem de produção, não só a sobra).
-//
-// Regra de sobras (revisão 2026-08-23): sobra_total é digitável
-// diretamente; se deixada em branco e houver classificação (aproveitável
-// e/ou perda), sobra_total é derivada da soma. Aproveitável/perda em
-// branco viram NULL (não classificado ainda) — só viram 0 quando o
-// operador digita "0" explicitamente. Fechar exige, no mínimo, a sobra
-// total (direta ou derivada); classificação completa não é mais
-// obrigatória no momento do fechamento.
-export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel, corPrimaria, onFechado, onCancelar }) {
-  const permiteEditarProduzida = registro.status === 'reaberto';
-
-  const [quantidadeProduzida, setQuantidadeProduzida] = useState(String(registro.quantidade_produzida));
+// Ação "Gerenciar sobras": edita sobra_total/sobra_aproveitavel/
+// perda_descarte de um registro TIPICAMENTE já fechado, sem reabertura —
+// via RPC gerenciar_sobras_producao_registro (migration 0015), nunca por
+// UPDATE direto. quantidade_produzida/receita/data/turno nunca são
+// tocados aqui — isso continua exigindo o fluxo de reabertura/correção
+// separado (ReaberturaModal + FechamentoTurnoForm). Mesma distinção
+// vazio=NULL / "0"=zero do FechamentoTurnoForm.
+export default function GerenciarSobrasModal({ registro, receitaNome, turnoLabel, corPrimaria, onAtualizado, onCancelar }) {
   const [sobraTotalInput, setSobraTotalInput] = useState(
     registro.sobra_total != null ? String(registro.sobra_total) : ''
   );
@@ -74,10 +90,11 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
   const [perdaDescarte, setPerdaDescarte] = useState(
     registro.perda_descarte != null ? String(registro.perda_descarte) : ''
   );
+  const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
-  const produzidaNum = parseInt(quantidadeProduzida, 10);
+  const produzidaNum = registro.quantidade_produzida;
 
   const totalPreenchido = sobraTotalInput !== '';
   const aproveitavelPreenchido = sobraAproveitavel !== '';
@@ -89,9 +106,6 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
 
   const somaClassificacao = (aproveitavelNum ?? 0) + (perdaNum ?? 0);
 
-  // sobra_total: usa o que foi digitado diretamente; se vazio e houver
-  // classificação, deriva da soma; se nada foi preenchido, fica null (e o
-  // fechamento é bloqueado, ver faltaSobraTotal abaixo).
   const sobraTotalNum = totalPreenchido
     ? sobraTotalDigitado
     : aproveitavelPreenchido || perdaPreenchido
@@ -99,7 +113,6 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
       : null;
 
   const numerosValidos =
-    Number.isInteger(produzidaNum) && produzidaNum > 0 &&
     (!totalPreenchido || (Number.isInteger(sobraTotalDigitado) && sobraTotalDigitado >= 0)) &&
     (!aproveitavelPreenchido || (Number.isInteger(aproveitavelNum) && aproveitavelNum >= 0)) &&
     (!perdaPreenchido || (Number.isInteger(perdaNum) && perdaNum >= 0));
@@ -107,15 +120,23 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
   const faltaSobraTotal = numerosValidos && sobraTotalNum === null;
   const somaExcedeTotal = numerosValidos && sobraTotalNum != null && somaClassificacao > sobraTotalNum;
   const sobraMaiorQueProduzida = numerosValidos && sobraTotalNum != null && sobraTotalNum > produzidaNum;
+  const faltaMotivo = !motivo.trim();
 
-  const bloqueado = !numerosValidos || faltaSobraTotal || somaExcedeTotal || sobraMaiorQueProduzida;
+  const bloqueado =
+    !numerosValidos || faltaSobraTotal || somaExcedeTotal || sobraMaiorQueProduzida || faltaMotivo;
 
   const sobraNaoClassificada =
     numerosValidos && sobraTotalNum != null ? sobraTotalNum - somaClassificacao : null;
-  const quantidadeVendida =
-    numerosValidos && sobraTotalNum != null ? produzidaNum - sobraTotalNum : null;
+
+  const ehManual = registro.origem === 'manual';
+  const vendidaResultante =
+    ehManual && numerosValidos && sobraTotalNum != null ? produzidaNum - sobraTotalNum : registro.quantidade_vendida;
 
   async function confirmar() {
+    if (faltaMotivo) {
+      setErro('Informe o motivo da alteração.');
+      return;
+    }
     if (!numerosValidos) {
       setErro('Preencha os valores com números válidos (0 ou maior).');
       return;
@@ -139,21 +160,13 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
     setErro('');
 
     const supabase = createClient();
-    const payload = {
-      status: 'fechado',
-      quantidade_vendida: quantidadeVendida,
-      sobra_total: sobraTotalNum,
-      sobra_aproveitavel: aproveitavelNum,
-      perda_descarte: perdaNum,
-    };
-    if (permiteEditarProduzida) {
-      payload.quantidade_produzida = produzidaNum;
-    }
-
-    const { error } = await supabase
-      .from('producao_registros')
-      .update(payload)
-      .eq('id', registro.id);
+    const { error } = await supabase.rpc('gerenciar_sobras_producao_registro', {
+      p_registro_id: registro.id,
+      p_sobra_total: sobraTotalNum,
+      p_sobra_aproveitavel: aproveitavelNum,
+      p_perda_descarte: perdaNum,
+      p_motivo: motivo.trim(),
+    });
 
     setSalvando(false);
 
@@ -162,36 +175,23 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
       return;
     }
 
-    // Auditoria best-effort: se falhar, o fechamento já feito não é desfeito.
-    registrarAuditoria({
-      entidade: 'producao',
-      registroId: registro.id,
-      acao: 'fechou',
-      valorNovo: `vendida=${quantidadeVendida}, sobra_total=${sobraTotalNum}, sobra_aproveitavel=${aproveitavelNum}, perda_descarte=${perdaNum}`,
-    });
-
-    onFechado();
+    onAtualizado();
   }
 
   return (
     <div style={overlayEstilo}>
       <div style={caixaEstilo}>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>
-          {permiteEditarProduzida ? 'Corrigir e fechar' : 'Fechar turno'} — {receitaNome} ({turnoLabel})
+          Gerenciar sobras — {receitaNome} ({turnoLabel})
         </h3>
 
-        <label style={rotuloEstilo}>Quantidade produzida</label>
-        {permiteEditarProduzida ? (
-          <input
-            type="number"
-            min="1"
-            value={quantidadeProduzida}
-            onChange={(e) => setQuantidadeProduzida(e.target.value)}
-            style={{ ...campoEstilo, marginBottom: '15px' }}
-          />
-        ) : (
-          <input type="number" value={quantidadeProduzida} readOnly disabled style={{ ...campoCalculadoEstilo, marginBottom: '15px' }} />
-        )}
+        <p style={{ color: '#666', fontSize: '13px' }}>
+          Altera só o destino da sobra deste registro, sem reabrir o lançamento. Quantidade produzida, produto,
+          data e turno não são afetados.
+        </p>
+
+        <label style={rotuloEstilo}>Produzido</label>
+        <input type="text" readOnly disabled value={produzidaNum} style={{ ...campoCalculadoEstilo, marginBottom: '15px' }} />
 
         <label style={rotuloEstilo}>Sobra total</label>
         <input
@@ -236,7 +236,7 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
           style={{ ...campoEstilo, marginBottom: '15px' }}
         />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
           <div>
             <label style={rotuloEstilo}>Sobra não classificada</label>
             <input
@@ -251,12 +251,12 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
             />
           </div>
           <div>
-            <label style={rotuloEstilo}>Quantidade vendida (calculada)</label>
+            <label style={rotuloEstilo}>Vendido resultante</label>
             <input
               type="text"
               readOnly
               disabled
-              value={quantidadeVendida ?? '—'}
+              value={vendidaResultante ?? '—'}
               style={{
                 ...campoCalculadoEstilo,
                 color: sobraMaiorQueProduzida ? '#f44336' : campoCalculadoEstilo.color,
@@ -264,6 +264,20 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
             />
           </div>
         </div>
+
+        {!ehManual && (
+          <p style={{ fontSize: '12px', color: '#666', fontStyle: 'italic', marginTop: '-10px', marginBottom: '15px' }}>
+            Registro histórico — a quantidade vendida original é preservada, não recalculada.
+          </p>
+        )}
+
+        <label style={rotuloEstilo}>Motivo da alteração *</label>
+        <textarea
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Ex.: sobra do turno da manhã foi doada à tarde, classificando agora."
+          style={{ ...campoEstilo, minHeight: '70px', fontFamily: 'Arial' }}
+        />
 
         {erro && <p style={{ color: '#f44336', marginTop: '15px' }}>{erro}</p>}
 
@@ -280,7 +294,7 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
             disabled={salvando || bloqueado}
             style={{ padding: '10px 20px', backgroundColor: corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', opacity: bloqueado ? 0.6 : 1 }}
           >
-            {salvando ? 'Salvando...' : permiteEditarProduzida ? 'Salvar correção e fechar' : 'Fechar turno'}
+            {salvando ? 'Salvando...' : 'Salvar sobras'}
           </button>
         </div>
       </div>

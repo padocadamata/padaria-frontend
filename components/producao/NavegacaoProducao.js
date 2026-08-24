@@ -2,11 +2,11 @@ import { useRouter } from 'next/router';
 
 // Navegação interna do módulo Produção (não é o menu principal
 // Dashboard/Fornecedores/Produção — essa continua intacta em cada página).
-// Histórico e Planejamento ainda não têm página nem rota: aparecem visíveis
-// e desabilitados de propósito, sem criar página fictícia para eles.
+// Planejamento ainda não tem página nem rota: aparece visível e
+// desabilitado de propósito, sem criar página fictícia para ele.
 const ABAS = [
   { chave: 'hoje', label: 'Hoje', rota: '/producao' },
-  { chave: 'historico', label: 'Histórico', rota: null },
+  { chave: 'historico', label: 'Histórico', rota: '/producao/historico' },
   { chave: 'planejamento', label: 'Planejamento', rota: null },
   { chave: 'produtos', label: 'Produtos de Produção', rota: '/producao/produtos' },
 ];

@@ -4,6 +4,7 @@ import IniciarProducaoForm from './IniciarProducaoForm';
 import AdicionarProducaoForm from './AdicionarProducaoForm';
 import FechamentoTurnoForm from './FechamentoTurnoForm';
 import ReaberturaModal from './ReaberturaModal';
+import GerenciarSobrasModal from './GerenciarSobrasModal';
 
 function Badge({ texto, cor }) {
   return (
@@ -64,7 +65,7 @@ export default function CardTurno({
   perfilUsuario,
   onAtualizado,
 }) {
-  const [acaoAberta, setAcaoAberta] = useState(null); // 'iniciar' | 'adicionar' | 'fechar' | 'reabrir' | 'corrigir' | null
+  const [acaoAberta, setAcaoAberta] = useState(null); // 'iniciar' | 'adicionar' | 'fechar' | 'reabrir' | 'corrigir' | 'sobras' | null
 
   function fechar() {
     setAcaoAberta(null);
@@ -81,6 +82,16 @@ export default function CardTurno({
     ? registro.origem === 'historico'
       ? isAdmin(perfilUsuario)
       : hasPermissao(permissoes, PERMISSOES.PRODUCAO_CANCELAR)
+    : false;
+  // Gerenciar sobras: mesma distinção manual/histórico da reabertura, mas
+  // usando producao.editar (não producao.cancelar) para manual — é uma
+  // ação operacional (destinar sobra), não uma correção estrutural
+  // sensível. Continua exigindo admin para histórico (RPC + trigger
+  // 0015 reforçam isso no backend, independente deste cálculo de UI).
+  const podeGerenciarSobras = registro
+    ? registro.origem === 'historico'
+      ? isAdmin(perfilUsuario)
+      : podeEditar
     : false;
 
   return (
@@ -134,11 +145,18 @@ export default function CardTurno({
           {registro.observacoes && (
             <p style={{ fontSize: '12px', color: '#666', marginTop: '8px', fontStyle: 'italic' }}>{registro.observacoes}</p>
           )}
-          {podeReabrir && (
-            <button style={{ ...botaoEstilo('#9e9e9e'), marginTop: '12px' }} onClick={() => setAcaoAberta('reabrir')}>
-              Reabrir
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+            {podeGerenciarSobras && (
+              <button style={botaoEstilo('#FF9800')} onClick={() => setAcaoAberta('sobras')}>
+                Gerenciar sobras
+              </button>
+            )}
+            {podeReabrir && (
+              <button style={botaoEstilo('#9e9e9e')} onClick={() => setAcaoAberta('reabrir')}>
+                Reabrir
+              </button>
+            )}
+          </div>
         </>
       )}
 
@@ -198,6 +216,17 @@ export default function CardTurno({
           turnoLabel={label}
           corPrimaria={corPrimaria}
           onReaberto={concluido}
+          onCancelar={fechar}
+        />
+      )}
+
+      {acaoAberta === 'sobras' && registro && (
+        <GerenciarSobrasModal
+          registro={registro}
+          receitaNome={receitaNome}
+          turnoLabel={label}
+          corPrimaria={corPrimaria}
+          onAtualizado={concluido}
           onCancelar={fechar}
         />
       )}
