@@ -10,6 +10,16 @@ import VisualizarRegistroModal from '../../components/producao/VisualizarRegistr
 import LancarProducaoRetroativaModal from '../../components/producao/LancarProducaoRetroativaModal';
 import CompletarProducaoRetroativaModal from '../../components/producao/CompletarProducaoRetroativaModal';
 import EditarProducaoModal from '../../components/producao/EditarProducaoModal';
+import ExcluirRegistroModal from '../../components/producao/ExcluirRegistroModal';
+import {
+  BotaoIconeAcao,
+  IconeOlho,
+  IconeLapis,
+  IconeCaixa,
+  IconeCheck,
+  IconeReabrir,
+  IconeLixeira,
+} from '../../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao, isAdmin } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -19,6 +29,27 @@ const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 // Ordem explícita de exibição dentro do mesmo dia — não depende de
 // 'manha' < 'tarde' ser alfabeticamente verdade, é uma regra própria.
 const TURNO_ORDEM = { manha: 0, tarde: 1 };
+
+// Opções do filtro de dia da semana, na ordem operacional (segunda a
+// domingo) — value é o índice real de Date.getDay() (0=domingo), não a
+// posição na lista, por isso não é sequencial aqui.
+const DIA_SEMANA_OPCOES = [
+  { value: '1', label: 'Segunda-feira' },
+  { value: '2', label: 'Terça-feira' },
+  { value: '3', label: 'Quarta-feira' },
+  { value: '4', label: 'Quinta-feira' },
+  { value: '5', label: 'Sexta-feira' },
+  { value: '6', label: 'Sábado' },
+  { value: '0', label: 'Domingo' },
+];
+
+// Mesma técnica segura já usada em lib/producao/sugestaoProducao.js
+// (indiceDiaSemana) e lib/data/dataLocal.js (diaDaSemanaExibicao):
+// meio-dia local evita que a conversão de fuso empurre a data para o dia
+// anterior/seguinte — data de calendário puro, sem componente de hora.
+function indiceDiaSemana(dataYYYYMMDD) {
+  return new Date(`${dataYYYYMMDD}T12:00:00`).getDay();
+}
 
 const STATUS_LABEL = { aberto: 'Aberto', fechado: 'Fechado', reaberto: 'Reaberto' };
 const ORIGEM_LABEL = { manual: 'Manual', historico: 'Histórico', retroativo: 'Retroativo' };
@@ -96,7 +127,7 @@ function HistoricoConteudo() {
   const [erro, setErro] = useState('');
 
   const [registroVisualizado, setRegistroVisualizado] = useState(null);
-  // tipo: 'reabrir' | 'fechar' | 'sobras' | 'completar_retroativo' | 'editar_producao'
+  // tipo: 'reabrir' | 'fechar' | 'sobras' | 'completar_retroativo' | 'editar_producao' | 'excluir'
   const [acaoRegistro, setAcaoRegistro] = useState(null);
   const [mostrarLancarRetroativo, setMostrarLancarRetroativo] = useState(false);
   const [recarregarTick, setRecarregarTick] = useState(0);
@@ -106,7 +137,7 @@ function HistoricoConteudo() {
   const [filtroProduto, setFiltroProduto] = useState('todos');
   const [filtroTurno, setFiltroTurno] = useState('todos');
   const [filtroStatus, setFiltroStatus] = useState('todos');
-  const [filtroOrigem, setFiltroOrigem] = useState('todos');
+  const [filtroDiaSemana, setFiltroDiaSemana] = useState('todos');
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -284,13 +315,19 @@ function HistoricoConteudo() {
     return registro.origem === 'historico' ? isAdmin(perfilUsuario) : podeEditar;
   }
 
+  // Exclusão definitiva (migration 0020) — exclusiva de administrador,
+  // independente de origem/status. A garantia real é a RLS
+  // (producao_registros_delete, is_admin()) + a checagem explícita dentro
+  // da RPC excluir_producao_registro; este gate aqui é só UI.
+  const podeExcluir = isAdmin(perfilUsuario);
+
   const registrosFiltrados = registros.filter((registro) => {
     if (filtroPeriodoInicio && registro.data < filtroPeriodoInicio) return false;
     if (filtroPeriodoFim && registro.data > filtroPeriodoFim) return false;
     if (filtroProduto !== 'todos' && registro.receita_id !== filtroProduto) return false;
     if (filtroTurno !== 'todos' && registro.turno !== filtroTurno) return false;
     if (filtroStatus !== 'todos' && registro.status !== filtroStatus) return false;
-    if (filtroOrigem !== 'todos' && registro.origem !== filtroOrigem) return false;
+    if (filtroDiaSemana !== 'todos' && String(indiceDiaSemana(registro.data)) !== filtroDiaSemana) return false;
     return true;
   });
 
@@ -512,11 +549,11 @@ function HistoricoConteudo() {
 
             <div>
               <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Origem
+                Dia da semana
               </label>
               <select
-                value={filtroOrigem}
-                onChange={(e) => setFiltroOrigem(e.target.value)}
+                value={filtroDiaSemana}
+                onChange={(e) => setFiltroDiaSemana(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px',
@@ -525,10 +562,12 @@ function HistoricoConteudo() {
                   boxSizing: 'border-box',
                 }}
               >
-                <option value="todos">Todas</option>
-                <option value="manual">Manual</option>
-                <option value="historico">Histórico</option>
-                <option value="retroativo">Retroativo</option>
+                <option value="todos">Todos</option>
+                {DIA_SEMANA_OPCOES.map((opcao) => (
+                  <option key={opcao.value} value={opcao.value}>
+                    {opcao.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -653,122 +692,65 @@ function HistoricoConteudo() {
                         )}
                       </td>
                       <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <button
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <BotaoIconeAcao
+                            rotulo="Visualizar"
+                            icone={IconeOlho}
                             onClick={() => abrirVisualizar(registro)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#9e9e9e',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '3px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            Visualizar
-                          </button>
+                          />
 
                           {registro.status === 'aberto' && registro.origem === 'manual' && podeEditar && (
-                            <button
+                            <BotaoIconeAcao
+                              rotulo="Fechar agora"
+                              icone={IconeCheck}
+                              cor="#FF9800"
                               onClick={() => abrirAcao('fechar', registro)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#FF9800',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Fechar agora
-                            </button>
+                            />
                           )}
 
                           {registro.status === 'aberto' && registro.origem === 'retroativo' && podeEditar && (
-                            <button
+                            <BotaoIconeAcao
+                              rotulo="Completar lançamento"
+                              icone={IconeCheck}
+                              cor="#FF9800"
                               onClick={() => abrirAcao('completar_retroativo', registro)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#FF9800',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Completar lançamento
-                            </button>
+                            />
                           )}
 
-                          {registro.status === 'reaberto' && podeEditarProducaoRegistro(registro) && (
-                            <button
-                              onClick={() => abrirAcao('editar_producao', registro)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: aparencia.corPrimaria,
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Editar produção
-                            </button>
-                          )}
-
-                          {registro.status === 'fechado' && podeEditarProducaoRegistro(registro) && (
-                            <button
-                              onClick={() => abrirAcao('editar_producao', registro)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: aparencia.corPrimaria,
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Editar produção
-                            </button>
-                          )}
+                          {(registro.status === 'reaberto' || registro.status === 'fechado') &&
+                            podeEditarProducaoRegistro(registro) && (
+                              <BotaoIconeAcao
+                                rotulo="Editar produção"
+                                icone={IconeLapis}
+                                cor={aparencia.corPrimaria}
+                                onClick={() => abrirAcao('editar_producao', registro)}
+                              />
+                            )}
 
                           {registro.status === 'fechado' && podeGerenciarSobrasRegistro(registro) && (
-                            <button
+                            <BotaoIconeAcao
+                              rotulo="Gerenciar sobras"
+                              icone={IconeCaixa}
+                              cor="#FF9800"
                               onClick={() => abrirAcao('sobras', registro)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#FF9800',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Gerenciar sobras
-                            </button>
+                            />
                           )}
 
                           {registro.status === 'fechado' && podeReabrirRegistro(registro) && (
-                            <button
+                            <BotaoIconeAcao
+                              rotulo="Reabrir lançamento"
+                              icone={IconeReabrir}
                               onClick={() => abrirAcao('reabrir', registro)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#9e9e9e',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Reabrir
-                            </button>
+                            />
+                          )}
+
+                          {podeExcluir && (
+                            <BotaoIconeAcao
+                              rotulo="Excluir lançamento"
+                              icone={IconeLixeira}
+                              destrutivo
+                              onClick={() => abrirAcao('excluir', registro)}
+                            />
                           )}
                         </div>
                       </td>
@@ -846,6 +828,16 @@ function HistoricoConteudo() {
           turnoLabel={TURNO_LABEL[acaoRegistro.registro.turno] || acaoRegistro.registro.turno}
           corPrimaria={aparencia.corPrimaria}
           onEditado={aoAtualizarRegistro}
+          onCancelar={fecharAcao}
+        />
+      )}
+
+      {acaoRegistro?.tipo === 'excluir' && (
+        <ExcluirRegistroModal
+          registro={acaoRegistro.registro}
+          receitaNome={receitaNomePorId[acaoRegistro.registro.receita_id] || acaoRegistro.registro.receita_id}
+          turnoLabel={TURNO_LABEL[acaoRegistro.registro.turno] || acaoRegistro.registro.turno}
+          onExcluido={aoAtualizarRegistro}
           onCancelar={fecharAcao}
         />
       )}
