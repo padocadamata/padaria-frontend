@@ -2,10 +2,28 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import MenuOpcoes from '../components/MenuOpcoes';
 import RequireAuth from '../components/RequireAuth';
-import { PERMISSOES } from '../lib/auth/permissoes';
+import LembretesRapidos from '../components/dashboard/LembretesRapidos';
+import AtencaoProducao from '../components/dashboard/AtencaoProducao';
+import ProximosPedidos from '../components/dashboard/ProximosPedidos';
+import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
+import { useAuth } from '../hooks/useAuth';
+import { dataLocalHoje, diaDaSemanaExibicao } from '../lib/data/dataLocal';
+
+function capitalizar(texto) {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function formatarDataExibicao(dataYYYYMMDD) {
+  const [ano, mes, dia] = dataYYYYMMDD.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
 
 function DashboardConteudo() {
   const router = useRouter();
+  const { permissoes } = useAuth();
+  const hoje = dataLocalHoje();
+  const podeVerProducao = hasPermissao(permissoes, PERMISSOES.PRODUCAO_VISUALIZAR);
+  const podeVerFornecedores = hasPermissao(permissoes, PERMISSOES.FORNECEDORES_VISUALIZAR);
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
     corFundo: '#f5f5f5',
@@ -78,25 +96,16 @@ function DashboardConteudo() {
           </button>
         </div>
 
-        <h2 style={{ color: aparencia.corPrimaria }}>Bem-vindo ao Dashboard</h2>
+        <h2 style={{ color: aparencia.corPrimaria, margin: '0 0 20px 0' }}>
+          Dashboard — {capitalizar(diaDaSemanaExibicao(hoje))}, {formatarDataExibicao(hoje)}
+        </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid ' + aparencia.corPrimaria }}>
-            <h3>Fornecedores</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px', margin: '10px 0' }}>28</p>
-          </div>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid ' + aparencia.corPrimaria }}>
-            <h3>Produtos</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px', margin: '10px 0' }}>390</p>
-          </div>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid ' + aparencia.corPrimaria }}>
-            <h3>Receitas</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px', margin: '10px 0' }}>45</p>
-          </div>
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', borderTop: '4px solid ' + aparencia.corPrimaria }}>
-            <h3>Registros de Produção</h3>
-            <p style={{ color: aparencia.corPrimaria, fontSize: '32px', margin: '10px 0' }}>0</p>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {podeVerProducao && <AtencaoProducao corPrimaria={aparencia.corPrimaria} />}
+
+          <LembretesRapidos corPrimaria={aparencia.corPrimaria} />
+
+          {podeVerFornecedores && <ProximosPedidos corPrimaria={aparencia.corPrimaria} />}
         </div>
       </div>
     </div>
