@@ -19,6 +19,12 @@ const DIA_SEMANA_LABEL = {
 // isso este array é indexado por posição, não pelo índice ISO.
 const DIA_SEMANA_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+// Este, ao contrário do array acima, é indexado pelo índice ISO
+// (1=segunda..7=domingo) — usado no tooltip, onde a data pode ser de
+// fora do grid exibido (semana anterior/seguinte), então não dá pra usar
+// posição relativa ao domingo exibido.
+const DIA_SEMANA_CURTO_POR_ISO = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 7: 'Dom' };
+
 const caixaEstilo = {
   backgroundColor: 'white',
   padding: '18px 20px',
@@ -59,6 +65,10 @@ export function domingoInicioSemana(hojeYYYYMMDD) {
 function formatarDataExibicao(dataYYYYMMDD) {
   const [, mes, dia] = dataYYYYMMDD.split('-');
   return `${dia}/${mes}`;
+}
+
+function formatarDataComDia(dataYYYYMMDD) {
+  return `${DIA_SEMANA_CURTO_POR_ISO[diaSemanaISO(dataYYYYMMDD)]} ${formatarDataExibicao(dataYYYYMMDD)}`;
 }
 
 function descreverEntregaTexto(regra) {
@@ -162,10 +172,38 @@ export default function ProximosPedidos({ corPrimaria }) {
         diasAvaliacao.push(adicionarDias(domingo, i));
       }
 
-      // eventosPorData[data] = { pedidos: Map(fornecedorId->nome), entregas: Map(fornecedorId->nome) }
-      // O Map, chaveado por fornecedorId dentro de cada (data, tipo), já
-      // é a deduplicação por data|tipo|fornecedorId — duas regras do
-      // mesmo fornecedor batendo no mesmo dia/tipo colapsam numa entrada só.
+      // Número visual (¹²³...) — vinculado à REGRA, não à ocorrência
+      // calculada numa semana específica. Por fornecedor, ordena as
+      // regras com dia_pedido por dia_pedido crescente (desempate pelo
+      // próprio id, só para determinismo total) e numera 1..N. Esse
+      // número é FIXO para aquela regra — a mesma regra sempre aparece
+      // com o mesmo número, em qualquer semana exibida, porque não
+      // depende de quantas ocorrências históricas caem na janela de
+      // avaliação (se dependesse da ocorrência, o número de uma regra
+      // "andaria" conforme quantas semanas de histórico calculado
+      // existissem — testado e descartado antes de implementar).
+      const regrasPorFornecedor = new Map();
+      for (const regra of regrasComDia) {
+        if (!regrasPorFornecedor.has(regra.fornecedor_id)) {
+          regrasPorFornecedor.set(regra.fornecedor_id, []);
+        }
+        regrasPorFornecedor.get(regra.fornecedor_id).push(regra);
+      }
+      const numeroPorRegraId = new Map();
+      for (const [, lista] of regrasPorFornecedor.entries()) {
+        const ordenada = [...lista].sort((a, b) => {
+          if (a.dia_pedido !== b.dia_pedido) return a.dia_pedido - b.dia_pedido;
+          return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+        });
+        ordenada.forEach((regra, indice) => numeroPorRegraId.set(regra.id, indice + 1));
+      }
+
+      // eventosPorData[data] = { pedidos: Map(chaveCiclo->evento), entregas: Map(chaveCiclo->evento) }
+      // chaveCiclo = fornecedor+dataPedido+dataEntrega — deduplicação
+      // visual (duas regras idênticas do mesmo fornecedor no mesmo dia
+      // colapsam numa entrada só), sem perder ciclos genuinamente
+      // diferentes do mesmo fornecedor (dataEntrega diferente = chave
+      // diferente = entradas separadas, cada uma com seu próprio número).
       const eventosPorData = {};
       for (const data of diasSemana) {
         eventosPorData[data] = { pedidos: new Map(), entregas: new Map() };
@@ -178,21 +216,24 @@ export default function ProximosPedidos({ corPrimaria }) {
           if (regra.dia_pedido !== diaIso) continue;
 
           const nome = nomePorFornecedorId[regra.fornecedor_id];
+          const numero = numeroPorRegraId.get(regra.id);
+          const dataEntrega = calcularDataEntrega(dataAvaliada, regra);
+          const chaveCiclo = `${regra.fornecedor_id}|${dataAvaliada}|${dataEntrega}`;
+          const evento = { chaveCiclo, fornecedorId: regra.fornecedor_id, nome, numero, dataPedido: dataAvaliada, dataEntrega };
 
           // PEDIR só é mostrado se o próprio dia do pedido cair dentro
           // da semana exibida (não mostramos PEDIR de dias passados de
           // semanas anteriores).
           if (dataAvaliada >= domingo && dataAvaliada <= sabado) {
-            eventosPorData[dataAvaliada].pedidos.set(regra.fornecedor_id, nome);
+            eventosPorData[dataAvaliada].pedidos.set(chaveCiclo, evento);
           }
 
           // ENTREGA é calculada a partir de QUALQUER pedido dentro da
           // janela de avaliação (inclusive antes do domingo exibido) —
           // só entra na grade se a data de entrega resultante cair
           // dentro da semana exibida.
-          const dataEntrega = calcularDataEntrega(dataAvaliada, regra);
           if (dataEntrega >= domingo && dataEntrega <= sabado) {
-            eventosPorData[dataEntrega].entregas.set(regra.fornecedor_id, nome);
+            eventosPorData[dataEntrega].entregas.set(chaveCiclo, evento);
           }
         }
       }
@@ -201,8 +242,8 @@ export default function ProximosPedidos({ corPrimaria }) {
         data,
         label: DIA_SEMANA_CURTO[indice],
         ehHoje: data === hoje,
-        pedidos: Array.from(eventosPorData[data].pedidos.entries()).map(([id, nome]) => ({ id, nome })),
-        entregas: Array.from(eventosPorData[data].entregas.entries()).map(([id, nome]) => ({ id, nome })),
+        pedidos: Array.from(eventosPorData[data].pedidos.values()),
+        entregas: Array.from(eventosPorData[data].entregas.values()),
       }));
 
       // Regras diárias: nunca em célula específica — linha única abaixo
@@ -284,13 +325,25 @@ export default function ProximosPedidos({ corPrimaria }) {
                     {temEvento ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                         {coluna.pedidos.map((p) => (
-                          <div key={`pedir-${p.id}`} style={{ fontSize: '11px', color: '#1565c0' }}>
-                            PEDIR · {p.nome}
+                          <div key={`pedir-${p.chaveCiclo}`} style={{ fontSize: '11px', color: '#1565c0' }}>
+                            PEDIR · {p.nome}{' '}
+                            <sup
+                              title={`Pedido ${formatarDataComDia(p.dataPedido)} → Entrega ${formatarDataComDia(p.dataEntrega)}`}
+                              style={{ cursor: 'help' }}
+                            >
+                              {p.numero}
+                            </sup>
                           </div>
                         ))}
                         {coluna.entregas.map((e) => (
-                          <div key={`entrega-${e.id}`} style={{ fontSize: '11px', color: '#2e7d32' }}>
-                            ENTREGA · {e.nome}
+                          <div key={`entrega-${e.chaveCiclo}`} style={{ fontSize: '11px', color: '#2e7d32' }}>
+                            ENTREGA · {e.nome}{' '}
+                            <sup
+                              title={`Pedido ${formatarDataComDia(e.dataPedido)} → Entrega ${formatarDataComDia(e.dataEntrega)}`}
+                              style={{ cursor: 'help' }}
+                            >
+                              {e.numero}
+                            </sup>
                           </div>
                         ))}
                       </div>
