@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import { diaSemanaISO, adicionarDias, calcularDataEntrega } from '../../lib/fornecedores/regrasPedido';
 
 // 1=segunda .. 7=domingo — mesma convenção de public.fornecedor_regras_pedido
 // (migration 0007) e de components/fornecedores/FornecedorRegras.js.
@@ -32,24 +33,6 @@ const caixaEstilo = {
   boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
 };
 
-// Converte Date.getDay() (0=domingo..6=sábado) para a convenção de
-// fornecedor_regras_pedido (1=segunda..7=domingo). Mesma técnica segura
-// de meio-dia local já usada em todo o projeto — evita que a conversão
-// de fuso empurre a data para o dia anterior/seguinte.
-export function diaSemanaISO(dataYYYYMMDD) {
-  const diaJs = new Date(`${dataYYYYMMDD}T12:00:00`).getDay();
-  return diaJs === 0 ? 7 : diaJs;
-}
-
-export function adicionarDias(dataYYYYMMDD, dias) {
-  const data = new Date(`${dataYYYYMMDD}T12:00:00`);
-  data.setDate(data.getDate() + dias);
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, '0');
-  const dia = String(data.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
-}
-
 // Domingo que INICIA a semana corrente (contém "hoje") — sempre olha
 // para trás até o domingo mais recente (ou o próprio hoje, se hoje já
 // for domingo). Propositalmente diferente de domingoDaSemana() em
@@ -76,20 +59,6 @@ function descreverEntregaTexto(regra) {
     return `entrega D+${regra.dias_prazo}`;
   }
   return `entrega ${DIA_SEMANA_LABEL[regra.dia_entrega]}`;
-}
-
-// Data de entrega gerada por UMA ocorrência de pedido desta regra, a
-// partir da data em que o pedido teria ocorrido.
-//   prazo_dias: soma direta de dias_prazo.
-//   dia_fixo: próxima ocorrência do dia_entrega a partir da data do
-//     pedido, INCLUSIVE (se o pedido já cair no próprio dia_entrega,
-//     a entrega é no mesmo dia — não empurra pra semana seguinte).
-export function calcularDataEntrega(dataPedido, regra) {
-  if (regra.tipo_entrega === 'prazo_dias') {
-    return adicionarDias(dataPedido, regra.dias_prazo);
-  }
-  const diferenca = (regra.dia_entrega - diaSemanaISO(dataPedido) + 7) % 7;
-  return adicionarDias(dataPedido, diferenca);
 }
 
 // "Agenda de pedidos e entregas" — grade semanal (domingo a sábado)

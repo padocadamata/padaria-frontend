@@ -8,7 +8,7 @@ import { MODULOS, hasPermissao } from '../lib/auth/permissoes';
 // — não é mais uma lista de botões fixa. Lembrando: esconder o item do menu
 // é só UX; quem protege de verdade é a policy de RLS no banco (o usuário
 // não conseguiria carregar dado nenhum mesmo digitando a URL direto).
-const ITENS_MENU = ['dashboard', 'perfil', 'aparencia', 'fornecedores', 'producao', 'usuarios'];
+const ITENS_MENU = ['dashboard', 'perfil', 'aparencia', 'fornecedores', 'producao', 'pedidos', 'usuarios'];
 
 export default function MenuOpcoes({ corPrimaria }) {
   const router = useRouter();
