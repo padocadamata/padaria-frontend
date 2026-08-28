@@ -1,6 +1,6 @@
-import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import MenuOpcoes from '../../components/MenuOpcoes';
+import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
 import ReceitaProducaoForm from '../../components/producao/ReceitaProducaoForm';
@@ -53,7 +53,6 @@ function BadgeTelaHoje({ naTelaHoje }) {
 }
 
 function ProdutosProducaoConteudo() {
-  const router = useRouter();
   // Migration 0016: escrita em receitas/receita_ingredientes passou de
   // is_admin() puro para has_permissao('produtos_producao.editar') — a RLS
   // já protege isso; este gate é só a UX correspondente.
@@ -245,49 +244,7 @@ function ProdutosProducaoConteudo() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => router.push('/dashboard')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'white',
-              color: aparencia.corPrimaria,
-              border: '1px solid ' + aparencia.corPrimaria,
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Dashboard
-          </button>
-
-          <button
-            onClick={() => router.push('/fornecedores')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'white',
-              color: aparencia.corPrimaria,
-              border: '1px solid ' + aparencia.corPrimaria,
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Fornecedores
-          </button>
-
-          <button
-            onClick={() => router.push('/producao')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: aparencia.corPrimaria,
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Produção
-          </button>
-        </div>
+        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
 
         <NavegacaoProducao abaAtiva="produtos" corPrimaria={aparencia.corPrimaria} />
 

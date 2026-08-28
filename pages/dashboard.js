@@ -1,9 +1,10 @@
-import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import MenuOpcoes from '../components/MenuOpcoes';
+import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import LembretesRapidos from '../components/dashboard/LembretesRapidos';
 import AtencaoProducao from '../components/dashboard/AtencaoProducao';
+import RecebimentosPrevistos from '../components/dashboard/RecebimentosPrevistos';
 import ProximosPedidos from '../components/dashboard/ProximosPedidos';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { useAuth } from '../hooks/useAuth';
@@ -19,11 +20,11 @@ function formatarDataExibicao(dataYYYYMMDD) {
 }
 
 function DashboardConteudo() {
-  const router = useRouter();
   const { permissoes } = useAuth();
   const hoje = dataLocalHoje();
   const podeVerProducao = hasPermissao(permissoes, PERMISSOES.PRODUCAO_VISUALIZAR);
   const podeVerFornecedores = hasPermissao(permissoes, PERMISSOES.FORNECEDORES_VISUALIZAR);
+  const podeVerPedidos = hasPermissao(permissoes, PERMISSOES.PEDIDOS_VISUALIZAR);
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
     corFundo: '#f5f5f5',
@@ -75,26 +76,7 @@ function DashboardConteudo() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => router.push('/dashboard')}
-            style={{ padding: '10px 20px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', cursor: 'pointer', borderRadius: '5px' }}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => router.push('/fornecedores')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: '1px solid ' + aparencia.corPrimaria, cursor: 'pointer', borderRadius: '5px' }}
-          >
-            Fornecedores
-          </button>
-          <button
-            onClick={() => router.push('/producao')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: '1px solid ' + aparencia.corPrimaria, cursor: 'pointer', borderRadius: '5px' }}
-          >
-            Produção
-          </button>
-        </div>
+        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
 
         <h2 style={{ color: aparencia.corPrimaria, margin: '0 0 20px 0' }}>
           Dashboard — {capitalizar(diaDaSemanaExibicao(hoje))}, {formatarDataExibicao(hoje)}
@@ -104,6 +86,8 @@ function DashboardConteudo() {
           {podeVerProducao && <AtencaoProducao corPrimaria={aparencia.corPrimaria} />}
 
           <LembretesRapidos corPrimaria={aparencia.corPrimaria} />
+
+          {podeVerPedidos && <RecebimentosPrevistos corPrimaria={aparencia.corPrimaria} />}
 
           {podeVerFornecedores && <ProximosPedidos corPrimaria={aparencia.corPrimaria} />}
         </div>

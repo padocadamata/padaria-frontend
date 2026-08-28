@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import MenuOpcoes from '../components/MenuOpcoes';
+import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import NovoPedidoForm from '../components/pedidos/NovoPedidoForm';
+import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
+import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -69,6 +72,7 @@ function PedidosConteudo() {
   const [pedidos, setPedidos] = useState([]);
   const [itensPorPedido, setItensPorPedido] = useState({});
   const [fornecedorNomePorId, setFornecedorNomePorId] = useState({});
+  const [produtoNomePorId, setProdutoNomePorId] = useState({});
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -81,6 +85,20 @@ function PedidosConteudo() {
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
   const [filtroPeriodoFim, setFiltroPeriodoFim] = useState('');
 
+  // "Ver pedido" (somente leitura).
+  const [pedidoDetalhe, setPedidoDetalhe] = useState(null);
+
+  // Confirmação de "Marcar como recebido".
+  const [pedidoParaReceber, setPedidoParaReceber] = useState(null);
+  const [recebendo, setRecebendo] = useState(false);
+  const [erroRecebimento, setErroRecebimento] = useState('');
+
+  // Confirmação de cancelamento (com motivo obrigatório).
+  const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
+  const [cancelando, setCancelando] = useState(false);
+  const [erroCancelamento, setErroCancelamento] = useState('');
+
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
     corFundo: '#f5f5f5',
@@ -89,6 +107,8 @@ function PedidosConteudo() {
   });
 
   const podeInserir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_INSERIR);
+  const podeReceber = hasPermissao(permissoes, PERMISSOES.PEDIDOS_RECEBER);
+  const podeCancelar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_CANCELAR);
   const hoje = dataLocalHoje();
 
   useEffect(() => {
@@ -129,25 +149,30 @@ function PedidosConteudo() {
 
       const supabase = createClient();
 
-      const [pedidosResp, itensResp, fornecedoresResp] = await Promise.all([
+      const [pedidosResp, itensResp, fornecedoresResp, produtosResp] = await Promise.all([
         supabase
           .from('pedidos')
-          .select('id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, criado_em'),
+          .select('id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, criado_em'),
         supabase
           .from('pedido_itens')
-          .select('id, pedido_id, descricao, quantidade_pedida, unidade, valor_unitario'),
+          .select('id, pedido_id, produto_id, descricao, quantidade_pedida, unidade, valor_unitario'),
         supabase.from('fornecedores').select('id, nome, nome_fantasia, razao_social'),
+        // Sem filtro de ativo: um item de pedido já lançado precisa continuar
+        // mostrando o nome do produto mesmo que ele seja desativado depois
+        // (mesmo raciocínio de receitaNomePorId em pages/producao/historico.js).
+        supabase.from('produtos').select('id, nome'),
       ]);
 
       if (!efeitoAtivo) return;
 
-      const primeiroErro = pedidosResp.error || itensResp.error || fornecedoresResp.error;
+      const primeiroErro = pedidosResp.error || itensResp.error || fornecedoresResp.error || produtosResp.error;
       if (primeiroErro) {
         console.error('Erro ao carregar pedidos:', primeiroErro);
         setErro('Não foi possível carregar os pedidos.');
         setPedidos([]);
         setItensPorPedido({});
         setFornecedorNomePorId({});
+        setProdutoNomePorId({});
         setCarregando(false);
         return;
       }
@@ -155,6 +180,11 @@ function PedidosConteudo() {
       const nomePorId = {};
       for (const f of fornecedoresResp.data || []) {
         nomePorId[f.id] = f.nome_fantasia || f.razao_social || f.nome || f.id;
+      }
+
+      const produtoNomePorIdCarregado = {};
+      for (const p of produtosResp.data || []) {
+        produtoNomePorIdCarregado[p.id] = p.nome;
       }
 
       const itensPorPedidoId = {};
@@ -173,6 +203,7 @@ function PedidosConteudo() {
       setPedidos(ordenados);
       setItensPorPedido(itensPorPedidoId);
       setFornecedorNomePorId(nomePorId);
+      setProdutoNomePorId(produtoNomePorIdCarregado);
       setCarregando(false);
     }
 
@@ -188,6 +219,22 @@ function PedidosConteudo() {
     return () => clearTimeout(timer);
   }, [mensagemSucesso]);
 
+  // Abertura direta via /pedidos?id=<uuid> (usado pelo widget
+  // RecebimentosPrevistos do Dashboard). A permissão para ver é a mesma
+  // que já protege a página inteira (RequireAuth abaixo, pedidos.visualizar)
+  // -- nenhuma checagem extra necessária aqui. Só abre depois que a
+  // listagem já carregou (senão o pedido ainda não existe em `pedidos`).
+  useEffect(() => {
+    if (!router.isReady || carregando) return;
+    const idParam = router.query.id;
+    if (!idParam || typeof idParam !== 'string') return;
+
+    const pedido = pedidos.find((p) => p.id === idParam);
+    if (pedido) {
+      setPedidoDetalhe(pedido);
+    }
+  }, [router.isReady, router.query.id, pedidos, carregando]);
+
   function abrirNovoPedido() {
     setMostrarNovoPedido(true);
   }
@@ -199,6 +246,103 @@ function PedidosConteudo() {
   function aoCriarPedido() {
     fecharNovoPedido();
     setMensagemSucesso('Pedido criado com sucesso.');
+    setRecarregarTick((tick) => tick + 1);
+  }
+
+  function abrirDetalhe(pedido) {
+    setPedidoDetalhe(pedido);
+  }
+
+  function fecharDetalhe() {
+    setPedidoDetalhe(null);
+    // Limpa o ?id= da URL ao fechar manualmente, para não reabrir sozinho
+    // numa próxima recarga de `pedidos` (ex.: depois de um Receber/Cancelar
+    // feito na linha, com o parâmetro ainda na URL).
+    if (router.query.id) {
+      router.replace('/pedidos', undefined, { shallow: true });
+    }
+  }
+
+  function abrirConfirmarRecebimento(pedido) {
+    setErroRecebimento('');
+    setPedidoParaReceber(pedido);
+  }
+
+  function fecharConfirmarRecebimento() {
+    setPedidoParaReceber(null);
+    setErroRecebimento('');
+  }
+
+  // Único caminho de escrita: RPC marcar_pedido_recebido -- nunca UPDATE
+  // direto em public.pedidos (ver justificativa completa no cabeçalho da
+  // migration 0022: a trigger pedidos_protecao é a fonte única de
+  // autorização/timestamp/auditoria dessa transição).
+  async function confirmarRecebimento() {
+    setRecebendo(true);
+    setErroRecebimento('');
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc('marcar_pedido_recebido', { p_pedido_id: pedidoParaReceber.id });
+
+    setRecebendo(false);
+
+    if (error) {
+      console.error('Erro ao marcar pedido como recebido:', error);
+      setErroRecebimento('Não foi possível marcar este pedido como recebido. Tente novamente.');
+      return;
+    }
+
+    setPedidoParaReceber(null);
+    // Fecha também "Ver pedido", se estiver aberto para este mesmo pedido
+    // (ação agora vive dentro do modal, ver DetalhePedidoModal.js) --
+    // fecharDetalhe() é seguro chamar mesmo se já estiver fechado (no-op).
+    fecharDetalhe();
+    setMensagemSucesso('Pedido marcado como recebido.');
+    setRecarregarTick((tick) => tick + 1);
+  }
+
+  function abrirConfirmarCancelamento(pedido) {
+    setMotivoCancelamento('');
+    setErroCancelamento('');
+    setPedidoParaCancelar(pedido);
+  }
+
+  function fecharConfirmarCancelamento() {
+    setPedidoParaCancelar(null);
+    setMotivoCancelamento('');
+    setErroCancelamento('');
+  }
+
+  // Único caminho de escrita: RPC cancelar_pedido -- nunca UPDATE direto.
+  // Motivo obrigatório e não-vazio, validado aqui E de novo pela própria
+  // RPC/trigger no banco (dupla proteção, mesmo padrão já usado em
+  // NovoPedidoForm.js para criar_pedido).
+  async function confirmarCancelamento() {
+    if (!motivoCancelamento.trim()) {
+      setErroCancelamento('Informe o motivo do cancelamento.');
+      return;
+    }
+
+    setCancelando(true);
+    setErroCancelamento('');
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc('cancelar_pedido', {
+      p_pedido_id: pedidoParaCancelar.id,
+      p_motivo: motivoCancelamento.trim(),
+    });
+
+    setCancelando(false);
+
+    if (error) {
+      console.error('Erro ao cancelar pedido:', error);
+      setErroCancelamento('Não foi possível cancelar este pedido. Tente novamente.');
+      return;
+    }
+
+    setPedidoParaCancelar(null);
+    fecharDetalhe();
+    setMensagemSucesso('Pedido cancelado.');
     setRecarregarTick((tick) => tick + 1);
   }
 
@@ -246,63 +390,7 @@ function PedidosConteudo() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => router.push('/dashboard')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'white',
-              color: aparencia.corPrimaria,
-              border: '1px solid ' + aparencia.corPrimaria,
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Dashboard
-          </button>
-
-          <button
-            onClick={() => router.push('/fornecedores')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'white',
-              color: aparencia.corPrimaria,
-              border: '1px solid ' + aparencia.corPrimaria,
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Fornecedores
-          </button>
-
-          <button
-            onClick={() => router.push('/producao')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'white',
-              color: aparencia.corPrimaria,
-              border: '1px solid ' + aparencia.corPrimaria,
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Produção
-          </button>
-
-          <button
-            onClick={() => router.push('/pedidos')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: aparencia.corPrimaria,
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              borderRadius: '5px',
-            }}
-          >
-            Pedidos
-          </button>
-        </div>
+        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Pedidos a Fornecedores</h2>
@@ -413,7 +501,7 @@ function PedidosConteudo() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  {['Fornecedor', 'Data do pedido', 'Previsão de entrega', 'Status', 'Itens', 'Total (derivado)'].map((coluna) => (
+                  {['Fornecedor', 'Data do pedido', 'Previsão de entrega', 'Status', 'Itens', 'Total (derivado)', 'Ações'].map((coluna) => (
                     <th
                       key={coluna}
                       style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}
@@ -445,6 +533,23 @@ function PedidosConteudo() {
                         {itensDoPedido.length} {itensDoPedido.length === 1 ? 'item' : 'itens'}
                       </td>
                       <td style={{ padding: '12px' }}>{algumComValor ? formatarMoeda(total) : '—'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <button
+                          type="button"
+                          onClick={() => abrirDetalhe(pedido)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#2196F3',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                          }}
+                        >
+                          Ver pedido
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -460,6 +565,80 @@ function PedidosConteudo() {
 
       {mostrarNovoPedido && (
         <NovoPedidoForm corPrimaria={aparencia.corPrimaria} onCriado={aoCriarPedido} onCancelar={fecharNovoPedido} />
+      )}
+
+      {pedidoDetalhe && (
+        <DetalhePedidoModal
+          pedido={pedidoDetalhe}
+          itens={itensPorPedido[pedidoDetalhe.id] || []}
+          fornecedorNome={fornecedorNomePorId[pedidoDetalhe.fornecedor_id] || pedidoDetalhe.fornecedor_id}
+          produtoNomePorId={produtoNomePorId}
+          corPrimaria={aparencia.corPrimaria}
+          hoje={hoje}
+          podeReceber={podeReceber}
+          podeCancelar={podeCancelar}
+          onReceber={() => abrirConfirmarRecebimento(pedidoDetalhe)}
+          onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
+          onFechar={fecharDetalhe}
+        />
+      )}
+
+      {pedidoParaReceber && (
+        <ConfirmarAcaoModal
+          titulo="Marcar pedido como recebido"
+          corPrimaria={aparencia.corPrimaria}
+          confirmando={recebendo}
+          erro={erroRecebimento}
+          textoConfirmar="Marcar como recebido"
+          mensagem={
+            <p>
+              Confirma que o pedido de{' '}
+              <strong>{fornecedorNomePorId[pedidoParaReceber.fornecedor_id] || pedidoParaReceber.fornecedor_id}</strong>{' '}
+              (previsão {formatarDataExibicao(pedidoParaReceber.previsao_entrega)}) foi recebido?
+            </p>
+          }
+          onConfirmar={confirmarRecebimento}
+          onCancelar={fecharConfirmarRecebimento}
+        />
+      )}
+
+      {pedidoParaCancelar && (
+        <ConfirmarAcaoModal
+          titulo="Cancelar pedido"
+          corPrimaria={aparencia.corPrimaria}
+          perigo
+          confirmando={cancelando}
+          erro={erroCancelamento}
+          textoConfirmar="Cancelar pedido"
+          textoCancelar="Voltar"
+          mensagem={
+            <div>
+              <p>
+                Esta ação é definitiva e não pode ser desfeita. Confirma o cancelamento do pedido de{' '}
+                <strong>{fornecedorNomePorId[pedidoParaCancelar.fornecedor_id] || pedidoParaCancelar.fornecedor_id}</strong>?
+              </p>
+              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' }}>
+                Motivo do cancelamento *
+              </label>
+              <textarea
+                value={motivoCancelamento}
+                onChange={(e) => setMotivoCancelamento(e.target.value)}
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '5px',
+                  boxSizing: 'border-box',
+                  minHeight: '60px',
+                  fontFamily: 'Arial',
+                }}
+              />
+            </div>
+          }
+          onConfirmar={confirmarCancelamento}
+          onCancelar={fecharConfirmarCancelamento}
+        />
       )}
     </div>
   );

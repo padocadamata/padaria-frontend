@@ -1,6 +1,6 @@
-import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import MenuOpcoes from '../components/MenuOpcoes';
+import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import CardTurno from '../components/producao/CardTurno';
 import BannerPendencias from '../components/producao/BannerPendencias';
@@ -23,7 +23,6 @@ function capitalizarPrimeiraLetra(texto) {
 }
 
 function ProducaoConteudo() {
-  const router = useRouter();
   const { permissoes, perfilUsuario } = useAuth();
 
   const [aparencia, setAparencia] = useState({
@@ -183,26 +182,7 @@ function ProducaoConteudo() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => router.push('/dashboard')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: '1px solid ' + aparencia.corPrimaria, cursor: 'pointer', borderRadius: '5px' }}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => router.push('/fornecedores')}
-            style={{ padding: '10px 20px', backgroundColor: 'white', color: aparencia.corPrimaria, border: '1px solid ' + aparencia.corPrimaria, cursor: 'pointer', borderRadius: '5px' }}
-          >
-            Fornecedores
-          </button>
-          <button
-            onClick={() => router.push('/producao')}
-            style={{ padding: '10px 20px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', cursor: 'pointer', borderRadius: '5px' }}
-          >
-            Produção
-          </button>
-        </div>
+        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
 
         <NavegacaoProducao abaAtiva="hoje" corPrimaria={aparencia.corPrimaria} />
 
