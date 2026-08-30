@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import LancarCompraForm from './LancarCompraForm';
+import { BotaoIconeAcao, IconeLapis, IconeLixeira } from '../producao/IconesAcoes';
+import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
+import { createClient } from '../../lib/supabase/client';
 
 function formatarData(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
@@ -22,6 +25,10 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
   const [lancamentoEmEdicao, setLancamentoEmEdicao] = useState(null);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
 
+  const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState(null);
+  const [excluindo, setExcluindo] = useState(false);
+  const [erroExclusao, setErroExclusao] = useState('');
+
   function abrirNovoLancamento() {
     setLancamentoEmEdicao(null);
     setModalAberto(true);
@@ -41,6 +48,46 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
     const estaEditando = lancamentoEmEdicao != null;
     fecharModal();
     setMensagemSucesso(estaEditando ? 'Lançamento atualizado com sucesso.' : 'Compra lançada com sucesso.');
+    setTimeout(() => setMensagemSucesso(''), 4000);
+    onRecarregar();
+  }
+
+  function pedirExclusao(lancamento) {
+    setErroExclusao('');
+    setLancamentoParaExcluir(lancamento);
+  }
+
+  function cancelarExclusao() {
+    setLancamentoParaExcluir(null);
+    setErroExclusao('');
+  }
+
+  // Única forma permitida de excluir: a RPC excluir_historico_compra_manual
+  // (migration 0025) -- SECURITY DEFINER, RPC-only, e a UNICA camada que
+  // garante origem='manual' (a tabela não tem policy de DELETE nenhuma).
+  // Nunca .from('produtos_historico_compras').delete(). onRecarregar()
+  // recarrega tanto esta lista quanto o Resumo de preços (mesmo
+  // recarregarTick da página) -- última compra/menor preço refletem a
+  // exclusão sem F5.
+  async function confirmarExclusao() {
+    setExcluindo(true);
+    setErroExclusao('');
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc('excluir_historico_compra_manual', {
+      p_historico_id: lancamentoParaExcluir.id,
+    });
+
+    setExcluindo(false);
+
+    if (error) {
+      console.error('Erro ao excluir lançamento de compra:', error);
+      setErroExclusao('Não foi possível excluir este lançamento. Tente novamente ou avise um administrador.');
+      return;
+    }
+
+    setLancamentoParaExcluir(null);
+    setMensagemSucesso('Lançamento excluído com sucesso.');
     setTimeout(() => setMensagemSucesso(''), 4000);
     onRecarregar();
   }
@@ -105,21 +152,20 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
                   </td>
                   <td style={{ padding: '8px' }}>
                     {podeEditar && lancamento.origem === 'manual' && (
-                      <button
-                        type="button"
-                        onClick={() => abrirEdicaoLancamento(lancamento)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: '#2196F3',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                        }}
-                      >
-                        Editar
-                      </button>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <BotaoIconeAcao
+                          rotulo="Editar lançamento"
+                          icone={IconeLapis}
+                          cor={corPrimaria}
+                          onClick={() => abrirEdicaoLancamento(lancamento)}
+                        />
+                        <BotaoIconeAcao
+                          rotulo="Excluir lançamento"
+                          icone={IconeLixeira}
+                          destrutivo
+                          onClick={() => pedirExclusao(lancamento)}
+                        />
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -138,6 +184,28 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
           corPrimaria={corPrimaria}
           onFechar={fecharModal}
           onSalvo={aoSalvar}
+        />
+      )}
+
+      {lancamentoParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir lançamento de compra"
+          mensagem={
+            <>
+              Tem certeza que deseja excluir a compra de <strong>{formatarData(lancamentoParaExcluir.data_compra)}</strong> —{' '}
+              <strong>{lancamentoParaExcluir.fornecedorNome}</strong>, {formatarMoeda(lancamentoParaExcluir.preco_unitario_comercial)} /{' '}
+              {lancamentoParaExcluir.unidade_comercial}?
+              <br />
+              Esta ação é definitiva e não pode ser desfeita.
+            </>
+          }
+          corPrimaria={corPrimaria}
+          perigo
+          textoConfirmar="Excluir"
+          confirmando={excluindo}
+          erro={erroExclusao}
+          onConfirmar={confirmarExclusao}
+          onCancelar={cancelarExclusao}
         />
       )}
     </div>

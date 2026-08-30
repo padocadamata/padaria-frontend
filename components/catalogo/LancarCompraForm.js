@@ -272,26 +272,33 @@ export default function LancarCompraForm({ produtoId, fornecedoresAtivos, config
               style={campoEstilo}
             />
           </div>
+        </div>
 
-          <div>
-            <label style={rotuloEstilo}>Fator de conversão p/ unidade-base</label>
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={dados.fator_conversao_base}
-              onChange={(e) => atualizarCampo('fator_conversao_base', e.target.value)}
-              placeholder="Ex.: caixa com 12 unidades → 12"
-              style={campoEstilo}
-            />
+        <div style={{ marginBottom: '15px' }}>
+          <label style={rotuloEstilo}>Fator de conversão p/ unidade-base</label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={dados.fator_conversao_base}
+            onChange={(e) => atualizarCampo('fator_conversao_base', e.target.value)}
+            placeholder="Ex.: caixa com 12 unidades → 12"
+            style={{ ...campoEstilo, maxWidth: '220px' }}
+          />
+
+          <div style={{ marginTop: '8px', fontSize: '13px', color: '#555', lineHeight: '1.5' }}>
+            <p style={{ margin: '0 0 6px 0' }}>
+              Informe quantas unidades-base existem em 1 unidade comercial.
+            </p>
+            <p style={{ margin: '0 0 6px 0' }}>
+              Ex.: produto em UN, caixa com 12 unidades → fator 12. Uma caixa de R$ 60,00 equivale a R$ 5,00/UN.
+            </p>
+            <p style={{ margin: 0, color: '#888' }}>
+              Se não souber a conversão, deixe em branco. A compra será registrada, mas não participará da
+              comparação de preço-base.
+            </p>
           </div>
         </div>
-        <p style={{ fontSize: '12px', color: '#999', marginTop: '-8px', marginBottom: '15px' }}>
-          Quantas unidades-base do produto equivalem a 1 unidade comercial <strong>desta compra específica</strong>.
-          Exemplo: unidade-base "UN", comprou uma caixa com 12 unidades por R$ 60,00 → fator = 12 (o preço-base sai
-          R$ 5,00/UN). Sem esse valor, a compra continua registrada, mas não entra na comparação de preço-base —
-          não existe caminho para "inventar" esse número.
-        </p>
 
         <div style={{ marginBottom: '15px' }}>
           <label style={rotuloEstilo}>Observação</label>

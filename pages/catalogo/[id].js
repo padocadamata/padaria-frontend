@@ -174,7 +174,7 @@ function ProdutoDetalheConteudo() {
 
         {/* Card: Resumo de preços */}
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-          <ResumoPrecos resumo={resumo} fornecedoresPorId={fornecedoresPorId} />
+          <ResumoPrecos resumo={resumo} fornecedoresPorId={fornecedoresPorId} unidadeBase={produto.unidade_medida} />
         </div>
 
         {/* Card: Fornecedores */}

@@ -7,6 +7,15 @@ function formatarMoeda(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Preço-base sempre com a unidade-base do PRODUTO ao lado (nunca a
+// unidade comercial da compra) -- é o que torna os três blocos
+// comparáveis entre si. Sem unidadeBase (produtos.unidade_medida é
+// nullable), mostra só o valor: não inventa unidade nenhuma.
+function formatarPrecoBase(valor, unidadeBase) {
+  const preco = formatarMoeda(valor);
+  return unidadeBase ? `${preco} / ${unidadeBase}` : preco;
+}
+
 const blocoEstilo = {
   backgroundColor: '#f9f9f9',
   borderRadius: '5px',
@@ -17,13 +26,15 @@ const blocoEstilo = {
 const rotuloBlocoEstilo = { fontWeight: 'bold', fontSize: '13px', color: '#555', marginBottom: '6px' };
 
 // Card "Resumo de preços" de /catalogo/[id], consumindo uma linha de
-// public.produtos_resumo_compras (view da migration 0023). Três blocos
-// deliberadamente separados -- nomenclatura exata pedida:
-// "Última compra" / "Último preço-base comparável" / "Menor preço-base
-// registrado". Nunca usar "dado confiável"/"melhor compra"/"melhor preço
-// já visto" -- nenhum desses conceitos existe na view (ela não julga
-// qualidade do dado, só cronologia e valor).
-export default function ResumoPrecos({ resumo, fornecedoresPorId }) {
+// public.produtos_resumo_compras (view da migration 0023) + a unidade-base
+// do próprio produto (produto.unidade_medida, já carregado pela página --
+// nenhuma query nova aqui). Três blocos deliberadamente separados --
+// nomenclatura exata pedida: "Última compra" / "Último preço-base
+// comparável" / "Menor preço-base registrado". Nunca usar "dado
+// confiável"/"melhor compra"/"melhor preço já visto" -- nenhum desses
+// conceitos existe na view (ela não julga qualidade do dado, só
+// cronologia e valor).
+export default function ResumoPrecos({ resumo, fornecedoresPorId, unidadeBase }) {
   if (!resumo) {
     return (
       <div>
@@ -48,14 +59,17 @@ export default function ResumoPrecos({ resumo, fornecedoresPorId }) {
         <div style={blocoEstilo}>
           <div style={rotuloBlocoEstilo}>Última compra</div>
           <div>{formatarData(resumo.ultima_compra_data)} — {nomeFornecedor(resumo.ultima_compra_fornecedor_id)}</div>
-          <div style={{ fontSize: '13px', color: '#666' }}>
+          <div style={{ fontSize: '13px', color: '#666', marginTop: '2px' }}>
             {formatarMoeda(resumo.ultima_compra_preco_comercial)} / {resumo.ultima_compra_unidade_comercial}
           </div>
-          <div style={{ marginTop: '6px', fontWeight: 'bold' }}>
+          <div style={{ marginTop: '8px', fontSize: '13px' }}>
             {resumo.ultima_compra_preco_base != null ? (
-              formatarMoeda(resumo.ultima_compra_preco_base)
+              <>
+                <span style={{ color: '#555' }}>Preço-base: </span>
+                <span style={{ fontWeight: 'bold' }}>{formatarPrecoBase(resumo.ultima_compra_preco_base, unidadeBase)}</span>
+              </>
             ) : (
-              <span style={{ fontWeight: 'normal', color: '#999', fontStyle: 'italic' }}>
+              <span style={{ color: '#999', fontStyle: 'italic' }}>
                 Preço-base não disponível — conversão não informada.
               </span>
             )}
@@ -66,7 +80,7 @@ export default function ResumoPrecos({ resumo, fornecedoresPorId }) {
           <div style={rotuloBlocoEstilo}>Último preço-base comparável</div>
           {resumo.ultimo_preco_base_valor != null ? (
             <>
-              <div style={{ fontWeight: 'bold' }}>{formatarMoeda(resumo.ultimo_preco_base_valor)}</div>
+              <div style={{ fontWeight: 'bold' }}>{formatarPrecoBase(resumo.ultimo_preco_base_valor, unidadeBase)}</div>
               <div style={{ fontSize: '13px', color: '#666' }}>
                 {formatarData(resumo.ultimo_preco_base_data)} — {nomeFornecedor(resumo.ultimo_preco_base_fornecedor_id)}
               </div>
@@ -85,7 +99,7 @@ export default function ResumoPrecos({ resumo, fornecedoresPorId }) {
           <div style={rotuloBlocoEstilo}>Menor preço-base registrado</div>
           {resumo.menor_preco_base_valor != null ? (
             <>
-              <div style={{ fontWeight: 'bold' }}>{formatarMoeda(resumo.menor_preco_base_valor)}</div>
+              <div style={{ fontWeight: 'bold' }}>{formatarPrecoBase(resumo.menor_preco_base_valor, unidadeBase)}</div>
               <div style={{ fontSize: '13px', color: '#666' }}>
                 {formatarData(resumo.menor_preco_base_data)} — {nomeFornecedor(resumo.menor_preco_base_fornecedor_id)}
               </div>
