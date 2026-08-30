@@ -1,3 +1,5 @@
+import { BotaoIconeAcao, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira } from '../producao/IconesAcoes';
+
 const STATUS_LABEL = {
   aguardando_entrega: 'Aguardando entrega',
   recebido: 'Recebido',
@@ -50,13 +52,15 @@ const caixaEstilo = {
 
 const rotuloEstilo = { fontWeight: 'bold', fontSize: '12px', color: '#666', marginBottom: '2px' };
 
-// Sem nenhuma escrita própria: os botões Receber/Cancelar aqui só
-// disparam os callbacks recebidos (onReceber/onCancelarPedido) -- quem
-// decide o que acontece (abrir a confirmação, chamar
-// marcar_pedido_recebido/cancelar_pedido, recarregar a listagem) continua
+// Sem nenhuma escrita própria: os botões Editar/Receber/Cancelar/Excluir
+// aqui só disparam os callbacks recebidos (onEditar/onReceber/
+// onCancelarPedido/onExcluir) -- quem decide o que acontece (abrir a
+// edição/confirmação, chamar as RPCs, recarregar a listagem) continua
 // sendo pages/pedidos.js, único lugar com as RPCs. Todos os valores
 // financeiros exibidos (subtotal por item, total) são calculados na hora
-// da renderização, nunca lidos de uma coluna persistida.
+// da renderização, nunca lidos de uma coluna persistida. Ações visíveis
+// só para status=aguardando_entrega -- pedido recebido/cancelado nunca
+// oferece editar/excluir aqui.
 export default function DetalhePedidoModal({
   pedido,
   itens,
@@ -64,10 +68,14 @@ export default function DetalhePedidoModal({
   produtoNomePorId,
   corPrimaria = '#8B4513',
   hoje,
+  podeEditar,
   podeReceber,
   podeCancelar,
+  podeExcluir,
+  onEditar,
   onReceber,
   onCancelarPedido,
+  onExcluir,
   onFechar,
 }) {
   const atrasado = estaAtrasado(pedido, hoje);
@@ -76,8 +84,14 @@ export default function DetalhePedidoModal({
     : { aguardando_entrega: '#FF9800', recebido: '#4CAF50', cancelado: '#9e9e9e' }[pedido.status] || '#9e9e9e';
   const rotuloStatus = atrasado ? 'Atrasado' : STATUS_LABEL[pedido.status] || pedido.status;
 
+  // Só existe um total quando TODOS os itens têm preço -- somar só os
+  // precificados e apresentar como "total do pedido" seria enganoso
+  // (mesma regra aplicada na listagem e em PedidoForm).
   const algumItemComValor = itens.some((item) => item.valor_unitario != null);
-  const total = itens.reduce((soma, item) => soma + item.quantidade_pedida * (item.valor_unitario || 0), 0);
+  const todosItensComValor = itens.length > 0 && itens.every((item) => item.valor_unitario != null);
+  const total = todosItensComValor
+    ? itens.reduce((soma, item) => soma + item.quantidade_pedida * item.valor_unitario, 0)
+    : null;
 
   return (
     <div style={overlayEstilo}>
@@ -140,7 +154,7 @@ export default function DetalhePedidoModal({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #ddd' }}>
-                    {['Descrição', 'Produto', 'Unidade', 'Quantidade', 'Valor unitário', 'Subtotal'].map((coluna) => (
+                    {['Descrição', 'Produto', 'Unidade', 'Quantidade pedida', 'Preço unitário estimado', 'Subtotal estimado'].map((coluna) => (
                       <th key={coluna} style={{ padding: '8px', textAlign: 'left', fontSize: '13px', color: corPrimaria, whiteSpace: 'nowrap' }}>
                         {coluna}
                       </th>
@@ -171,45 +185,36 @@ export default function DetalhePedidoModal({
           )}
 
           <p style={{ marginTop: '12px', fontSize: '14px', textAlign: 'right' }}>
-            Total (derivado dos itens): <strong>{algumItemComValor ? formatarMoeda(total) : '—'}</strong>
+            Total estimado do pedido: <strong>{todosItensComValor ? formatarMoeda(total) : '—'}</strong>
           </p>
+          {todosItensComValor ? (
+            <p style={{ marginTop: '-8px', fontSize: '11px', color: '#999', textAlign: 'right' }}>
+              Estimado a partir do preço informado — não é necessariamente o preço final da compra.
+            </p>
+          ) : (
+            algumItemComValor && (
+              <p style={{ marginTop: '-8px', fontSize: '11px', color: '#e65100', textAlign: 'right' }}>
+                Total estimado incompleto — nem todos os itens têm preço informado.
+              </p>
+            )
+          )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '15px', flexWrap: 'wrap' }}>
+          {pedido.status === 'aguardando_entrega' && podeEditar && (
+            <BotaoIconeAcao rotulo="Editar pedido" icone={IconeLapis} cor={corPrimaria} onClick={onEditar} />
+          )}
+
           {pedido.status === 'aguardando_entrega' && podeReceber && (
-            <button
-              type="button"
-              onClick={onReceber}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              Marcar como recebido
-            </button>
+            <BotaoIconeAcao rotulo="Marcar como recebido" icone={IconeCheck} cor="#4CAF50" onClick={onReceber} />
           )}
 
           {pedido.status === 'aguardando_entrega' && podeCancelar && (
-            <button
-              type="button"
-              onClick={onCancelarPedido}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              Cancelar pedido
-            </button>
+            <BotaoIconeAcao rotulo="Cancelar pedido" icone={IconeCancelar} destrutivo onClick={onCancelarPedido} />
+          )}
+
+          {pedido.status === 'aguardando_entrega' && podeExcluir && (
+            <BotaoIconeAcao rotulo="Excluir pedido definitivamente" icone={IconeLixeira} destrutivo onClick={onExcluir} />
           )}
 
           <button

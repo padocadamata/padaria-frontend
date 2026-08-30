@@ -69,6 +69,18 @@ export function IconeReabrir() {
   );
 }
 
+// Usado por Pedidos (ação "Cancelar pedido") -- nenhum ícone existente
+// aqui tinha semântica de cancelamento; adicionado como export puramente
+// aditivo, sem tocar em nenhum ícone/uso já existente em Produção.
+export function IconeCancelar() {
+  return (
+    <svg {...propsIconeBase}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m4.9 4.9 14.2 14.2" />
+    </svg>
+  );
+}
+
 export function IconeLixeira() {
   return (
     <svg {...propsIconeBase}>

@@ -3,9 +3,10 @@ import { useRouter } from 'next/router';
 import MenuOpcoes from '../components/MenuOpcoes';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
-import NovoPedidoForm from '../components/pedidos/NovoPedidoForm';
+import PedidoForm from '../components/pedidos/PedidoForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
+import { BotaoIconeAcao, IconeOlho } from '../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -88,6 +89,16 @@ function PedidosConteudo() {
   // "Ver pedido" (somente leitura).
   const [pedidoDetalhe, setPedidoDetalhe] = useState(null);
 
+  // Edição de pedido (só aguardando_entrega + pedidos.editar) -- mesmo
+  // componente PedidoForm da criação, com `pedido` preenchido.
+  const [pedidoParaEditar, setPedidoParaEditar] = useState(null);
+
+  // Exclusão definitiva (só aguardando_entrega + pedidos.excluir), via
+  // RPC excluir_pedido (migration 0025) -- nunca DELETE direto.
+  const [pedidoParaExcluir, setPedidoParaExcluir] = useState(null);
+  const [excluindoPedido, setExcluindoPedido] = useState(false);
+  const [erroExclusaoPedido, setErroExclusaoPedido] = useState('');
+
   // Confirmação de "Marcar como recebido".
   const [pedidoParaReceber, setPedidoParaReceber] = useState(null);
   const [recebendo, setRecebendo] = useState(false);
@@ -107,8 +118,10 @@ function PedidosConteudo() {
   });
 
   const podeInserir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_INSERIR);
+  const podeEditar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EDITAR);
   const podeReceber = hasPermissao(permissoes, PERMISSOES.PEDIDOS_RECEBER);
   const podeCancelar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_CANCELAR);
+  const podeExcluir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
   const hoje = dataLocalHoje();
 
   useEffect(() => {
@@ -253,6 +266,65 @@ function PedidosConteudo() {
     setPedidoDetalhe(pedido);
   }
 
+  // Edição reaproveita PedidoForm (mesmo componente da criação, `pedido`
+  // preenchido) -- enriquece com fornecedorNome aqui, já resolvido pelo
+  // mapa carregado para a listagem, sem query extra.
+  function abrirEdicao(pedido) {
+    fecharDetalhe();
+    setPedidoParaEditar({ ...pedido, fornecedorNome: fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id });
+  }
+
+  // Recarrega SEMPRE ao fechar, mesmo em "Cancelar" -- cobre o caso de
+  // uma edição ter falhado parcialmente (cabeçalho/alguns itens já
+  // salvos antes do erro, ver comentário em PedidoForm.salvarEdicao):
+  // fechar sem recarregar deixaria a listagem mostrando o estado
+  // anterior à edição, mesmo que parte dela já tenha sido persistida.
+  function fecharEdicao() {
+    setPedidoParaEditar(null);
+    setRecarregarTick((tick) => tick + 1);
+  }
+
+  function aoSalvarEdicao() {
+    fecharEdicao();
+    setMensagemSucesso('Pedido atualizado com sucesso.');
+  }
+
+  function abrirConfirmarExclusao(pedido) {
+    setErroExclusaoPedido('');
+    setPedidoParaExcluir(pedido);
+  }
+
+  function fecharConfirmarExclusao() {
+    setPedidoParaExcluir(null);
+    setErroExclusaoPedido('');
+  }
+
+  // Único caminho de exclusão definitiva: RPC excluir_pedido (migration
+  // 0025) -- SECURITY DEFINER, RPC-only por desenho (nenhuma policy de
+  // DELETE existe em pedidos/pedido_itens). Nunca
+  // .from('pedidos').delete() nem .from('pedido_itens').delete() para
+  // exclusão completa do pedido.
+  async function confirmarExclusaoPedido() {
+    setExcluindoPedido(true);
+    setErroExclusaoPedido('');
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc('excluir_pedido', { p_pedido_id: pedidoParaExcluir.id });
+
+    setExcluindoPedido(false);
+
+    if (error) {
+      console.error('Erro ao excluir pedido:', error);
+      setErroExclusaoPedido('Não foi possível excluir este pedido. Tente novamente ou avise um administrador.');
+      return;
+    }
+
+    setPedidoParaExcluir(null);
+    fecharDetalhe();
+    setMensagemSucesso('Pedido excluído definitivamente.');
+    setRecarregarTick((tick) => tick + 1);
+  }
+
   function fecharDetalhe() {
     setPedidoDetalhe(null);
     // Limpa o ?id= da URL ao fechar manualmente, para não reabrir sozinho
@@ -316,7 +388,7 @@ function PedidosConteudo() {
   // Único caminho de escrita: RPC cancelar_pedido -- nunca UPDATE direto.
   // Motivo obrigatório e não-vazio, validado aqui E de novo pela própria
   // RPC/trigger no banco (dupla proteção, mesmo padrão já usado em
-  // NovoPedidoForm.js para criar_pedido).
+  // PedidoForm.js para criar_pedido).
   async function confirmarCancelamento() {
     if (!motivoCancelamento.trim()) {
       setErroCancelamento('Informe o motivo do cancelamento.');
@@ -501,7 +573,7 @@ function PedidosConteudo() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  {['Fornecedor', 'Data do pedido', 'Previsão de entrega', 'Status', 'Itens', 'Total (derivado)', 'Ações'].map((coluna) => (
+                  {['Fornecedor', 'Data do pedido', 'Previsão de entrega', 'Status', 'Itens', 'Total estimado', 'Ações'].map((coluna) => (
                     <th
                       key={coluna}
                       style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}
@@ -515,15 +587,38 @@ function PedidosConteudo() {
               <tbody>
                 {pedidosFiltrados.map((pedido) => {
                   const itensDoPedido = itensPorPedido[pedido.id] || [];
+                  // Mesma regra de DetalhePedidoModal/PedidoForm: só existe
+                  // um total quando TODOS os itens têm preço -- somar só
+                  // os precificados e chamar isso de "total" seria
+                  // enganoso (pareceria completo sem estar).
+                  const todosComValor = itensDoPedido.length > 0 && itensDoPedido.every((item) => item.valor_unitario != null);
                   const algumComValor = itensDoPedido.some((item) => item.valor_unitario != null);
-                  const total = itensDoPedido.reduce(
-                    (soma, item) => soma + item.quantidade_pedida * (item.valor_unitario || 0),
-                    0
-                  );
+                  const total = todosComValor
+                    ? itensDoPedido.reduce((soma, item) => soma + item.quantidade_pedida * item.valor_unitario, 0)
+                    : null;
 
                   return (
                     <tr key={pedido.id} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: '12px' }}>{fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}</td>
+                      <td style={{ padding: '12px' }}>
+                        {fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}
+                        {pedido.observacoes && (
+                          <div
+                            title={pedido.observacoes}
+                            style={{
+                              fontSize: '11px',
+                              color: '#999',
+                              fontStyle: 'italic',
+                              marginTop: '2px',
+                              maxWidth: '220px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {pedido.observacoes}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(pedido.data_pedido)}</td>
                       <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(pedido.previsao_entrega)}</td>
                       <td style={{ padding: '12px' }}>
@@ -532,23 +627,20 @@ function PedidosConteudo() {
                       <td style={{ padding: '12px' }}>
                         {itensDoPedido.length} {itensDoPedido.length === 1 ? 'item' : 'itens'}
                       </td>
-                      <td style={{ padding: '12px' }}>{algumComValor ? formatarMoeda(total) : '—'}</td>
                       <td style={{ padding: '12px' }}>
-                        <button
-                          type="button"
+                        {todosComValor ? (
+                          formatarMoeda(total)
+                        ) : (
+                          <span title={algumComValor ? 'Nem todos os itens têm preço informado.' : undefined}>—</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <BotaoIconeAcao
+                          rotulo="Ver pedido"
+                          icone={IconeOlho}
+                          cor={aparencia.corPrimaria}
                           onClick={() => abrirDetalhe(pedido)}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: '#2196F3',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                          }}
-                        >
-                          Ver pedido
-                        </button>
+                        />
                       </td>
                     </tr>
                   );
@@ -564,7 +656,20 @@ function PedidosConteudo() {
       </div>
 
       {mostrarNovoPedido && (
-        <NovoPedidoForm corPrimaria={aparencia.corPrimaria} onCriado={aoCriarPedido} onCancelar={fecharNovoPedido} />
+        <PedidoForm corPrimaria={aparencia.corPrimaria} onSalvo={aoCriarPedido} onCancelar={fecharNovoPedido} />
+      )}
+
+      {pedidoParaEditar && (
+        <PedidoForm
+          pedido={pedidoParaEditar}
+          itensIniciais={(itensPorPedido[pedidoParaEditar.id] || []).map((item) => ({
+            ...item,
+            produtoNome: item.produto_id ? produtoNomePorId[item.produto_id] || item.descricao : item.descricao,
+          }))}
+          corPrimaria={aparencia.corPrimaria}
+          onSalvo={aoSalvarEdicao}
+          onCancelar={fecharEdicao}
+        />
       )}
 
       {pedidoDetalhe && (
@@ -575,11 +680,37 @@ function PedidosConteudo() {
           produtoNomePorId={produtoNomePorId}
           corPrimaria={aparencia.corPrimaria}
           hoje={hoje}
+          podeEditar={podeEditar}
           podeReceber={podeReceber}
           podeCancelar={podeCancelar}
+          podeExcluir={podeExcluir}
+          onEditar={() => abrirEdicao(pedidoDetalhe)}
           onReceber={() => abrirConfirmarRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
+          onExcluir={() => abrirConfirmarExclusao(pedidoDetalhe)}
           onFechar={fecharDetalhe}
+        />
+      )}
+
+      {pedidoParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir pedido definitivamente"
+          corPrimaria={aparencia.corPrimaria}
+          perigo
+          confirmando={excluindoPedido}
+          erro={erroExclusaoPedido}
+          textoConfirmar="Excluir"
+          mensagem={
+            <>
+              Tem certeza que deseja excluir definitivamente o pedido de{' '}
+              <strong>{fornecedorNomePorId[pedidoParaExcluir.fornecedor_id] || pedidoParaExcluir.fornecedor_id}</strong>{' '}
+              feito em <strong>{formatarDataExibicao(pedidoParaExcluir.data_pedido)}</strong>?
+              <br />
+              Esta ação é definitiva e não pode ser desfeita.
+            </>
+          }
+          onConfirmar={confirmarExclusaoPedido}
+          onCancelar={fecharConfirmarExclusao}
         />
       )}
 
