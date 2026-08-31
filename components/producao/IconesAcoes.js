@@ -98,17 +98,18 @@ export function IconeLixeira() {
 // `disabled=false` (padrão) usa `cor`/`corHover`; passar `destrutivo` deixa
 // o botão neutro em repouso e vermelho no hover/foco (ex.: Excluir), sem
 // deixar a linha toda "carregada de vermelho" — só o botão reage.
-export function BotaoIconeAcao({ rotulo, onClick, icone: Icone, destrutivo = false, cor = '#9e9e9e' }) {
+export function BotaoIconeAcao({ rotulo, onClick, icone: Icone, destrutivo = false, cor = '#9e9e9e', disabled = false }) {
   const [emDestaque, setEmDestaque] = useState(false);
 
   const corHover = destrutivo ? '#f44336' : '#616161';
-  const corAtual = emDestaque ? corHover : cor;
+  const corAtual = disabled ? '#c9c9c9' : emDestaque ? corHover : cor;
 
   return (
     <span style={{ position: 'relative', display: 'inline-flex' }}>
       <button
         type="button"
         onClick={onClick}
+        disabled={disabled}
         aria-label={rotulo}
         onMouseEnter={() => setEmDestaque(true)}
         onMouseLeave={() => setEmDestaque(false)}
@@ -124,7 +125,7 @@ export function BotaoIconeAcao({ rotulo, onClick, icone: Icone, destrutivo = fal
           border: 'none',
           backgroundColor: corAtual,
           color: 'white',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           transition: 'background-color 0.12s ease',
           padding: 0,
         }}

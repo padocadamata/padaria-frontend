@@ -6,19 +6,32 @@ import { createClient } from '../../lib/supabase/client';
 // padrão de components/fornecedores/FornecedorForm.js. Sem modal: os
 // dois contextos já são páginas próprias (rota dedicada / card
 // empilhado), não precisam de overlay.
+//
+// validar/montarPayload/mensagemErro são exportadas (além de usadas
+// aqui dentro) para a edição inline da tabela em pages/catalogo.js
+// reutilizar exatamente a mesma validação/payload/tratamento de erro
+// deste formulário — nunca duas implementações da mesma regra podendo
+// divergir.
+//
+// Seção/Categoria (migration 0028): secao_id/categoria_id (FK para
+// catalogo_secoes/catalogo_categorias) são a ÚNICA fonte que este
+// formulário lê e escreve a partir de agora -- produtos.secao/categoria
+// (texto livre) continuam existindo no banco só como legado transitório,
+// nunca mais gravados por aqui. '' representa "nenhuma classificação"
+// (equivalente a NULL) no <select> -- ver montarPayload.
 function estadoInicial(produto) {
   return {
     nome: produto?.nome || '',
     codigo_g3: produto?.codigo_g3 || '',
     codigo_barras: produto?.codigo_barras || '',
-    secao: produto?.secao || '',
-    categoria: produto?.categoria || '',
+    secao_id: produto?.secao_id || '',
+    categoria_id: produto?.categoria_id || '',
     unidade_medida: produto?.unidade_medida || '',
     ativo: produto ? !!produto.ativo : true,
   };
 }
 
-function validar(dados) {
+export function validar(dados) {
   if (!dados.nome.trim()) {
     return 'Informe o nome do produto.';
   }
@@ -27,20 +40,23 @@ function validar(dados) {
 
 // codigo_g3/codigo_barras vazios viram null explicitamente -- nunca
 // string vazia (a CHECK do banco rejeitaria, e null é o valor correto
-// para "produto sem esse código", não uma string vazia).
-function montarPayload(dados) {
+// para "produto sem esse código", não uma string vazia). secao_id/
+// categoria_id: '' (nenhuma opção selecionada) também vira null --
+// NUNCA envia secao/categoria (texto) no payload, mesmo que a coluna
+// ainda exista no banco.
+export function montarPayload(dados) {
   return {
     nome: dados.nome.trim(),
     codigo_g3: dados.codigo_g3.trim() || null,
     codigo_barras: dados.codigo_barras.trim() || null,
-    secao: dados.secao.trim() || null,
-    categoria: dados.categoria.trim() || null,
+    secao_id: dados.secao_id || null,
+    categoria_id: dados.categoria_id || null,
     unidade_medida: dados.unidade_medida.trim() || null,
     ativo: dados.ativo,
   };
 }
 
-function mensagemErro(error) {
+export function mensagemErro(error) {
   if (!error) return '';
   const msg = error.message || '';
 
@@ -78,6 +94,16 @@ function mensagemErro(error) {
       : 'Um campo obrigatório não foi informado.';
   }
 
+  // Defensivo: só acontece se secao_id/categoria_id apontar para uma
+  // classificação excluída entre o carregamento do <select> e o salvar
+  // (concorrência rara -- outra aba/usuário excluiu a classificação
+  // enquanto esta tela estava aberta). RESTRICT/NO ACTION nas FKs
+  // (migration 0028) faz o Postgres rejeitar em vez de aceitar um valor
+  // órfão.
+  if (error.code === '23503') {
+    return 'A Seção ou Categoria selecionada não existe mais -- atualize a página e tente novamente.';
+  }
+
   console.error('Erro ao salvar produto:', error);
   return 'Não foi possível salvar o produto. Tente novamente ou avise um administrador.';
 }
@@ -98,32 +124,36 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
-  // Sugestões de seção/categoria a partir dos valores já cadastrados nos
-  // 390 produtos existentes (datalist -- só sugestão, nunca trava o
-  // usuário a uma lista fixa; produto legitimamente novo pode usar um
-  // valor ainda não visto).
-  const [secoesExistentes, setSecoesExistentes] = useState([]);
-  const [categoriasExistentes, setCategoriasExistentes] = useState([]);
+  // Seção/Categoria estruturadas (migration 0028) -- carregado sempre
+  // (não só quando podeEditar): o modo leitura (CampoLeitura) também
+  // precisa dessas listas para resolver o nome a partir de
+  // produto.secao_id/categoria_id. RLS de catalogo_secoes/categorias já
+  // exige catalogo_produtos.visualizar, a mesma permissão que dá acesso
+  // a esta tela -- buscar aqui nunca expõe nada que o usuário não
+  // pudesse ver de outra forma.
+  const [secoes, setSecoes] = useState([]);
+  const [categorias, setCategorias] = useState([]);
 
   useEffect(() => {
-    if (!podeEditar) return undefined;
-
     let efeitoAtivo = true;
 
-    async function carregarSugestoes() {
+    async function carregarClassificacoes() {
       const supabase = createClient();
-      const { data } = await supabase.from('produtos').select('secao, categoria');
-      if (!efeitoAtivo || !data) return;
+      const [{ data: secoesData }, { data: categoriasData }] = await Promise.all([
+        supabase.from('catalogo_secoes').select('id, nome').order('nome'),
+        supabase.from('catalogo_categorias').select('id, nome').order('nome'),
+      ]);
+      if (!efeitoAtivo) return;
 
-      setSecoesExistentes(Array.from(new Set(data.map((p) => p.secao).filter(Boolean))).sort());
-      setCategoriasExistentes(Array.from(new Set(data.map((p) => p.categoria).filter(Boolean))).sort());
+      setSecoes(secoesData || []);
+      setCategorias(categoriasData || []);
     }
 
-    carregarSugestoes();
+    carregarClassificacoes();
     return () => {
       efeitoAtivo = false;
     };
-  }, [podeEditar]);
+  }, []);
 
   function atualizarCampo(campo, valor) {
     setDados((atual) => ({ ...atual, [campo]: valor }));
@@ -167,13 +197,15 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
   }
 
   if (!podeEditar) {
+    const secaoNome = secoes.find((s) => s.id === produto.secao_id)?.nome;
+    const categoriaNome = categorias.find((c) => c.id === produto.categoria_id)?.nome;
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
         <CampoLeitura rotulo="Nome" valor={produto.nome} />
         <CampoLeitura rotulo="Código G3" valor={produto.codigo_g3} />
         <CampoLeitura rotulo="Código de barras" valor={produto.codigo_barras} />
-        <CampoLeitura rotulo="Seção" valor={produto.secao} />
-        <CampoLeitura rotulo="Categoria" valor={produto.categoria} />
+        <CampoLeitura rotulo="Seção" valor={secaoNome} />
+        <CampoLeitura rotulo="Categoria" valor={categoriaNome} />
         <CampoLeitura rotulo="Unidade-base" valor={produto.unidade_medida} />
         <CampoLeitura rotulo="Status" valor={produto.ativo ? 'Ativo' : 'Inativo'} />
       </div>
@@ -182,17 +214,6 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
 
   return (
     <div>
-      <datalist id="catalogo-secoes-existentes">
-        {secoesExistentes.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-      <datalist id="catalogo-categorias-existentes">
-        {categoriasExistentes.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
         <div>
           <label style={rotuloEstilo}>Nome *</label>
@@ -228,26 +249,30 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
 
         <div>
           <label style={rotuloEstilo}>Seção</label>
-          <input
-            type="text"
-            list="catalogo-secoes-existentes"
-            value={dados.secao}
-            onChange={(e) => atualizarCampo('secao', e.target.value)}
-            placeholder="Opcional"
+          <select
+            value={dados.secao_id}
+            onChange={(e) => atualizarCampo('secao_id', e.target.value)}
             style={campoEstilo}
-          />
+          >
+            <option value="">— Nenhuma —</option>
+            {secoes.map((s) => (
+              <option key={s.id} value={s.id}>{s.nome}</option>
+            ))}
+          </select>
         </div>
 
         <div>
           <label style={rotuloEstilo}>Categoria</label>
-          <input
-            type="text"
-            list="catalogo-categorias-existentes"
-            value={dados.categoria}
-            onChange={(e) => atualizarCampo('categoria', e.target.value)}
-            placeholder="Opcional"
+          <select
+            value={dados.categoria_id}
+            onChange={(e) => atualizarCampo('categoria_id', e.target.value)}
             style={campoEstilo}
-          />
+          >
+            <option value="">— Nenhuma —</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </select>
         </div>
 
         <div>

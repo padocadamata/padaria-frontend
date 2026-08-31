@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import MenuOpcoes from '../components/MenuOpcoes';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
+import { validar as validarProduto, montarPayload as montarPayloadProduto, mensagemErro as mensagemErroProduto } from '../components/catalogo/DadosProdutoForm';
+import GerenciarClassificacoesModal from '../components/catalogo/GerenciarClassificacoesModal';
+import { BotaoIconeAcao, IconeOlho, IconeLapis, IconeCheck, IconeCancelar } from '../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -21,13 +24,24 @@ const TAMANHO_LOTE = 100;
 const MAX_LOTES = 1000;
 
 // Busca TODOS os produtos que atendem ao filtro, em lotes sucessivos via
-// .range(), em vez de uma única consulta (hoje 390 produtos passam numa
+// .range(), em vez de uma única consulta (hoje 396 produtos passam numa
 // única página de 500, mas o catálogo não pode voltar a depender disso
 // silenciosamente se crescer). Ordena por nome + id (desempate estável):
 // há nomes duplicados reais no catálogo hoje (ex. "OVO BRANCO" x2), e sem
 // um desempate determinístico a paginação por .range() poderia pular ou
 // repetir uma linha entre dois lotes quando o Postgres ordenasse o
-// empate de forma diferente a cada consulta.
+// empate de forma diferente a cada consulta. A ordenação de EXIBIÇÃO
+// (cabeçalho clicável) é uma etapa client-side separada, aplicada depois
+// que o conjunto completo já foi carregado — nunca sobre um lote isolado.
+//
+// secao_id/categoria_id (migration 0028) -- NUNCA mais secao/categoria
+// (texto legado): esta página só lê/exibe/filtra/ordena pelas
+// classificações estruturadas. O nome exibido vem do estado
+// secoes/categorias carregado à parte (catalogo_secoes/catalogo_categorias),
+// resolvido via Map -- não via join no Supabase -- assim um rename feito
+// no modal "Gerenciar classificações" atualiza a tabela inteira
+// automaticamente (o Map é recalculado a cada render), sem precisar
+// re-buscar produtos.
 async function buscarTodosProdutos(supabase, filtroStatus) {
   const registros = [];
   let inicio = 0;
@@ -35,7 +49,7 @@ async function buscarTodosProdutos(supabase, filtroStatus) {
   for (let lote = 0; lote < MAX_LOTES; lote++) {
     let consulta = supabase
       .from('produtos')
-      .select('id, nome, codigo_g3, codigo_barras, secao, categoria, unidade_medida, ativo')
+      .select('id, nome, codigo_g3, codigo_barras, secao_id, categoria_id, unidade_medida, ativo')
       .order('nome', { ascending: true })
       .order('id', { ascending: true })
       .range(inicio, inicio + TAMANHO_LOTE - 1);
@@ -84,12 +98,103 @@ function BadgeStatus({ ativo }) {
   );
 }
 
+// Comparação de texto para ordenação: vazio/nulo sempre por último,
+// independente da direção escolhida (evita que "crescente" jogue todos
+// os produtos sem Seção/Categoria pro topo, o que seria confuso). pt-BR
+// + sensitivity 'base' trata acentuação/caixa como equivalentes para fins
+// de ordenação (Café ~ cafe ~ CAFÉ ficam juntos).
+function compararTexto(a, b) {
+  const x = (a || '').trim();
+  const y = (b || '').trim();
+  if (!x && !y) return 0;
+  if (!x) return 1;
+  if (!y) return -1;
+  return x.localeCompare(y, 'pt-BR', { sensitivity: 'base' });
+}
+
+// 'secaoNome'/'categoriaNome' são campos DERIVADOS (calculados a partir
+// de secao_id/categoria_id + o cadastro estruturado), nunca as colunas
+// de texto legado -- ver produtosComNomes dentro do componente.
+const CAMPOS_TEXTO_ORDENAVEIS = new Set(['nome', 'codigo_g3', 'codigo_barras', 'secaoNome', 'categoriaNome', 'unidade_medida']);
+
+// Ordem coerente para Status: Ativo antes de Inativo no sentido
+// crescente -- não há uma ordem "alfabética" natural para um booleano,
+// então esta é a convenção explícita adotada (produto habilitado para
+// uso é tratado como "menor"/primeiro).
+function compararProdutos(a, b, ordenacao) {
+  let resultado;
+
+  if (ordenacao.campo === 'ativo') {
+    resultado = a.ativo === b.ativo ? 0 : a.ativo ? -1 : 1;
+  } else if (CAMPOS_TEXTO_ORDENAVEIS.has(ordenacao.campo)) {
+    resultado = compararTexto(a[ordenacao.campo], b[ordenacao.campo]);
+  } else {
+    resultado = 0;
+  }
+
+  return ordenacao.direcao === 'asc' ? resultado : -resultado;
+}
+
+function IndicadorOrdenacao({ ativo, direcao }) {
+  if (!ativo) return null;
+  return <span style={{ marginLeft: '4px' }}>{direcao === 'asc' ? '▲' : '▼'}</span>;
+}
+
+function ThOrdenavel({ campo, label, ordenacao, aoClicar, aparencia }) {
+  const ativo = ordenacao.campo === campo;
+  return (
+    <th
+      onClick={() => aoClicar(campo)}
+      style={{
+        padding: '12px',
+        textAlign: 'left',
+        color: aparencia.corPrimaria,
+        fontWeight: 'bold',
+        whiteSpace: 'nowrap',
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
+      title="Clique para ordenar"
+    >
+      {label}
+      <IndicadorOrdenacao ativo={ativo} direcao={ordenacao.direcao} />
+    </th>
+  );
+}
+
+const campoInlineEstilo = {
+  width: '100%',
+  minWidth: '90px',
+  padding: '6px',
+  border: '1px solid #ddd',
+  borderRadius: '4px',
+  boxSizing: 'border-box',
+  fontSize: '13px',
+};
+
+async function carregarClassificacoes(supabase) {
+  const [{ data: secoesData }, { data: categoriasData }] = await Promise.all([
+    supabase.from('catalogo_secoes').select('id, nome').order('nome'),
+    supabase.from('catalogo_categorias').select('id, nome').order('nome'),
+  ]);
+  return { secoes: secoesData || [], categorias: categoriasData || [] };
+}
+
 // Listagem do Catálogo de Produtos (public.produtos). Deliberadamente SEM
 // nenhuma coluna de preço -- "Não transformar essa página em uma tabela
 // de preços" (preço/comparação de preço vive em /catalogo/[id], card
-// "Resumo de preços"). Mesma estrutura de página que
-// pages/admin/usuarios.js: tabela + botão de linha que navega para a
-// rota de detalhe.
+// "Resumo de preços"). Permite ordenar por cabeçalho (client-side, sobre
+// o conjunto completo já carregado pelos lotes de buscarTodosProdutos) e
+// editar os campos principais direto na linha (nome/código G3/código de
+// barras/seção/categoria/unidade/status) sem abrir /catalogo/[id] --
+// reaproveita EXATAMENTE validar/montarPayload/mensagemErro de
+// DadosProdutoForm, nunca uma segunda implementação da mesma regra.
+//
+// Seção/Categoria (migration 0028) são classificações ESTRUTURADAS --
+// secao_id/categoria_id em produtos, nomes em catalogo_secoes/
+// catalogo_categorias. Esta página nunca lê nem escreve mais
+// produtos.secao/produtos.categoria (texto legado) -- essas colunas
+// continuam existindo no banco só por compatibilidade transitória.
 function CatalogoConteudo() {
   const router = useRouter();
   const { permissoes } = useAuth();
@@ -98,10 +203,24 @@ function CatalogoConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
+  const [secoes, setSecoes] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [modalClassificacoesAberto, setModalClassificacoesAberto] = useState(false);
+
   const [filtroStatus, setFiltroStatus] = useState('ativos');
-  const [filtroSecao, setFiltroSecao] = useState('todas');
-  const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const [filtroSecaoId, setFiltroSecaoId] = useState('todas');
+  const [filtroCategoriaId, setFiltroCategoriaId] = useState('todas');
   const [busca, setBusca] = useState('');
+
+  const [ordenacao, setOrdenacao] = useState({ campo: 'nome', direcao: 'asc' });
+
+  // Edição inline: uma linha por produto.id em edicoes[] entra em modo
+  // edição. Múltiplas linhas podem estar em edição ao mesmo tempo -- cada
+  // uma com seu próprio estado e seu próprio botão Salvar (sem "Salvar
+  // tudo" global).
+  const [edicoes, setEdicoes] = useState({});
+  const [salvandoId, setSalvandoId] = useState(null);
+  const [erroPorId, setErroPorId] = useState({});
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -118,6 +237,28 @@ function CatalogoConteudo() {
         console.error('Erro ao carregar aparência:', e);
       }
     }
+  }, []);
+
+  // Classificações carregadas UMA vez, independente do filtro de status
+  // dos produtos -- alimentam filtros, selects de edição rápida e o
+  // modal "Gerenciar classificações". Recarregadas por completo (não
+  // patch local) depois de qualquer criação/renomeação/exclusão no
+  // modal, garantindo que a lista nunca fique dessincronizada do banco.
+  useEffect(() => {
+    let efeitoAtivo = true;
+
+    async function carregar() {
+      const supabase = createClient();
+      const resultado = await carregarClassificacoes(supabase);
+      if (!efeitoAtivo) return;
+      setSecoes(resultado.secoes);
+      setCategorias(resultado.categorias);
+    }
+
+    carregar();
+    return () => {
+      efeitoAtivo = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -150,14 +291,28 @@ function CatalogoConteudo() {
     };
   }, [filtroStatus]);
 
-  const secoesExistentes = Array.from(new Set(produtos.map((p) => p.secao).filter(Boolean))).sort();
-  const categoriasExistentes = Array.from(new Set(produtos.map((p) => p.categoria).filter(Boolean))).sort();
+  const secoesPorId = useMemo(() => new Map(secoes.map((s) => [s.id, s])), [secoes]);
+  const categoriasPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
+
+  // secaoNome/categoriaNome são resolvidos aqui, a cada render -- se uma
+  // classificação for renomeada no modal (atualizando secoes/categorias),
+  // toda a tabela reflete o novo nome imediatamente, sem re-buscar
+  // produtos e sem F5.
+  const produtosComNomes = useMemo(
+    () =>
+      produtos.map((p) => ({
+        ...p,
+        secaoNome: p.secao_id ? secoesPorId.get(p.secao_id)?.nome || null : null,
+        categoriaNome: p.categoria_id ? categoriasPorId.get(p.categoria_id)?.nome || null : null,
+      })),
+    [produtos, secoesPorId, categoriasPorId]
+  );
 
   const buscaNormalizada = busca.trim().toLowerCase();
 
-  const produtosFiltrados = produtos.filter((produto) => {
-    if (filtroSecao !== 'todas' && produto.secao !== filtroSecao) return false;
-    if (filtroCategoria !== 'todas' && produto.categoria !== filtroCategoria) return false;
+  const produtosFiltrados = produtosComNomes.filter((produto) => {
+    if (filtroSecaoId !== 'todas' && produto.secao_id !== filtroSecaoId) return false;
+    if (filtroCategoriaId !== 'todas' && produto.categoria_id !== filtroCategoriaId) return false;
 
     if (!buscaNormalizada) return true;
 
@@ -168,7 +323,95 @@ function CatalogoConteudo() {
     return nome.includes(buscaNormalizada) || codigoG3.includes(buscaNormalizada) || codigoBarras.includes(buscaNormalizada);
   });
 
+  // Ordenação aplicada sobre o resultado JÁ filtrado (não sobre o
+  // conjunto bruto) -- funciona em conjunto com os filtros, como pedido.
+  const produtosOrdenados = [...produtosFiltrados].sort((a, b) => compararProdutos(a, b, ordenacao));
+
   const podeEditar = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_EDITAR);
+
+  function alternarOrdenacao(campo) {
+    setOrdenacao((atual) => {
+      if (atual.campo === campo) {
+        return { campo, direcao: atual.direcao === 'asc' ? 'desc' : 'asc' };
+      }
+      return { campo, direcao: 'asc' };
+    });
+  }
+
+  function abrirEdicao(produto) {
+    setEdicoes((atual) => ({
+      ...atual,
+      [produto.id]: {
+        nome: produto.nome || '',
+        codigo_g3: produto.codigo_g3 || '',
+        codigo_barras: produto.codigo_barras || '',
+        secao_id: produto.secao_id || '',
+        categoria_id: produto.categoria_id || '',
+        unidade_medida: produto.unidade_medida || '',
+        ativo: !!produto.ativo,
+      },
+    }));
+    setErroPorId((atual) => {
+      const { [produto.id]: _removido, ...resto } = atual;
+      return resto;
+    });
+  }
+
+  function cancelarEdicao(id) {
+    setEdicoes((atual) => {
+      const { [id]: _removido, ...resto } = atual;
+      return resto;
+    });
+    setErroPorId((atual) => {
+      const { [id]: _removido, ...resto } = atual;
+      return resto;
+    });
+  }
+
+  function atualizarCampoEdicao(id, campo, valor) {
+    setEdicoes((atual) => ({ ...atual, [id]: { ...atual[id], [campo]: valor } }));
+  }
+
+  // Reaproveita EXATAMENTE validar()/montarPayload()/mensagemErro() de
+  // DadosProdutoForm -- a edição inline nunca aceita algo que o
+  // formulário individual recusaria, porque é literalmente o mesmo
+  // código, não uma reimplementação paralela. montarPayload já envia
+  // secao_id/categoria_id (nunca secao/categoria texto) desde a migration
+  // 0028 -- ver components/catalogo/DadosProdutoForm.js.
+  async function salvarEdicao(id) {
+    const dados = edicoes[id];
+    const mensagemValidacao = validarProduto(dados);
+    if (mensagemValidacao) {
+      setErroPorId((atual) => ({ ...atual, [id]: mensagemValidacao }));
+      return;
+    }
+
+    setSalvandoId(id);
+    setErroPorId((atual) => {
+      const { [id]: _removido, ...resto } = atual;
+      return resto;
+    });
+
+    const supabase = createClient();
+    const payload = montarPayloadProduto(dados);
+    const { error } = await supabase.from('produtos').update(payload).eq('id', id);
+
+    setSalvandoId(null);
+
+    if (error) {
+      setErroPorId((atual) => ({ ...atual, [id]: mensagemErroProduto(error) }));
+      return;
+    }
+
+    // Atualiza a linha localmente (mesmo valor que acabou de ser
+    // gravado) -- sem F5, sem nova consulta. secaoNome/categoriaNome são
+    // recalculados automaticamente no próximo render (produtosComNomes),
+    // a partir do novo secao_id/categoria_id. /catalogo/[id] lê a mesma
+    // tabela normalmente na próxima vez que for aberto, então mostra
+    // exatamente isto.
+    setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, ...payload } : p)));
+    cancelarEdicao(id);
+  }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
@@ -188,23 +431,41 @@ function CatalogoConteudo() {
             histórico de compras ficam na página de cada produto.
           </p>
 
-          {podeEditar && (
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
-              onClick={() => router.push('/catalogo/novo')}
+              onClick={() => setModalClassificacoesAberto(true)}
               style={{
                 padding: '10px 20px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
+                backgroundColor: 'white',
+                color: aparencia.corPrimaria,
+                border: `1px solid ${aparencia.corPrimaria}`,
                 borderRadius: '5px',
                 cursor: 'pointer',
                 fontWeight: 'bold',
                 whiteSpace: 'nowrap',
               }}
             >
-              + Novo produto
+              Gerenciar classificações
             </button>
-          )}
+
+            {podeEditar && (
+              <button
+                onClick={() => router.push('/catalogo/novo')}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: aparencia.corPrimaria,
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                + Novo produto
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
@@ -236,13 +497,13 @@ function CatalogoConteudo() {
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Seção</label>
               <select
-                value={filtroSecao}
-                onChange={(e) => setFiltroSecao(e.target.value)}
+                value={filtroSecaoId}
+                onChange={(e) => setFiltroSecaoId(e.target.value)}
                 style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}
               >
                 <option value="todas">Todas</option>
-                {secoesExistentes.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                {secoes.map((s) => (
+                  <option key={s.id} value={s.id}>{s.nome}</option>
                 ))}
               </select>
             </div>
@@ -250,13 +511,13 @@ function CatalogoConteudo() {
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Categoria</label>
               <select
-                value={filtroCategoria}
-                onChange={(e) => setFiltroCategoria(e.target.value)}
+                value={filtroCategoriaId}
+                onChange={(e) => setFiltroCategoriaId(e.target.value)}
                 style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}
               >
                 <option value="todas">Todas</option>
-                {categoriasExistentes.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                {categorias.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
                 ))}
               </select>
             </div>
@@ -268,59 +529,199 @@ function CatalogoConteudo() {
             <p>Carregando produtos...</p>
           ) : erro ? (
             <p style={{ color: '#f44336' }}>{erro}</p>
-          ) : produtosFiltrados.length === 0 ? (
+          ) : produtosOrdenados.length === 0 ? (
             <p style={{ color: '#666' }}>Nenhum produto encontrado.</p>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={thStyle(aparencia)}>Nome</th>
-                  <th style={thStyle(aparencia)}>Código G3</th>
-                  <th style={thStyle(aparencia)}>Seção / Categoria</th>
-                  <th style={thStyle(aparencia)}>Unidade-base</th>
-                  <th style={thStyle(aparencia)}>Status</th>
-                  <th style={thStyle(aparencia)}>Ações</th>
+                  <ThOrdenavel campo="nome" label="Produto" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <ThOrdenavel campo="codigo_g3" label="Código G3" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <ThOrdenavel campo="codigo_barras" label="Cód. barras" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <ThOrdenavel campo="secaoNome" label="Seção" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <ThOrdenavel campo="categoriaNome" label="Categoria" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <ThOrdenavel campo="unidade_medida" label="Unidade" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <ThOrdenavel campo="ativo" label="Status" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
+                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                    Ações
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {produtosFiltrados.map((produto) => (
-                  <tr key={produto.id} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '12px' }}>{produto.nome}</td>
-                    <td style={{ padding: '12px' }}>{produto.codigo_g3 || '—'}</td>
-                    <td style={{ padding: '12px' }}>
-                      {produto.secao || '—'}{produto.categoria ? ` / ${produto.categoria}` : ''}
-                    </td>
-                    <td style={{ padding: '12px' }}>{produto.unidade_medida || '—'}</td>
-                    <td style={{ padding: '12px' }}><BadgeStatus ativo={produto.ativo} /></td>
-                    <td style={{ padding: '12px' }}>
-                      <button
-                        onClick={() => router.push(`/catalogo/${produto.id}`)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: aparencia.corPrimaria,
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                        }}
+                {produtosOrdenados.map((produto) => {
+                  const emEdicao = !!edicoes[produto.id];
+                  const dados = edicoes[produto.id];
+                  const erroLinha = erroPorId[produto.id];
+                  const salvandoEstaLinha = salvandoId === produto.id;
+
+                  return (
+                    <Fragment key={produto.id}>
+                      <tr
+                        style={{ borderBottom: erroLinha ? 'none' : '1px solid #ddd', backgroundColor: emEdicao ? '#fff8e1' : 'transparent' }}
                       >
-                        Ver produto
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <input
+                              type="text"
+                              value={dados.nome}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'nome', e.target.value)}
+                              style={campoInlineEstilo}
+                            />
+                          ) : (
+                            produto.nome
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <input
+                              type="text"
+                              value={dados.codigo_g3}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'codigo_g3', e.target.value)}
+                              placeholder="Opcional"
+                              style={campoInlineEstilo}
+                            />
+                          ) : (
+                            produto.codigo_g3 || '—'
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <input
+                              type="text"
+                              value={dados.codigo_barras}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'codigo_barras', e.target.value)}
+                              placeholder="Opcional"
+                              style={campoInlineEstilo}
+                            />
+                          ) : (
+                            produto.codigo_barras || '—'
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <select
+                              value={dados.secao_id}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'secao_id', e.target.value)}
+                              style={campoInlineEstilo}
+                            >
+                              <option value="">— Nenhuma —</option>
+                              {secoes.map((s) => (
+                                <option key={s.id} value={s.id}>{s.nome}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            produto.secaoNome || '—'
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <select
+                              value={dados.categoria_id}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'categoria_id', e.target.value)}
+                              style={campoInlineEstilo}
+                            >
+                              <option value="">— Nenhuma —</option>
+                              {categorias.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nome}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            produto.categoriaNome || '—'
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <input
+                              type="text"
+                              value={dados.unidade_medida}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'unidade_medida', e.target.value)}
+                              placeholder="kg, un, pacote..."
+                              style={campoInlineEstilo}
+                            />
+                          ) : (
+                            produto.unidade_medida || '—'
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {emEdicao ? (
+                            <select
+                              value={dados.ativo ? 'ativo' : 'inativo'}
+                              onChange={(e) => atualizarCampoEdicao(produto.id, 'ativo', e.target.value === 'ativo')}
+                              style={campoInlineEstilo}
+                            >
+                              <option value="ativo">Ativo</option>
+                              <option value="inativo">Inativo</option>
+                            </select>
+                          ) : (
+                            <BadgeStatus ativo={produto.ativo} />
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            {emEdicao ? (
+                              <>
+                                <BotaoIconeAcao
+                                  rotulo="Salvar"
+                                  icone={IconeCheck}
+                                  cor="#4CAF50"
+                                  disabled={salvandoEstaLinha}
+                                  onClick={() => salvarEdicao(produto.id)}
+                                />
+                                <BotaoIconeAcao
+                                  rotulo="Cancelar"
+                                  icone={IconeCancelar}
+                                  disabled={salvandoEstaLinha}
+                                  onClick={() => cancelarEdicao(produto.id)}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <BotaoIconeAcao
+                                  rotulo="Visualizar"
+                                  icone={IconeOlho}
+                                  onClick={() => router.push(`/catalogo/${produto.id}`)}
+                                />
+                                {podeEditar && (
+                                  <BotaoIconeAcao
+                                    rotulo="Editar"
+                                    icone={IconeLapis}
+                                    cor={aparencia.corPrimaria}
+                                    onClick={() => abrirEdicao(produto)}
+                                  />
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {erroLinha && (
+                        <tr style={{ borderBottom: '1px solid #ddd' }}>
+                          <td colSpan={8} style={{ padding: '0 12px 10px 12px', backgroundColor: '#fff8e1' }}>
+                            <span style={{ color: '#f44336', fontSize: '13px' }}>{erroLinha}</span>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}
         </div>
       </div>
+
+      <GerenciarClassificacoesModal
+        aberto={modalClassificacoesAberto}
+        onFechar={() => setModalClassificacoesAberto(false)}
+        secoes={secoes}
+        categorias={categorias}
+        podeEditar={podeEditar}
+        corPrimaria={aparencia.corPrimaria}
+        aoAtualizarSecoes={setSecoes}
+        aoAtualizarCategorias={setCategorias}
+      />
     </div>
   );
-}
-
-function thStyle(aparencia) {
-  return { padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' };
 }
 
 export default function Catalogo() {
