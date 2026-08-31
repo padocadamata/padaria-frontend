@@ -5,6 +5,7 @@ import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
+import ReceberPedidoModal from '../components/pedidos/ReceberPedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
 import { BotaoIconeAcao, IconeOlho } from '../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
@@ -99,10 +100,13 @@ function PedidosConteudo() {
   const [excluindoPedido, setExcluindoPedido] = useState(false);
   const [erroExclusaoPedido, setErroExclusaoPedido] = useState('');
 
-  // Confirmação de "Marcar como recebido".
+  // Recebimento detalhado (só aguardando_entrega + pedidos.receber), via
+  // RPC receber_pedido (migration 0026) -- substitui o antigo
+  // marcar_pedido_recebido (0022, ainda existe no banco, mas nenhum
+  // caminho do frontend o chama mais; será removido/revogado por uma
+  // migration 0027 futura, depois deste frontend estar validado em
+  // produção).
   const [pedidoParaReceber, setPedidoParaReceber] = useState(null);
-  const [recebendo, setRecebendo] = useState(false);
-  const [erroRecebimento, setErroRecebimento] = useState('');
 
   // Confirmação de cancelamento (com motivo obrigatório).
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState(null);
@@ -165,10 +169,14 @@ function PedidosConteudo() {
       const [pedidosResp, itensResp, fornecedoresResp, produtosResp] = await Promise.all([
         supabase
           .from('pedidos')
-          .select('id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, criado_em'),
+          .select(
+            'id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, recebido_em, criado_em'
+          ),
         supabase
           .from('pedido_itens')
-          .select('id, pedido_id, produto_id, descricao, quantidade_pedida, unidade, valor_unitario'),
+          .select(
+            'id, pedido_id, produto_id, descricao, quantidade_pedida, unidade, valor_unitario, unidade_recebida, quantidade_recebida, valor_unitario_recebido, valor_total_recebido'
+          ),
         supabase.from('fornecedores').select('id, nome, nome_fantasia, razao_social'),
         // Sem filtro de ativo: um item de pedido já lançado precisa continuar
         // mostrando o nome do produto mesmo que ele seja desativado depois
@@ -335,41 +343,22 @@ function PedidosConteudo() {
     }
   }
 
-  function abrirConfirmarRecebimento(pedido) {
-    setErroRecebimento('');
+  function abrirRecebimento(pedido) {
+    fecharDetalhe();
     setPedidoParaReceber(pedido);
   }
 
-  function fecharConfirmarRecebimento() {
+  function fecharRecebimento() {
     setPedidoParaReceber(null);
-    setErroRecebimento('');
   }
 
-  // Único caminho de escrita: RPC marcar_pedido_recebido -- nunca UPDATE
-  // direto em public.pedidos (ver justificativa completa no cabeçalho da
-  // migration 0022: a trigger pedidos_protecao é a fonte única de
-  // autorização/timestamp/auditoria dessa transição).
-  async function confirmarRecebimento() {
-    setRecebendo(true);
-    setErroRecebimento('');
-
-    const supabase = createClient();
-    const { error } = await supabase.rpc('marcar_pedido_recebido', { p_pedido_id: pedidoParaReceber.id });
-
-    setRecebendo(false);
-
-    if (error) {
-      console.error('Erro ao marcar pedido como recebido:', error);
-      setErroRecebimento('Não foi possível marcar este pedido como recebido. Tente novamente.');
-      return;
-    }
-
-    setPedidoParaReceber(null);
-    // Fecha também "Ver pedido", se estiver aberto para este mesmo pedido
-    // (ação agora vive dentro do modal, ver DetalhePedidoModal.js) --
-    // fecharDetalhe() é seguro chamar mesmo se já estiver fechado (no-op).
-    fecharDetalhe();
-    setMensagemSucesso('Pedido marcado como recebido.');
+  // Chamado pelo ReceberPedidoModal após a RPC receber_pedido (migration
+  // 0026) confirmar com sucesso -- toda a escrita (itens + histórico do
+  // Catálogo + status do pedido) já aconteceu atomicamente dentro da RPC;
+  // aqui só fecha o modal e recarrega a listagem.
+  function aoConfirmarRecebimento() {
+    fecharRecebimento();
+    setMensagemSucesso('Pedido recebido com sucesso.');
     setRecarregarTick((tick) => tick + 1);
   }
 
@@ -685,7 +674,7 @@ function PedidosConteudo() {
           podeCancelar={podeCancelar}
           podeExcluir={podeExcluir}
           onEditar={() => abrirEdicao(pedidoDetalhe)}
-          onReceber={() => abrirConfirmarRecebimento(pedidoDetalhe)}
+          onReceber={() => abrirRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
           onExcluir={() => abrirConfirmarExclusao(pedidoDetalhe)}
           onFechar={fecharDetalhe}
@@ -715,21 +704,14 @@ function PedidosConteudo() {
       )}
 
       {pedidoParaReceber && (
-        <ConfirmarAcaoModal
-          titulo="Marcar pedido como recebido"
+        <ReceberPedidoModal
+          pedido={pedidoParaReceber}
+          itens={itensPorPedido[pedidoParaReceber.id] || []}
+          fornecedorNome={fornecedorNomePorId[pedidoParaReceber.fornecedor_id] || pedidoParaReceber.fornecedor_id}
+          produtoNomePorId={produtoNomePorId}
           corPrimaria={aparencia.corPrimaria}
-          confirmando={recebendo}
-          erro={erroRecebimento}
-          textoConfirmar="Marcar como recebido"
-          mensagem={
-            <p>
-              Confirma que o pedido de{' '}
-              <strong>{fornecedorNomePorId[pedidoParaReceber.fornecedor_id] || pedidoParaReceber.fornecedor_id}</strong>{' '}
-              (previsão {formatarDataExibicao(pedidoParaReceber.previsao_entrega)}) foi recebido?
-            </p>
-          }
-          onConfirmar={confirmarRecebimento}
-          onCancelar={fecharConfirmarRecebimento}
+          onConfirmado={aoConfirmarRecebimento}
+          onCancelar={fecharRecebimento}
         />
       )}
 

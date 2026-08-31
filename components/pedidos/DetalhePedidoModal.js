@@ -16,6 +16,21 @@ function formatarMoeda(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// pedido.recebido_em é timestamptz (forçado por pedidos_protecao, sempre
+// now() no instante da transição) -- distinto da data efetiva informada
+// pelo operador em ReceberPedidoModal (produtos_historico_compras.data_compra
+// por item, não exposta aqui para não exigir uma consulta extra por
+// pedido; ver seção 10 do cabeçalho da migration 0026). Mesmo fuso usado
+// em todo o projeto.
+function formatarDataHoraExibicao(timestamptz) {
+  if (!timestamptz) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(timestamptz));
+}
+
 // "Atrasado" recalculado aqui do mesmo jeito que na listagem (pages/pedidos.js)
 // -- não é importado de lá porque pages/*.js não deve ser importado por
 // componentes (só o caminho contrário); é a mesma fórmula de poucas linhas,
@@ -200,13 +215,68 @@ export default function DetalhePedidoModal({
           )}
         </div>
 
+        {pedido.status === 'recebido' && (
+          <div style={{ borderTop: '1px solid #eee', paddingTop: '15px', marginTop: '15px' }}>
+            <h4 style={{ margin: '0 0 4px 0' }}>Dados do recebimento</h4>
+            <p style={{ fontSize: '12px', color: '#666', marginTop: 0, marginBottom: '10px' }}>
+              Recebido em {formatarDataHoraExibicao(pedido.recebido_em)}
+            </p>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ddd' }}>
+                    {['Produto', 'Unidade', 'Quantidade', 'Valor unitário', 'Valor total'].map((coluna) => (
+                      <th key={coluna} style={{ padding: '8px', textAlign: 'left', fontSize: '13px', color: corPrimaria, whiteSpace: 'nowrap' }}>
+                        {coluna}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {itens.map((item) => {
+                    // Coerentes juntos por CHECK (pedido_itens_recebimento_coerente_check,
+                    // migration 0026) -- ou os 3 estão preenchidos, ou os 3
+                    // estão NULL (pedido recebido antes da 0026, pelo antigo
+                    // marcar_pedido_recebido). Nunca inventa valor.
+                    if (item.unidade_recebida == null) {
+                      return (
+                        <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '8px', fontSize: '13px' }}>
+                            {item.produto_id ? produtoNomePorId[item.produto_id] || item.produto_id : item.descricao}
+                          </td>
+                          <td colSpan={4} style={{ padding: '8px', fontSize: '12px', color: '#999', fontStyle: 'italic' }}>
+                            Recebimento anterior ao controle detalhado.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '8px', fontSize: '13px' }}>
+                          {item.produto_id ? produtoNomePorId[item.produto_id] || item.produto_id : item.descricao}
+                        </td>
+                        <td style={{ padding: '8px', fontSize: '13px' }}>{item.unidade_recebida}</td>
+                        <td style={{ padding: '8px', fontSize: '13px' }}>{item.quantidade_recebida}</td>
+                        <td style={{ padding: '8px', fontSize: '13px' }}>{formatarMoeda(item.valor_unitario_recebido)}</td>
+                        <td style={{ padding: '8px', fontSize: '13px' }}>{formatarMoeda(item.valor_total_recebido)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '15px', flexWrap: 'wrap' }}>
           {pedido.status === 'aguardando_entrega' && podeEditar && (
             <BotaoIconeAcao rotulo="Editar pedido" icone={IconeLapis} cor={corPrimaria} onClick={onEditar} />
           )}
 
           {pedido.status === 'aguardando_entrega' && podeReceber && (
-            <BotaoIconeAcao rotulo="Marcar como recebido" icone={IconeCheck} cor="#4CAF50" onClick={onReceber} />
+            <BotaoIconeAcao rotulo="Receber pedido" icone={IconeCheck} cor="#4CAF50" onClick={onReceber} />
           )}
 
           {pedido.status === 'aguardando_entrega' && podeCancelar && (
