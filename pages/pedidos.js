@@ -38,6 +38,32 @@ function formatarMoeda(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Mesmo padrão já usado em ReceberPedidoModal.js/PedidoForm.js: compara
+// error.message contra os textos EXATOS das próprias mensagens de RAISE
+// EXCEPTION de reabrir_recebimento_pedido (migration 0027) -- nunca
+// exibe error.message diretamente na tela (sem SQL/stack/detalhe
+// técnico), só decide qual mensagem pré-escrita mostrar. Sem esses
+// textos batendo, cai na mensagem genérica -- sem parser mais esperto
+// que isso.
+function mensagemErroReaberturaRecebimento(error) {
+  if (!error) return '';
+  const msg = error.message || '';
+
+  if (msg.includes('requer a permissao pedidos.reabrir_recebimento')) {
+    return 'Você não tem permissão para reabrir o recebimento deste pedido.';
+  }
+  if (msg.includes('requer sessao autenticada')) {
+    return 'Sua sessão expirou. Faça login novamente.';
+  }
+  if (msg.includes('nao encontrado')) {
+    return 'Pedido não encontrado. Recarregue a página.';
+  }
+  if (msg.includes('somente pedidos recebidos podem ter o recebimento reaberto')) {
+    return 'Este pedido não está mais com status Recebido. Recarregue a página.';
+  }
+  return 'Não foi possível reabrir o recebimento deste pedido. Tente novamente ou avise um administrador.';
+}
+
 function BadgeStatusPedido({ pedido, hoje }) {
   const atrasado = estaAtrasado(pedido, hoje);
 
@@ -114,6 +140,15 @@ function PedidosConteudo() {
   const [cancelando, setCancelando] = useState(false);
   const [erroCancelamento, setErroCancelamento] = useState('');
 
+  // Reabertura de recebimento (só recebido + pedidos.reabrir_recebimento),
+  // via RPC reabrir_recebimento_pedido (migration 0027) -- desfaz
+  // atomicamente o recebimento (limpa itens + exclui histórico do
+  // Catálogo) e devolve o pedido para aguardando_entrega. Nunca UPDATE/
+  // DELETE direto -- uma única chamada à RPC.
+  const [pedidoParaReabrirRecebimento, setPedidoParaReabrirRecebimento] = useState(null);
+  const [reabrindoRecebimento, setReabrindoRecebimento] = useState(false);
+  const [erroReaberturaRecebimento, setErroReaberturaRecebimento] = useState('');
+
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
     corFundo: '#f5f5f5',
@@ -126,6 +161,7 @@ function PedidosConteudo() {
   const podeReceber = hasPermissao(permissoes, PERMISSOES.PEDIDOS_RECEBER);
   const podeCancelar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_CANCELAR);
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
+  const podeReabrirRecebimento = hasPermissao(permissoes, PERMISSOES.PEDIDOS_REABRIR_RECEBIMENTO);
   const hoje = dataLocalHoje();
 
   useEffect(() => {
@@ -407,6 +443,48 @@ function PedidosConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
+  function abrirConfirmarReaberturaRecebimento(pedido) {
+    setErroReaberturaRecebimento('');
+    setPedidoParaReabrirRecebimento(pedido);
+  }
+
+  function fecharConfirmarReaberturaRecebimento() {
+    setPedidoParaReabrirRecebimento(null);
+    setErroReaberturaRecebimento('');
+  }
+
+  // Único caminho de escrita: RPC reabrir_recebimento_pedido (migration
+  // 0027) -- SECURITY DEFINER, uma única chamada. A RPC já faz tudo
+  // atomicamente (snapshot de auditoria, exclusão do histórico do
+  // Catálogo, limpeza dos campos de recebimento em pedido_itens,
+  // transição do pedido para aguardando_entrega) -- nunca UPDATE/DELETE
+  // direto daqui, nunca lógica duplicada no frontend. Funciona igual
+  // para pedido com recebimento detalhado (0026) ou legado (recebido
+  // antes da 0026, sem histórico): a diferenciação já está inteira na
+  // RPC.
+  async function confirmarReaberturaRecebimento() {
+    setReabrindoRecebimento(true);
+    setErroReaberturaRecebimento('');
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc('reabrir_recebimento_pedido', {
+      p_pedido_id: pedidoParaReabrirRecebimento.id,
+    });
+
+    setReabrindoRecebimento(false);
+
+    if (error) {
+      console.error('Erro ao reabrir recebimento:', error);
+      setErroReaberturaRecebimento(mensagemErroReaberturaRecebimento(error));
+      return;
+    }
+
+    setPedidoParaReabrirRecebimento(null);
+    fecharDetalhe();
+    setMensagemSucesso('Recebimento reaberto — o pedido voltou para Aguardando entrega.');
+    setRecarregarTick((tick) => tick + 1);
+  }
+
   const fornecedoresDisponiveis = Array.from(new Set(pedidos.map((p) => p.fornecedor_id)))
     .map((id) => ({ id, nome: fornecedorNomePorId[id] || id }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
@@ -673,10 +751,12 @@ function PedidosConteudo() {
           podeReceber={podeReceber}
           podeCancelar={podeCancelar}
           podeExcluir={podeExcluir}
+          podeReabrirRecebimento={podeReabrirRecebimento}
           onEditar={() => abrirEdicao(pedidoDetalhe)}
           onReceber={() => abrirRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
           onExcluir={() => abrirConfirmarExclusao(pedidoDetalhe)}
+          onReabrirRecebimento={() => abrirConfirmarReaberturaRecebimento(pedidoDetalhe)}
           onFechar={fecharDetalhe}
         />
       )}
@@ -751,6 +831,26 @@ function PedidosConteudo() {
           }
           onConfirmar={confirmarCancelamento}
           onCancelar={fecharConfirmarCancelamento}
+        />
+      )}
+
+      {pedidoParaReabrirRecebimento && (
+        <ConfirmarAcaoModal
+          titulo="Reabrir recebimento"
+          corPrimaria={aparencia.corPrimaria}
+          perigo
+          confirmando={reabrindoRecebimento}
+          erro={erroReaberturaRecebimento}
+          textoConfirmar="Reabrir recebimento"
+          mensagem={
+            <p>
+              Este pedido voltará para <strong>Aguardando entrega</strong>. Os dados informados no recebimento e os
+              históricos de compra gerados por esse recebimento serão removidos. Depois, você poderá editar e receber
+              o pedido novamente.
+            </p>
+          }
+          onConfirmar={confirmarReaberturaRecebimento}
+          onCancelar={fecharConfirmarReaberturaRecebimento}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { BotaoIconeAcao, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira } from '../producao/IconesAcoes';
+import { BotaoIconeAcao, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira, IconeReabrir } from '../producao/IconesAcoes';
 
 const STATUS_LABEL = {
   aguardando_entrega: 'Aguardando entrega',
@@ -67,15 +67,17 @@ const caixaEstilo = {
 
 const rotuloEstilo = { fontWeight: 'bold', fontSize: '12px', color: '#666', marginBottom: '2px' };
 
-// Sem nenhuma escrita própria: os botões Editar/Receber/Cancelar/Excluir
-// aqui só disparam os callbacks recebidos (onEditar/onReceber/
-// onCancelarPedido/onExcluir) -- quem decide o que acontece (abrir a
-// edição/confirmação, chamar as RPCs, recarregar a listagem) continua
-// sendo pages/pedidos.js, único lugar com as RPCs. Todos os valores
-// financeiros exibidos (subtotal por item, total) são calculados na hora
-// da renderização, nunca lidos de uma coluna persistida. Ações visíveis
-// só para status=aguardando_entrega -- pedido recebido/cancelado nunca
-// oferece editar/excluir aqui.
+// Sem nenhuma escrita própria: os botões Editar/Receber/Cancelar/Excluir/
+// Reabrir recebimento aqui só disparam os callbacks recebidos (onEditar/
+// onReceber/onCancelarPedido/onExcluir/onReabrirRecebimento) -- quem
+// decide o que acontece (abrir a edição/confirmação, chamar as RPCs,
+// recarregar a listagem) continua sendo pages/pedidos.js, único lugar
+// com as RPCs. Todos os valores financeiros exibidos (subtotal por
+// item, total) são calculados na hora da renderização, nunca lidos de
+// uma coluna persistida. Editar/Receber/Cancelar/Excluir só para
+// status=aguardando_entrega; Reabrir recebimento é a única ação
+// oferecida para status=recebido (migration 0027) -- pedido cancelado
+// nunca oferece nenhuma ação de escrita aqui.
 export default function DetalhePedidoModal({
   pedido,
   itens,
@@ -87,10 +89,12 @@ export default function DetalhePedidoModal({
   podeReceber,
   podeCancelar,
   podeExcluir,
+  podeReabrirRecebimento,
   onEditar,
   onReceber,
   onCancelarPedido,
   onExcluir,
+  onReabrirRecebimento,
   onFechar,
 }) {
   const atrasado = estaAtrasado(pedido, hoje);
@@ -285,6 +289,10 @@ export default function DetalhePedidoModal({
 
           {pedido.status === 'aguardando_entrega' && podeExcluir && (
             <BotaoIconeAcao rotulo="Excluir pedido definitivamente" icone={IconeLixeira} destrutivo onClick={onExcluir} />
+          )}
+
+          {pedido.status === 'recebido' && podeReabrirRecebimento && (
+            <BotaoIconeAcao rotulo="Reabrir recebimento" icone={IconeReabrir} destrutivo onClick={onReabrirRecebimento} />
           )}
 
           <button
