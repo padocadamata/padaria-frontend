@@ -275,7 +275,7 @@ function PlanejamentoConteudo() {
           ? await supabase
               .from('producao_registros')
               .select(
-                'id, data, turno, receita_id, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte'
+                'id, data, turno, receita_id, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, houve_falta'
               )
               .eq('status', 'fechado')
               .in('receita_id', idsControlados)

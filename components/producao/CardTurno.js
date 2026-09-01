@@ -5,6 +5,7 @@ import AdicionarProducaoForm from './AdicionarProducaoForm';
 import FechamentoTurnoForm from './FechamentoTurnoForm';
 import ReaberturaModal from './ReaberturaModal';
 import GerenciarSobrasModal from './GerenciarSobrasModal';
+import MarcadorFalta from './MarcadorFalta';
 
 function Badge({ texto, cor }) {
   return (
@@ -142,6 +143,10 @@ export default function CardTurno({
           <div style={linhaResumoEstilo}><span>Sobra total</span><strong>{registro.sobra_total}</strong></div>
           <div style={linhaResumoEstilo}><span>Sobra aproveitável</span><strong>{registro.sobra_aproveitavel}</strong></div>
           <div style={linhaResumoEstilo}><span>Perda/descarte</span><strong>{registro.perda_descarte}</strong></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+            <MarcadorFalta registro={registro} podeEditar={podeEditar} onAtualizado={onAtualizado} />
+            <span style={{ fontSize: '12px', color: '#666' }}>Houve falta de produto</span>
+          </div>
           {registro.observacoes && (
             <p style={{ fontSize: '12px', color: '#666', marginTop: '8px', fontStyle: 'italic' }}>{registro.observacoes}</p>
           )}

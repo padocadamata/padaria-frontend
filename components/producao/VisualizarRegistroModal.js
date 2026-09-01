@@ -161,6 +161,11 @@ export default function VisualizarRegistroModal({ registro, receitaNome, turnoLa
         <Linha rotulo="Sobra total">{registro.sobra_total ?? '—'}</Linha>
         <Linha rotulo="Sobra aproveitável">{registro.sobra_aproveitavel ?? '—'}</Linha>
         <Linha rotulo="Perda/descarte">{registro.perda_descarte ?? '—'}</Linha>
+        <Linha rotulo="Houve falta de produto">
+          <span style={{ color: registro.houve_falta ? '#f44336' : '#666' }}>
+            {registro.houve_falta ? 'Sim (+25 no planejamento)' : 'Não'}
+          </span>
+        </Linha>
 
         <h4 style={tituloBlocoEstilo}>Observações</h4>
         <p style={{ fontSize: '14px', whiteSpace: 'pre-wrap', margin: 0, color: registro.observacoes ? '#000' : '#999' }}>

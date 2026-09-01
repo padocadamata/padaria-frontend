@@ -11,6 +11,7 @@ import LancarProducaoRetroativaModal from '../../components/producao/LancarProdu
 import CompletarProducaoRetroativaModal from '../../components/producao/CompletarProducaoRetroativaModal';
 import EditarProducaoModal from '../../components/producao/EditarProducaoModal';
 import ExcluirRegistroModal from '../../components/producao/ExcluirRegistroModal';
+import MarcadorFalta from '../../components/producao/MarcadorFalta';
 import {
   BotaoIconeAcao,
   IconeOlho,
@@ -188,7 +189,7 @@ function HistoricoConteudo() {
         supabase
           .from('producao_registros')
           .select(
-            'id, data, turno, receita_id, origem, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, observacoes, criado_em, atualizado_em'
+            'id, data, turno, receita_id, origem, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, observacoes, houve_falta, criado_em, atualizado_em'
           ),
         supabase.from('receitas').select('id, nome'),
         // Lista separada da acima: aqui só produtos ativos, para o
@@ -311,6 +312,15 @@ function HistoricoConteudo() {
   // mesma regra de CardTurno.js, mas com o gate de tela do Histórico
   // aplicado por cima.
   function podeGerenciarSobrasRegistro(registro) {
+    return registro.origem === 'historico' ? isAdmin(perfilUsuario) : podeEditar;
+  }
+
+  // Marcar/desmarcar houve_falta: correção operacional simples (mesmo
+  // espírito de observações, nunca uma correção estrutural), então usa o
+  // mesmo par de gates (tela + RLS real) de podeEditar para manual/
+  // retroativo, e admin para histórico — mesma regra já aplicada a
+  // "Gerenciar sobras" acima.
+  function podeMarcarFaltaRegistro(registro) {
     return registro.origem === 'historico' ? isAdmin(perfilUsuario) : podeEditar;
   }
 
@@ -558,7 +568,7 @@ function HistoricoConteudo() {
                     '% Venda',
                     'Sobra total',
                     'Status/Origem',
-                    'Obs.',
+                    'Obs. / Falta',
                     'Ações',
                   ].map((coluna) => (
                     <th
@@ -625,28 +635,35 @@ function HistoricoConteudo() {
                         </div>
                       </td>
                       <td style={{ padding: '12px', textAlign: 'center' }}>
-                        {temObservacao ? (
-                          <span
-                            title="Possui observação"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              backgroundColor: '#FF9800',
-                              color: 'white',
-                              fontWeight: 'bold',
-                              fontSize: '12px',
-                              cursor: 'default',
-                            }}
-                          >
-                            !
-                          </span>
-                        ) : (
-                          '—'
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          {temObservacao ? (
+                            <span
+                              title="Possui observação"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                backgroundColor: '#FF9800',
+                                color: 'white',
+                                fontWeight: 'bold',
+                                fontSize: '12px',
+                                cursor: 'default',
+                              }}
+                            >
+                              !
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                          <MarcadorFalta
+                            registro={registro}
+                            podeEditar={podeMarcarFaltaRegistro(registro)}
+                            onAtualizado={() => setRecarregarTick((tick) => tick + 1)}
+                          />
+                        </div>
                       </td>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
