@@ -18,6 +18,9 @@ function estadoInicial(receita) {
     unidade_medida_saida: receita?.unidade_medida_saida || '',
     ativo: receita ? !!receita.ativo : true,
     controlado_producao: receita ? !!receita.controlado_producao : false,
+    // Controle de Expositores (migration 0030).
+    controlar_expositor: receita ? !!receita.controlar_expositor : false,
+    prazo_expositor_dias: receita?.prazo_expositor_dias ?? '',
   };
 }
 
@@ -35,6 +38,13 @@ function validar(dados) {
 
   if (temQuantidade && !(Number(dados.rendimento_quantidade) > 0)) {
     return 'Rendimento deve ser maior que zero.';
+  }
+
+  if (dados.controlar_expositor) {
+    const prazo = Number(dados.prazo_expositor_dias);
+    if (dados.prazo_expositor_dias === '' || !Number.isInteger(prazo) || prazo <= 0) {
+      return 'Informe o prazo no expositor (em dias, inteiro maior que zero).';
+    }
   }
 
   return null;
@@ -70,6 +80,12 @@ function montarPayload(dados, estaEditando) {
     // produção — reforçado aqui independente do que a UI já tiver feito no
     // onChange do checkbox "Receita ativa".
     controlado_producao: dados.ativo ? dados.controlado_producao : false,
+    // Controle de Expositores (0030): mesmo raciocínio de controlado_producao
+    // -- se desativado, prazo sempre null (nunca confia só no onChange do
+    // checkbox); o CHECK receitas_prazo_expositor_coerente_check garante
+    // isso também no banco.
+    controlar_expositor: dados.controlar_expositor,
+    prazo_expositor_dias: dados.controlar_expositor ? paraNumeroOuNull(dados.prazo_expositor_dias) : null,
   };
 
   // atualizado_em: não existe trigger de banco para isso (confirmado nas
@@ -131,6 +147,17 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
       // é desativada, para a UI nunca mostrar um estado que o salvar não
       // vai respeitar.
       controlado_producao: valor ? atual.controlado_producao : false,
+    }));
+  }
+
+  function atualizarControlarExpositor(valor) {
+    setDados((atual) => ({
+      ...atual,
+      controlar_expositor: valor,
+      // Mesmo raciocínio de atualizarAtivo: desmarcar já limpa o campo
+      // dependente na UI, para nunca mostrar um prazo que o salvar não vai
+      // enviar (montarPayload já força null de qualquer forma).
+      prazo_expositor_dias: valor ? atual.prazo_expositor_dias : '',
     }));
   }
 
@@ -397,6 +424,38 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
             {dados.ativo
               ? 'Quando habilitado, o produto fica disponível no controle diário de Produção.'
               : 'Desabilitado porque a receita está inativa.'}
+          </p>
+        </div>
+
+        <h4 style={tituloBlocoEstilo}>Controle de Expositores</h4>
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '10px' }}>
+            <input
+              type="checkbox"
+              checked={dados.controlar_expositor}
+              onChange={(e) => atualizarControlarExpositor(e.target.checked)}
+            />
+            Controlar no expositor
+          </label>
+
+          {dados.controlar_expositor && (
+            <div style={{ maxWidth: '220px' }}>
+              <label style={rotuloEstilo}>Prazo no expositor (dias) *</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={dados.prazo_expositor_dias}
+                onChange={(e) => atualizarCampo('prazo_expositor_dias', e.target.value)}
+                style={campoEstilo}
+              />
+            </div>
+          )}
+
+          <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 26px' }}>
+            {dados.controlar_expositor
+              ? 'Ao lançar produção deste produto, será possível registrar envio ao expositor e acompanhar a retirada em Produção > Expositores.'
+              : 'Desabilitado -- este produto não aparece na tela de Expositores.'}
           </p>
         </div>
 

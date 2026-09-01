@@ -11,7 +11,12 @@ const ABAS = [
   { chave: 'hoje', label: 'Hoje', rota: '/producao', permissao: PERMISSOES.PRODUCAO_VISUALIZAR },
   { chave: 'historico', label: 'Histórico', rota: '/producao/historico', permissao: PERMISSOES.HISTORICO_VISUALIZAR },
   { chave: 'planejamento', label: 'Planejamento', rota: '/producao/planejamento', permissao: PERMISSOES.PLANEJAMENTO_VISUALIZAR },
-  { chave: 'produtos', label: 'Produtos de Produção', rota: '/producao/produtos', permissao: PERMISSOES.PRODUTOS_PRODUCAO_VISUALIZAR },
+  // Rótulo "Produtos" (era "Produtos de Produção") -- SOMENTE mudança
+  // visual (0030): rota, permissão (produtos_producao.visualizar) e a
+  // tabela por trás (public.receitas) continuam exatamente as mesmas.
+  { chave: 'produtos', label: 'Produtos', rota: '/producao/produtos', permissao: PERMISSOES.PRODUTOS_PRODUCAO_VISUALIZAR },
+  // Nova aba (0030): Controle de Expositores.
+  { chave: 'expositores', label: 'Expositores', rota: '/producao/expositores', permissao: PERMISSOES.PRODUCAO_EXPOSITORES_VISUALIZAR },
 ];
 
 export default function NavegacaoProducao({ abaAtiva, corPrimaria }) {

@@ -126,7 +126,7 @@ function ProdutosProducaoConteudo() {
       const { data, error } = await supabase
         .from('receitas')
         .select(
-          'id, codigo_g3, nome, tipo, grupo, descricao, temp_forno_celsius, tempo_coccao_minutos, tempo_fermentacao_natural_horas, tempo_fermentacao_climatica_horas, ativo, controlado_producao, rendimento_quantidade, unidade_medida_saida'
+          'id, codigo_g3, nome, tipo, grupo, descricao, temp_forno_celsius, tempo_coccao_minutos, tempo_fermentacao_natural_horas, tempo_fermentacao_climatica_horas, ativo, controlado_producao, rendimento_quantidade, unidade_medida_saida, controlar_expositor, prazo_expositor_dias'
         )
         .order('nome', { ascending: true });
 
@@ -257,7 +257,7 @@ function ProdutosProducaoConteudo() {
             gap: '10px',
           }}
         >
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Produtos de Produção</h2>
+          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Produtos</h2>
 
           {podeEscrever && (
             <button
