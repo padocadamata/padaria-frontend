@@ -5,7 +5,8 @@ import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import { validar as validarProduto, montarPayload as montarPayloadProduto, mensagemErro as mensagemErroProduto } from '../components/catalogo/DadosProdutoForm';
 import GerenciarClassificacoesModal from '../components/catalogo/GerenciarClassificacoesModal';
-import { BotaoIconeAcao, IconeOlho, IconeLapis, IconeCheck, IconeCancelar } from '../components/producao/IconesAcoes';
+import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
+import { BotaoIconeAcao, IconeOlho, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira } from '../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -172,6 +173,33 @@ const campoInlineEstilo = {
   fontSize: '13px',
 };
 
+// Mesmo princípio já usado em mensagemErroReaberturaRecebimento (pages/
+// pedidos.js) e mensagemErroExclusaoClassificacao (GerenciarClassificacoesModal.js):
+// NUNCA mostrar error.message bruto na UI -- só reconhecer os textos
+// EXATOS que a própria RPC excluir_produto_catalogo (migration 0029)
+// levanta, e devolver uma mensagem pré-escrita, sem nome de tabela/SQL/
+// detalhe interno. Qualquer coisa não reconhecida cai no fallback
+// genérico.
+function mensagemErroExclusaoProduto(error) {
+  if (!error) return '';
+  const msg = error.message || '';
+
+  if (msg.includes('ja possui utilizacao no sistema')) {
+    return 'Este produto já possui utilização no sistema e não pode ser excluído. Se ele não for mais utilizado, deixe-o como Inativo.';
+  }
+  if (msg.includes('requer a permissao catalogo_produtos.excluir')) {
+    return 'Você não tem permissão para excluir produtos do Catálogo.';
+  }
+  if (msg.includes('requer sessao autenticada')) {
+    return 'Sua sessão expirou. Faça login novamente.';
+  }
+  if (msg.includes('nao encontrado')) {
+    return 'Produto não encontrado. Recarregue a página.';
+  }
+  console.error('Erro ao excluir produto:', error);
+  return 'Não foi possível excluir este produto. Tente novamente ou avise um administrador.';
+}
+
 async function carregarClassificacoes(supabase) {
   const [{ data: secoesData }, { data: categoriasData }] = await Promise.all([
     supabase.from('catalogo_secoes').select('id, nome').order('nome'),
@@ -221,6 +249,16 @@ function CatalogoConteudo() {
   const [edicoes, setEdicoes] = useState({});
   const [salvandoId, setSalvandoId] = useState(null);
   const [erroPorId, setErroPorId] = useState({});
+
+  // Exclusão definitiva (SOMENTE via RPC excluir_produto_catalogo,
+  // migration 0029) -- nunca .from('produtos').delete(). A RPC bloqueia
+  // sozinha quando há qualquer utilização (cotações, pedido_itens,
+  // produto_fornecedores, produtos_historico_compras,
+  // receita_ingredientes); o frontend nunca decide isso, só chama e
+  // traduz o erro se houver.
+  const [produtoParaExcluir, setProdutoParaExcluir] = useState(null);
+  const [excluindoProduto, setExcluindoProduto] = useState(false);
+  const [erroExclusaoProduto, setErroExclusaoProduto] = useState('');
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -328,6 +366,11 @@ function CatalogoConteudo() {
   const produtosOrdenados = [...produtosFiltrados].sort((a, b) => compararProdutos(a, b, ordenacao));
 
   const podeEditar = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_EDITAR);
+  // Gate SÓ pela permissão -- nunca pelo status ativo/inativo do produto.
+  // Produto ativo sem utilização também pode ser excluído; produto
+  // inativo com utilização não pode. Quem decide de fato é sempre a RPC
+  // (excluir_produto_catalogo), o botão só controla se a AÇÃO aparece.
+  const podeExcluir = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_EXCLUIR);
 
   function alternarOrdenacao(campo) {
     setOrdenacao((atual) => {
@@ -411,6 +454,42 @@ function CatalogoConteudo() {
     // exatamente isto.
     setProdutos((atual) => atual.map((p) => (p.id === id ? { ...p, ...payload } : p)));
     cancelarEdicao(id);
+  }
+
+  function pedirExclusao(produto) {
+    setErroExclusaoProduto('');
+    setProdutoParaExcluir(produto);
+  }
+
+  function fecharConfirmarExclusao() {
+    setProdutoParaExcluir(null);
+    setErroExclusaoProduto('');
+  }
+
+  // Único caminho de exclusão definitiva: RPC excluir_produto_catalogo
+  // (migration 0029) -- SECURITY DEFINER, RPC-only por desenho (nenhuma
+  // policy de DELETE existe em produtos). Uma única chamada -- nunca
+  // .from('produtos').delete(), nunca apaga dependência, nunca faz
+  // ativo=false como contorno de bloqueio.
+  async function confirmarExclusaoProduto() {
+    setExcluindoProduto(true);
+    setErroExclusaoProduto('');
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc('excluir_produto_catalogo', { p_produto_id: produtoParaExcluir.id });
+
+    setExcluindoProduto(false);
+
+    if (error) {
+      setErroExclusaoProduto(mensagemErroExclusaoProduto(error));
+      return;
+    }
+
+    // Remove a linha localmente -- sem F5, sem nova consulta. Filtros/
+    // ordenação/edições em andamento em outras linhas continuam intactos,
+    // mesmo padrão de BlocoClassificacao (GerenciarClassificacoesModal.js).
+    setProdutos((atual) => atual.filter((p) => p.id !== produtoParaExcluir.id));
+    setProdutoParaExcluir(null);
   }
 
   return (
@@ -689,6 +768,14 @@ function CatalogoConteudo() {
                                     onClick={() => abrirEdicao(produto)}
                                   />
                                 )}
+                                {podeExcluir && (
+                                  <BotaoIconeAcao
+                                    rotulo="Excluir"
+                                    icone={IconeLixeira}
+                                    destrutivo
+                                    onClick={() => pedirExclusao(produto)}
+                                  />
+                                )}
                               </>
                             )}
                           </div>
@@ -720,6 +807,26 @@ function CatalogoConteudo() {
         aoAtualizarSecoes={setSecoes}
         aoAtualizarCategorias={setCategorias}
       />
+
+      {produtoParaExcluir && (
+        <ConfirmarAcaoModal
+          titulo="Excluir produto"
+          corPrimaria={aparencia.corPrimaria}
+          perigo
+          confirmando={excluindoProduto}
+          erro={erroExclusaoProduto}
+          textoConfirmar="Excluir"
+          mensagem={
+            <>
+              Deseja excluir definitivamente o produto <strong>{produtoParaExcluir.nome}</strong>? Esta ação deve ser
+              usada somente para cadastros realizados por engano e não poderá ser desfeita. Produtos que já possuem
+              utilização no sistema não podem ser excluídos.
+            </>
+          }
+          onConfirmar={confirmarExclusaoProduto}
+          onCancelar={fecharConfirmarExclusao}
+        />
+      )}
     </div>
   );
 }
