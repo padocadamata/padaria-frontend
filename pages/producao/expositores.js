@@ -6,7 +6,7 @@ import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
 import EditarLoteExpositorModal from '../../components/producao/EditarLoteExpositorModal';
 import CorrigirLoteExpositorConcluidoModal from '../../components/producao/CorrigirLoteExpositorConcluidoModal';
 import ExcluirLoteExpositorModal from '../../components/producao/ExcluirLoteExpositorModal';
-import { BotaoIconeAcao, IconeLapis, IconeLixeira, IconeCheck } from '../../components/producao/IconesAcoes';
+import { BotaoIconeAcao, IconeLapis, IconeLixeira, IconeCheck, IndicadorObservacao } from '../../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -142,7 +142,10 @@ function ExpositoresConteudo() {
   // cliente, sobre este mesmo conjunto, tanto para o painel operacional
   // quanto para a lista histórica e o relatório) + produtos com
   // controlar_expositor=true + lançamentos elegíveis para um lote novo
-  // (últimos 60 dias, status=fechado, produto com controlar_expositor).
+  // (últimos 60 dias, status aberto OU fechado -- produção em andamento
+  // já pode ir ao expositor, não precisa esperar o fechamento do turno;
+  // 'reaberto' fica de fora de propósito -- migration 0032 também
+  // bloqueia isso no banco, em criar_lote_expositor).
   useEffect(() => {
     let efeitoAtivo = true;
 
@@ -171,7 +174,7 @@ function ExpositoresConteudo() {
           supabase
             .from('producao_registros')
             .select('id, data, turno, receita_id, quantidade_produzida, receitas!inner(nome, controlar_expositor)')
-            .eq('status', 'fechado')
+            .in('status', ['aberto', 'fechado'])
             .eq('receitas.controlar_expositor', true)
             .gte('data', dataMinima)
             .order('data', { ascending: false })
@@ -322,6 +325,7 @@ function ExpositoresConteudo() {
   const [registroSelecionadoId, setRegistroSelecionadoId] = useState('');
   const [novoDataEntrada, setNovoDataEntrada] = useState(hoje);
   const [novaQuantidade, setNovaQuantidade] = useState('');
+  const [novaObservacao, setNovaObservacao] = useState('');
   const [criandoLote, setCriandoLote] = useState(false);
   const [erroNovoLote, setErroNovoLote] = useState('');
 
@@ -346,6 +350,7 @@ function ExpositoresConteudo() {
       p_registro_id: registroSelecionadoId,
       p_data_entrada: novoDataEntrada,
       p_quantidade_enviada: quantidade,
+      p_observacao: novaObservacao.trim() || null,
     });
 
     setCriandoLote(false);
@@ -357,6 +362,7 @@ function ExpositoresConteudo() {
 
     setRegistroSelecionadoId('');
     setNovaQuantidade('');
+    setNovaObservacao('');
     setNovoDataEntrada(hoje);
     recarregar('Lote criado com sucesso.');
   }
@@ -564,6 +570,16 @@ function ExpositoresConteudo() {
                   </p>
                 )}
 
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Observação</label>
+                  <textarea
+                    value={novaObservacao}
+                    onChange={(e) => setNovaObservacao(e.target.value)}
+                    placeholder="Opcional -- anotação operacional sobre este lote."
+                    style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
+                  />
+                </div>
+
                 {erroNovoLote && <p style={{ color: '#f44336', marginBottom: '15px' }}>{erroNovoLote}</p>}
 
                 <button
@@ -649,7 +665,10 @@ function ExpositoresConteudo() {
                     <tbody>
                       {lotesListaHistorico.map((lote) => (
                         <tr key={lote.lote_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                          <td style={{ padding: '10px' }}>{lote.produto_nome}</td>
+                          <td style={{ padding: '10px' }}>
+                            {lote.produto_nome}
+                            <IndicadorObservacao texto={lote.observacao} />
+                          </td>
                           <td style={{ padding: '10px' }}>{formatarData(lote.data_producao)}</td>
                           <td style={{ padding: '10px' }}>{formatarData(lote.data_entrada)}</td>
                           <td style={{ padding: '10px' }}>{formatarData(lote.data_prevista_retirada)}</td>

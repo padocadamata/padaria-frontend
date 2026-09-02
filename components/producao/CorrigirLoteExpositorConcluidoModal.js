@@ -46,6 +46,7 @@ const campoEstilo = {
 export default function CorrigirLoteExpositorConcluidoModal({ lote, produtoNome, corPrimaria, onCorrigido, onCancelar }) {
   const [quantidadeEnviada, setQuantidadeEnviada] = useState(String(lote.quantidade_enviada));
   const [quantidadeRetirada, setQuantidadeRetirada] = useState(String(lote.quantidade_retirada));
+  const [observacao, setObservacao] = useState(lote.observacao || '');
   const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -76,11 +77,15 @@ export default function CorrigirLoteExpositorConcluidoModal({ lote, produtoNome,
     setErro('');
 
     const supabase = createClient();
+    // observacao (dado operacional do lote) e motivo (justificativa de
+    // auditoria da correção) são conceitos DIFERENTES -- nunca um
+    // substitui o outro, os dois são enviados separadamente.
     const { error } = await supabase.rpc('corrigir_lote_expositor_concluido', {
       p_lote_id: lote.lote_id,
       p_quantidade_enviada: enviadaNum,
       p_quantidade_retirada: retiradaNum,
       p_motivo: motivo.trim(),
+      p_observacao: observacao.trim() || null,
     });
 
     setSalvando(false);
@@ -128,6 +133,14 @@ export default function CorrigirLoteExpositorConcluidoModal({ lote, produtoNome,
           value={quantidadeRetirada}
           onChange={(e) => setQuantidadeRetirada(e.target.value)}
           style={{ ...campoEstilo, marginBottom: '15px' }}
+        />
+
+        <label style={rotuloEstilo}>Observação</label>
+        <textarea
+          value={observacao}
+          onChange={(e) => setObservacao(e.target.value)}
+          placeholder="Opcional -- anotação operacional sobre este lote (diferente do motivo da correção abaixo)."
+          style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial', marginBottom: '15px' }}
         />
 
         <label style={rotuloEstilo}>Motivo da correção *</label>

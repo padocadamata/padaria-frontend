@@ -42,6 +42,7 @@ const campoEstilo = {
 export default function EditarLoteExpositorModal({ lote, produtoNome, corPrimaria, onEditado, onCancelar }) {
   const [dataEntrada, setDataEntrada] = useState(lote.data_entrada);
   const [quantidadeEnviada, setQuantidadeEnviada] = useState(String(lote.quantidade_enviada));
+  const [observacao, setObservacao] = useState(lote.observacao || '');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -58,10 +59,14 @@ export default function EditarLoteExpositorModal({ lote, produtoNome, corPrimari
     setErro('');
 
     const supabase = createClient();
+    // p_observacao (0032) sempre reenvia o valor atual do campo -- a RPC
+    // DEFINE o valor (nunca faz merge parcial), então limpar o texto aqui
+    // e salvar de fato remove a observação (vira NULL no banco).
     const { error } = await supabase.rpc('editar_lote_expositor', {
       p_lote_id: lote.lote_id,
       p_data_entrada: dataEntrada,
       p_quantidade_enviada: quantidadeNum,
+      p_observacao: observacao.trim() || null,
     });
 
     setSalvando(false);
@@ -99,6 +104,14 @@ export default function EditarLoteExpositorModal({ lote, produtoNome, corPrimari
           value={quantidadeEnviada}
           onChange={(e) => setQuantidadeEnviada(e.target.value)}
           style={{ ...campoEstilo, marginBottom: '15px' }}
+        />
+
+        <label style={rotuloEstilo}>Observação</label>
+        <textarea
+          value={observacao}
+          onChange={(e) => setObservacao(e.target.value)}
+          placeholder="Opcional -- anotação operacional sobre este lote."
+          style={{ ...campoEstilo, minHeight: '70px', fontFamily: 'Arial', marginBottom: '15px' }}
         />
 
         {erro && <p style={{ color: '#f44336', marginTop: '10px' }}>{erro}</p>}
