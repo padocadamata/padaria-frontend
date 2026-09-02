@@ -47,6 +47,51 @@ const botaoEstilo = (cor) => ({
 
 const linhaResumoEstilo = { display: 'flex', justifyContent: 'space-between', fontSize: '14px', padding: '3px 0' };
 
+// Resumo numérico do turno FECHADO, em painel horizontal compacto — só
+// apresentação (nenhum cálculo novo, nenhum campo novo): os mesmos 5
+// valores que antes apareciam empilhados verticalmente (um <div> por
+// linha), agora lado a lado num grid responsivo (repeat(auto-fit, ...)
+// reduz sozinho para 2-3 colunas por linha quando a largura do card não
+// comportar as 5, sem nunca gerar scroll horizontal). Usado SOMENTE pelo
+// branch status==='fechado' abaixo — aberto/reaberto continuam com o
+// layout vertical de sempre (linhaResumoEstilo), sem nenhuma mudança.
+function ResumoFechadoCompacto({ registro }) {
+  const indicadores = [
+    { label: 'Produzido', valor: registro.quantidade_produzida },
+    { label: 'Vendido', valor: registro.quantidade_vendida },
+    { label: 'Sobra total', valor: registro.sobra_total },
+    { label: 'Aproveitável', valor: registro.sobra_aproveitavel },
+    { label: 'Perda/descarte', valor: registro.perda_descarte },
+  ];
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
+        gap: '2px',
+        marginBottom: '10px',
+      }}
+    >
+      {indicadores.map((item, indice) => (
+        <div
+          key={item.label}
+          style={{
+            textAlign: 'center',
+            padding: '2px 6px',
+            borderLeft: indice > 0 ? '1px solid #eee' : 'none',
+          }}
+        >
+          <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
+            {item.label}
+          </div>
+          <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#333' }}>{item.valor}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Um cartão = um turno (manhã ou tarde) de um produto, para a data
 // operacional atual. Suporta os 4 estados: sem registro, aberto, fechado,
 // reaberto. Todas as ações (iniciar/adicionar/fechar/reabrir/corrigir)
@@ -138,11 +183,7 @@ export default function CardTurno({
 
       {registro?.status === 'fechado' && (
         <>
-          <div style={linhaResumoEstilo}><span>Produzido</span><strong>{registro.quantidade_produzida}</strong></div>
-          <div style={linhaResumoEstilo}><span>Vendido</span><strong>{registro.quantidade_vendida}</strong></div>
-          <div style={linhaResumoEstilo}><span>Sobra total</span><strong>{registro.sobra_total}</strong></div>
-          <div style={linhaResumoEstilo}><span>Sobra aproveitável</span><strong>{registro.sobra_aproveitavel}</strong></div>
-          <div style={linhaResumoEstilo}><span>Perda/descarte</span><strong>{registro.perda_descarte}</strong></div>
+          <ResumoFechadoCompacto registro={registro} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
             <MarcadorFalta registro={registro} podeEditar={podeEditar} onAtualizado={onAtualizado} />
             <span style={{ fontSize: '12px', color: '#666' }}>Houve falta de produto</span>
