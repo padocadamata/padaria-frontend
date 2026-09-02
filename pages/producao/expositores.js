@@ -656,7 +656,14 @@ function ExpositoresConteudo() {
                           <td style={{ padding: '10px' }}>{lote.quantidade_produzida}</td>
                           <td style={{ padding: '10px' }}>{lote.quantidade_enviada}</td>
                           <td style={{ padding: '10px' }}>{lote.quantidade_retirada ?? '—'}</td>
-                          <td style={{ padding: '10px' }}>{lote.venda_estimada ?? '—'}</td>
+                          <td style={{ padding: '10px', color: lote.concluido_em ? undefined : '#999' }}>
+                            {/* venda_estimada só existe (não-null) para lote concluído -- a view
+                                producao_expositor_detalhado já garante isso (CASE WHEN concluido_em
+                                IS NOT NULL). "Pendente" aqui reforça visualmente que a quantidade
+                                enviada de um lote ainda no expositor NUNCA deve ser lida como venda
+                                estimada -- a retirada final ainda não é conhecida. */}
+                            {lote.concluido_em ? lote.venda_estimada : 'Pendente'}
+                          </td>
                           <td style={{ padding: '10px' }}><BadgeSituacao situacao={lote.situacao} /></td>
                           <td style={{ padding: '10px' }}>
                             <div style={{ display: 'flex', gap: '6px' }}>
