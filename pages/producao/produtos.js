@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import MenuOpcoes from '../../components/MenuOpcoes';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
@@ -53,6 +54,7 @@ function BadgeTelaHoje({ naTelaHoje }) {
 }
 
 function ProdutosProducaoConteudo() {
+  const router = useRouter();
   // Migration 0016: escrita em receitas/receita_ingredientes passou de
   // is_admin() puro para has_permissao('produtos_producao.editar') — a RLS
   // já protege isso; este gate é só a UX correspondente.
@@ -108,6 +110,17 @@ function ProdutosProducaoConteudo() {
     return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
   }, []);
 
+  // Unificação Catálogo x Produção (migration 0034/0035): esta tela não
+  // é mais um cadastro independente -- lista SOMENTE extensões vinculadas
+  // a um produto do Catálogo, via embed forward `produtos!inner(...)`
+  // (mesma sintaxe de relacionamento já usada em pages/producao/
+  // expositores.js: producao_registros.select('..., receitas!inner(...)')).
+  // `!inner` também exclui, sozinho, qualquer receita sem
+  // catalogo_produto_id (não deveria existir nenhuma após a 0034, mas é
+  // defensivo). Nome/código exibidos vêm de produtos (identidade mestre),
+  // nunca mais de receitas.nome/receitas.codigo_g3 (snapshot legado,
+  // preservado no banco mas não lido por esta tela).
+  //
   // Diferente de fornecedores.js: os filtros aqui são todos aplicados no
   // cliente, sobre uma única carga de todas as receitas. O volume desta
   // tabela é pequeno (dezenas de linhas), e Tipo/Grupo precisam enxergar os
@@ -126,9 +139,8 @@ function ProdutosProducaoConteudo() {
       const { data, error } = await supabase
         .from('receitas')
         .select(
-          'id, codigo_g3, nome, tipo, grupo, descricao, temp_forno_celsius, tempo_coccao_minutos, tempo_fermentacao_natural_horas, tempo_fermentacao_climatica_horas, ativo, controlado_producao, rendimento_quantidade, unidade_medida_saida, controlar_expositor, prazo_expositor_dias'
-        )
-        .order('nome', { ascending: true });
+          'id, catalogo_produto_id, tipo, grupo, descricao, temp_forno_celsius, tempo_coccao_minutos, tempo_fermentacao_natural_horas, tempo_fermentacao_climatica_horas, ativo, controlado_producao, rendimento_quantidade, unidade_medida_saida, controlar_expositor, prazo_expositor_dias, produtos!inner(id, nome, codigo_g3, ativo)'
+        );
 
       if (!efeitoAtivo) {
         return;
@@ -136,10 +148,16 @@ function ProdutosProducaoConteudo() {
 
       if (error) {
         console.error('Erro ao carregar receitas:', error);
-        setErro('Não foi possível carregar a lista de receitas.');
+        setErro('Não foi possível carregar a lista de produtos de Produção.');
         setReceitas([]);
       } else {
-        setReceitas(data || []);
+        // Ordenado no cliente por produtos.nome -- ordenar por coluna de
+        // uma relação embutida via .order({foreignTable}) não tem nenhum
+        // precedente no projeto; ordenar aqui é mais simples e seguro.
+        const ordenado = [...(data || [])].sort((a, b) =>
+          (a.produtos?.nome || '').localeCompare(b.produtos?.nome || '', 'pt-BR', { sensitivity: 'base' })
+        );
+        setReceitas(ordenado);
       }
 
       setCarregando(false);
@@ -162,11 +180,6 @@ function ProdutosProducaoConteudo() {
     return () => clearTimeout(timer);
   }, [mensagemSucesso]);
 
-  function abrirNovaReceita() {
-    setReceitaEmEdicao(null);
-    setModalAberto(true);
-  }
-
   function abrirEdicao(receita) {
     setReceitaEmEdicao(receita);
     setModalAberto(true);
@@ -178,14 +191,8 @@ function ProdutosProducaoConteudo() {
   }
 
   function aoSalvar() {
-    const estaEditando = receitaEmEdicao != null;
-
     fecharModal();
-
-    setMensagemSucesso(
-      estaEditando ? 'Receita atualizada com sucesso.' : 'Receita cadastrada com sucesso.'
-    );
-
+    setMensagemSucesso('Produto de Produção atualizado com sucesso.');
     setRecarregarTick((tick) => tick + 1);
   }
 
@@ -199,9 +206,16 @@ function ProdutosProducaoConteudo() {
 
   const buscaNormalizada = busca.trim().toLowerCase();
 
+  // Defesa em profundidade: "ativo em Produção" exige produtos.ativo=true
+  // E receitas.ativo=true juntos -- nunca só o segundo. Um produto mestre
+  // inativado nunca aparece como ativo aqui, mesmo que a extensão em si
+  // ainda esteja com ativo=true (ver decisão "PRODUTO MESTRE INATIVO" da
+  // auditoria de unificação).
   const receitasFiltradas = receitas.filter((receita) => {
-    if (filtroStatus === 'ativos' && !receita.ativo) return false;
-    if (filtroStatus === 'inativos' && receita.ativo) return false;
+    const ativoProducao = !!receita.ativo && !!receita.produtos?.ativo;
+
+    if (filtroStatus === 'ativos' && !ativoProducao) return false;
+    if (filtroStatus === 'inativos' && ativoProducao) return false;
 
     if (filtroTelaHoje === 'na_tela_hoje' && !receita.controlado_producao) return false;
     if (filtroTelaHoje === 'fora_tela_hoje' && receita.controlado_producao) return false;
@@ -209,7 +223,7 @@ function ProdutosProducaoConteudo() {
     if (filtroTipo !== 'todos' && receita.tipo !== filtroTipo) return false;
     if (filtroGrupo !== 'todos' && receita.grupo !== filtroGrupo) return false;
 
-    if (buscaNormalizada && !(receita.nome || '').toLowerCase().includes(buscaNormalizada)) {
+    if (buscaNormalizada && !(receita.produtos?.nome || '').toLowerCase().includes(buscaNormalizada)) {
       return false;
     }
 
@@ -259,23 +273,29 @@ function ProdutosProducaoConteudo() {
         >
           <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Produtos</h2>
 
-          {podeEscrever && (
-            <button
-              onClick={abrirNovaReceita}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              + Nova receita
-            </button>
-          )}
+          {/* Unificação Catálogo x Produção: não existe mais criação
+              independente de receita -- todo produto de Produção nasce de
+              um produto do Catálogo marcado como "Produto de Produção". */}
+          <button
+            onClick={() => router.push('/catalogo')}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: aparencia.corPrimaria,
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            Adicionar produto de produção
+          </button>
         </div>
+
+        <p style={{ color: '#666', fontSize: '13px', marginTop: '8px' }}>
+          Para adicionar um produto à Produção, cadastre ou edite o produto no Catálogo e marque "Produto de
+          Produção".
+        </p>
 
         {mensagemSucesso && (
           <p style={{ color: '#4CAF50', fontWeight: 'bold', marginTop: '10px' }}>
@@ -398,7 +418,7 @@ function ProdutosProducaoConteudo() {
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Nome da receita..."
+                placeholder="Nome do produto..."
                 style={{
                   width: '100%',
                   padding: '8px',
@@ -412,9 +432,9 @@ function ProdutosProducaoConteudo() {
         </div>
 
         {carregando ? (
-          <p>Carregando receitas...</p>
+          <p>Carregando produtos...</p>
         ) : receitas.length === 0 ? (
-          <p>Nenhuma receita encontrada.</p>
+          <p>Nenhum produto de Produção encontrado.</p>
         ) : receitasFiltradas.length === 0 ? (
           <p>Nenhum resultado para esta busca/filtro.</p>
         ) : (
@@ -458,46 +478,49 @@ function ProdutosProducaoConteudo() {
               </thead>
 
               <tbody>
-                {receitasFiltradas.map((receita) => (
-                  <tr key={receita.id} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '12px' }}>{receita.nome}</td>
-                    <td style={{ padding: '12px' }}>{receita.codigo_g3 || '—'}</td>
-                    <td style={{ padding: '12px' }}>{receita.tipo || '—'}</td>
-                    <td style={{ padding: '12px' }}>{receita.grupo || '—'}</td>
-                    <td style={{ padding: '12px' }}>
-                      <BadgeAtivo ativo={receita.ativo} />
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <BadgeTelaHoje naTelaHoje={receita.controlado_producao} />
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      {formatarRendimento(receita.rendimento_quantidade, receita.unidade_medida_saida)}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      {podeEscrever && (
-                        <button
-                          onClick={() => abrirEdicao(receita)}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: '#2196F3',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                          }}
-                        >
-                          Editar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {receitasFiltradas.map((receita) => {
+                  const ativoProducao = !!receita.ativo && !!receita.produtos?.ativo;
+                  return (
+                    <tr key={receita.id} style={{ borderBottom: '1px solid #ddd' }}>
+                      <td style={{ padding: '12px' }}>{receita.produtos?.nome || '—'}</td>
+                      <td style={{ padding: '12px' }}>{receita.produtos?.codigo_g3 || '—'}</td>
+                      <td style={{ padding: '12px' }}>{receita.tipo || '—'}</td>
+                      <td style={{ padding: '12px' }}>{receita.grupo || '—'}</td>
+                      <td style={{ padding: '12px' }}>
+                        <BadgeAtivo ativo={ativoProducao} />
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <BadgeTelaHoje naTelaHoje={receita.controlado_producao} />
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {formatarRendimento(receita.rendimento_quantidade, receita.unidade_medida_saida)}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {podeEscrever && (
+                          <button
+                            onClick={() => abrirEdicao(receita)}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#2196F3',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            Editar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
             <p style={{ marginTop: '15px', color: '#666', fontSize: '14px' }}>
-              Total de receitas: <strong>{receitasFiltradas.length}</strong>
+              Total de produtos: <strong>{receitasFiltradas.length}</strong>
             </p>
           </div>
         )}

@@ -87,12 +87,19 @@ function ProducaoConteudo() {
         .lt('data', hojeAtual)
         .in('status', ['aberto', 'reaberto'])
         .order('data', { ascending: true }),
+      // Unificação Catálogo x Produção: nome vem de produtos (identidade
+      // mestre), nunca mais de receitas.nome. Defesa em profundidade:
+      // produtos.ativo=true E receitas.ativo=true juntos -- um produto
+      // mestre inativado nunca aparece na Tela Hoje, mesmo que a extensão
+      // em si ainda esteja com ativo=true. `produtos!inner` (mesmo
+      // relacionamento forward já usado em pages/producao/expositores.js)
+      // também exclui qualquer receita sem catalogo_produto_id.
       supabase
         .from('receitas')
-        .select('id, nome')
+        .select('id, produtos!inner(nome)')
         .eq('ativo', true)
         .eq('controlado_producao', true)
-        .order('nome', { ascending: true }),
+        .eq('produtos.ativo', true),
     ]);
 
     const primeiroErro = registrosResp.error || pendenciasResp.error || receitasResp.error;
@@ -105,7 +112,13 @@ function ProducaoConteudo() {
 
     setRegistrosHoje(registrosResp.data || []);
     setPendencias(pendenciasResp.data || []);
-    setReceitasAtivas(receitasResp.data || []);
+    // Achata para {id, nome} -- mesma forma usada por todo o restante do
+    // arquivo (receitaNomePorId, frances, SeletorOutroProduto) antes da
+    // unificação, preservado para não precisar alterar essa lógica.
+    const receitasAchatadas = (receitasResp.data || [])
+      .map((r) => ({ id: r.id, nome: r.produtos?.nome || '' }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    setReceitasAtivas(receitasAchatadas);
     setCarregando(false);
   }, []);
 

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
+import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 
 // Mesmo componente para /catalogo/novo (produto=null) e para o Card
 // "Dados do produto" de /catalogo/[id] (produto preenchido) — mesmo
@@ -108,6 +110,34 @@ export function mensagemErro(error) {
   return 'Não foi possível salvar o produto. Tente novamente ou avise um administrador.';
 }
 
+// Reconhece os textos EXATOS que marcar_produto_producao/
+// desmarcar_produto_producao (migration 0035) levantam, e devolve uma
+// mensagem pré-escrita -- mesmo princípio de mensagemErro() acima e de
+// mensagemErroExclusaoProduto() em pages/catalogo.js. Qualquer coisa não
+// reconhecida cai no fallback genérico, nunca error.message bruto na UI.
+export function mensagemErroProducao(error) {
+  if (!error) return '';
+  const msg = error.message || '';
+
+  if (msg.includes('esta inativo no Catalogo')) {
+    return 'O produto precisa estar ativo para ser marcado como Produto de Produção.';
+  }
+  if (msg.includes('mesmo Codigo G3')) {
+    return 'Já existe outra extensão de Produção com o mesmo Código G3 deste produto -- corrija o conflito de cadastro antes de marcar.';
+  }
+  if (msg.includes('requer a permissao')) {
+    return 'Você não tem permissão para alterar Produto de Produção.';
+  }
+  if (msg.includes('requer sessao autenticada')) {
+    return 'Sua sessão expirou. Faça login novamente.';
+  }
+  if (msg.includes('nao encontrado')) {
+    return 'Produto não encontrado. Recarregue a página.';
+  }
+  console.error('Erro em marcar/desmarcar Produto de Produção:', error);
+  return 'Não foi possível atualizar o estado de Produto de Produção. Tente novamente ou avise um administrador.';
+}
+
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
 
 const campoEstilo = {
@@ -118,11 +148,54 @@ const campoEstilo = {
   boxSizing: 'border-box',
 };
 
+// Controle "Produto de Produção" -- usado tanto na criação (estado local,
+// ainda sem produto_id) quanto na edição (estado real vindo do banco via
+// catalogo_produto_id). Nunca um terceiro estado inventado: em edição,
+// `checked` é sempre o retorno mais recente das RPCs marcar/desmarcar (ou
+// da leitura inicial), nunca um valor otimista não confirmado.
+function ControleProducao({ checked, disabled, processando, motivoDesabilitado, onChange }) {
+  return (
+    <div style={{ marginBottom: '15px' }}>
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontWeight: 'bold',
+          color: disabled ? '#999' : '#000',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled || processando}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        Produto de Produção
+        {processando && <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#666' }}>Atualizando...</span>}
+      </label>
+      <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 26px' }}>
+        {disabled && motivoDesabilitado
+          ? motivoDesabilitado
+          : 'Quando marcado, o produto passa a ter uma extensão em Produção > Produtos, onde a ficha técnica e os parâmetros operacionais são configurados.'}
+      </p>
+    </div>
+  );
+}
+
 export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', podeEditar, onCriado, onSalvo }) {
   const estaEditando = produto != null;
   const [dados, setDados] = useState(() => estadoInicial(produto));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+
+  const { permissoes } = useAuth();
+  // Gate combinado exigido pelo backend (marcar_produto_producao/
+  // desmarcar_produto_producao, migration 0035): as DUAS permissões,
+  // não só catalogo_produtos.editar (já coberta por podeEditar, vindo do
+  // pai). Backend continua sendo a autoridade final -- isto é só para a
+  // UI não oferecer um controle que a RPC vai rejeitar.
+  const podeAlterarProducao = podeEditar && hasPermissao(permissoes, PERMISSOES.PRODUTOS_PRODUCAO_EDITAR);
 
   // Seção/Categoria estruturadas (migration 0028) -- carregado sempre
   // (não só quando podeEditar): o modo leitura (CampoLeitura) também
@@ -155,8 +228,94 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
     };
   }, []);
 
+  // Estado REAL de "Produto de Produção" em modo edição -- carregado do
+  // banco via catalogo_produto_id, nunca inferido de receitas.nome/
+  // codigo_g3. { carregado, receitaId, ativo }. Em modo criação este
+  // estado não existe ainda (não há produto.id) -- ver produtoProducaoLocal.
+  const [producaoEstado, setProducaoEstado] = useState({ carregado: false, receitaId: null, ativo: false });
+  const [producaoErro, setProducaoErro] = useState('');
+  const [producaoProcessando, setProducaoProcessando] = useState(false);
+
+  useEffect(() => {
+    if (!estaEditando) return undefined;
+
+    let efeitoAtivo = true;
+
+    async function carregarProducao() {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('receitas')
+        .select('id, ativo')
+        .eq('catalogo_produto_id', produto.id)
+        .maybeSingle();
+
+      if (!efeitoAtivo) return;
+
+      if (error) {
+        console.error('Erro ao carregar estado de Produto de Produção:', error);
+        setProducaoEstado({ carregado: true, receitaId: null, ativo: false });
+        return;
+      }
+
+      setProducaoEstado({ carregado: true, receitaId: data?.id || null, ativo: !!data?.ativo });
+    }
+
+    carregarProducao();
+    return () => {
+      efeitoAtivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estaEditando, produto?.id]);
+
+  // Modo criação: checkbox é estado puramente local até o INSERT em
+  // produtos existir -- não há produto_id para vincular ainda. Depois de
+  // criado, marcar_produto_producao é chamado (ver salvar()) e a partir
+  // daí a fonte de verdade volta a ser sempre o backend, igual à edição.
+  const [produtoProducaoLocal, setProdutoProducaoLocal] = useState(false);
+
+  // Aviso pós-criação quando o produto foi salvo com sucesso mas marcar
+  // Produto de Produção falhou -- nunca finge que a marcação funcionou.
+  // onCriado só é chamado quando o usuário confirma "Continuar", depois
+  // de ler o aviso -- até lá o formulário permanece na tela.
+  const [avisoPosCriacao, setAvisoPosCriacao] = useState(null); // { novoId, mensagem } | null
+
   function atualizarCampo(campo, valor) {
     setDados((atual) => ({ ...atual, [campo]: valor }));
+  }
+
+  function atualizarAtivo(valor) {
+    setDados((atual) => ({ ...atual, ativo: valor }));
+    // Produto de Produção nunca pode permanecer marcado (nem localmente,
+    // em criação) quando o produto deixa de estar ativo -- não depende da
+    // RPC rejeitar isso depois, a UI já impede o estado antes do save.
+    if (!valor) {
+      setProdutoProducaoLocal(false);
+    }
+  }
+
+  // Chamada imediata ao clicar o checkbox em modo EDIÇÃO -- não fica
+  // pendurada até "Salvar alterações" (marcar/desmarcar são ações
+  // próprias, com sua própria RPC idempotente, não um campo de formulário
+  // batelado com o resto). Trata ja_ativa/ja_desmarcado como sucesso
+  // silencioso -- nunca apresenta erro para um resultado idempotente.
+  async function alternarProducao(novoValor) {
+    setProducaoErro('');
+    setProducaoProcessando(true);
+
+    const supabase = createClient();
+    const nomeRpc = novoValor ? 'marcar_produto_producao' : 'desmarcar_produto_producao';
+    const { data, error } = await supabase.rpc(nomeRpc, { p_produto_id: produto.id }).single();
+
+    setProducaoProcessando(false);
+
+    if (error) {
+      setProducaoErro(mensagemErroProducao(error));
+      return;
+    }
+
+    // Atualiza a partir do retorno real da RPC (produto_id, receita_id,
+    // ativo, acao) -- nunca otimista, sempre o que o banco confirmou.
+    setProducaoEstado({ carregado: true, receitaId: data.receita_id, ativo: data.ativo });
   }
 
   async function salvar() {
@@ -173,6 +332,30 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
     const payload = montarPayload(dados);
 
     if (estaEditando) {
+      // Transição ativo -> inativo com extensão de Produção ativa:
+      // DESMARCA primeiro, nunca o inverso -- mesma ordem/raciocínio de
+      // pages/catalogo.js:salvarEdicao(). Se desmarcar falhar, aborta
+      // antes de tocar em produtos; se desmarcar funcionar e o UPDATE
+      // abaixo falhar, o estado resultante (produto ainda ativo +
+      // Produção já desmarcada) é válido, sem necessidade de reversão.
+      const estaInativando = produto.ativo === true && payload.ativo === false;
+
+      if (estaInativando && producaoEstado.ativo) {
+        setProducaoProcessando(true);
+        const { error: erroDesmarcar } = await supabase
+          .rpc('desmarcar_produto_producao', { p_produto_id: produto.id })
+          .single();
+        setProducaoProcessando(false);
+
+        if (erroDesmarcar) {
+          setSalvando(false);
+          setErro(`Não foi possível inativar: falha ao desmarcar Produto de Produção primeiro. ${mensagemErroProducao(erroDesmarcar)}`);
+          return;
+        }
+
+        setProducaoEstado((atual) => ({ ...atual, ativo: false }));
+      }
+
       const { error } = await supabase.from('produtos').update(payload).eq('id', produto.id);
       setSalvando(false);
 
@@ -193,7 +376,33 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
       return;
     }
 
-    onCriado(data.id);
+    const novoId = data.id;
+
+    // Guarda dura, independente da UI já ter impedido isso antes: nunca
+    // chamar marcar_produto_producao para um produto que acabou de ser
+    // criado inativo -- não depender só da RPC rejeitar depois do INSERT.
+    if (!produtoProducaoLocal || !dados.ativo) {
+      onCriado(novoId);
+      return;
+    }
+
+    // Produto já está salvo neste ponto -- uma falha aqui NÃO desfaz a
+    // criação (nunca DELETE de contorno). Só avisa e deixa o usuário
+    // decidir o próximo passo, em vez de fingir que Produto de Produção
+    // foi marcado.
+    setProducaoProcessando(true);
+    const resultado = await supabase.rpc('marcar_produto_producao', { p_produto_id: novoId }).single();
+    setProducaoProcessando(false);
+
+    if (resultado.error) {
+      setAvisoPosCriacao({
+        novoId,
+        mensagem: `Produto cadastrado com sucesso. Porém, não foi possível marcar "Produto de Produção": ${mensagemErroProducao(resultado.error)}`,
+      });
+      return;
+    }
+
+    onCriado(novoId);
   }
 
   if (!podeEditar) {
@@ -208,8 +417,49 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
         <CampoLeitura rotulo="Categoria" valor={categoriaNome} />
         <CampoLeitura rotulo="Unidade-base" valor={produto.unidade_medida} />
         <CampoLeitura rotulo="Status" valor={produto.ativo ? 'Ativo' : 'Inativo'} />
+        <CampoLeitura
+          rotulo="Produto de Produção"
+          valor={producaoEstado.carregado ? (producaoEstado.ativo ? 'Sim' : 'Não') : 'Carregando...'}
+        />
       </div>
     );
+  }
+
+  if (avisoPosCriacao) {
+    return (
+      <div>
+        <p style={{ color: '#a15c00', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '5px', fontWeight: 'bold' }}>
+          {avisoPosCriacao.mensagem}
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => onCriado(avisoPosCriacao.novoId)}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: corPrimaria,
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            Continuar para o produto
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Motivo de desabilitado do controle de Produção -- distinto para
+  // permissão faltando vs. produto inativo, para o usuário entender por
+  // que não consegue interagir.
+  let motivoProducaoDesabilitado = null;
+  if (!podeAlterarProducao) {
+    motivoProducaoDesabilitado = 'Você não tem permissão para alterar Produto de Produção.';
+  } else if (!dados.ativo) {
+    motivoProducaoDesabilitado = 'O produto precisa estar ativo para ser marcado como Produto de Produção.';
   }
 
   return (
@@ -297,11 +547,38 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
             <input
               type="checkbox"
               checked={dados.ativo}
-              onChange={(e) => atualizarCampo('ativo', e.target.checked)}
+              onChange={(e) => atualizarAtivo(e.target.checked)}
             />
             Produto ativo
           </label>
         </div>
+      )}
+
+      {/* Produto de Produção: em edição, reflete o estado REAL (banco),
+          ação imediata via RPC. Em criação, estado local até o INSERT
+          existir -- convertido em marcar_produto_producao() logo depois. */}
+      {estaEditando ? (
+        <ControleProducao
+          checked={producaoEstado.ativo}
+          disabled={!podeAlterarProducao || !dados.ativo || !producaoEstado.carregado}
+          processando={producaoProcessando}
+          motivoDesabilitado={
+            !producaoEstado.carregado ? 'Carregando estado de Produto de Produção...' : motivoProducaoDesabilitado
+          }
+          onChange={alternarProducao}
+        />
+      ) : (
+        <ControleProducao
+          checked={produtoProducaoLocal}
+          disabled={!podeAlterarProducao || !dados.ativo}
+          processando={false}
+          motivoDesabilitado={motivoProducaoDesabilitado}
+          onChange={setProdutoProducaoLocal}
+        />
+      )}
+
+      {producaoErro && (
+        <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{producaoErro}</p>
       )}
 
       {erro && <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>}

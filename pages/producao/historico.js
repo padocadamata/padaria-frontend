@@ -191,12 +191,24 @@ function HistoricoConteudo() {
           .select(
             'id, data, turno, receita_id, origem, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, observacoes, houve_falta, criado_em, atualizado_em'
           ),
-        supabase.from('receitas').select('id, nome'),
-        // Lista separada da acima: aqui só produtos ativos, para o
-        // seletor de "Lançar produção passada" — a lista acima precisa
-        // incluir também produtos já desativados, para não perder o nome
-        // de registros históricos que os referenciam.
-        supabase.from('receitas').select('id, nome').eq('ativo', true).order('nome', { ascending: true }),
+        // CONTEXTO HISTÓRICO: LEFT embed (produtos, sem !inner) -- nunca
+        // pode esconder um registro/receita histórica por causa de um
+        // vínculo ausente ou de um produto desativado depois. Fallback
+        // produto.nome ?? receita.nome (snapshot legado) na montagem do
+        // mapa abaixo, exatamente como pedido para este caso.
+        supabase.from('receitas').select('id, nome, produtos(nome)'),
+        // Lista separada da acima: aqui só produtos ATUALMENTE ativos em
+        // Produção, para o seletor de "Lançar produção passada" -- este
+        // sim é um contexto operacional atual, não histórico, então exige
+        // defesa em profundidade (produtos.ativo=true E receitas.ativo=
+        // true) e identidade vinda do produto mestre. A lista de cima
+        // continua incluindo também produtos já desativados, para não
+        // perder o nome de registros históricos que os referenciam.
+        supabase
+          .from('receitas')
+          .select('id, produtos!inner(nome)')
+          .eq('ativo', true)
+          .eq('produtos.ativo', true),
       ]);
 
       if (!efeitoAtivo) {
@@ -216,12 +228,18 @@ function HistoricoConteudo() {
 
       const mapa = {};
       for (const r of receitasResp.data || []) {
-        mapa[r.id] = r.nome;
+        mapa[r.id] = r.produtos?.nome ?? r.nome;
       }
+
+      // Achata para {id, nome} -- mesma forma usada por LancarProducaoRetroativaModal
+      // antes da unificação. Ordenado no cliente por nome.
+      const produtosAtivosAchatados = (produtosAtivosResp.data || [])
+        .map((p) => ({ id: p.id, nome: p.produtos?.nome || '' }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
 
       setRegistros(ordenarRegistros(registrosResp.data || []));
       setReceitaNomePorId(mapa);
-      setProdutosAtivos(produtosAtivosResp.data || []);
+      setProdutosAtivos(produtosAtivosAchatados);
       setCarregando(false);
     }
 

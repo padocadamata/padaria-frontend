@@ -253,13 +253,15 @@ function PlanejamentoConteudo() {
 
       const supabase = createClient();
 
+      // Unificação Catálogo x Produção: nome vem de produtos (identidade
+      // mestre), nunca mais de receitas.nome. Defesa em profundidade:
+      // produtos.ativo=true E receitas.ativo=true juntos.
       const produtosResp = await supabase
         .from('receitas')
-        .select('id, nome, grupo')
+        .select('id, grupo, produtos!inner(nome)')
         .eq('ativo', true)
         .eq('controlado_producao', true)
-        .order('grupo', { ascending: true })
-        .order('nome', { ascending: true });
+        .eq('produtos.ativo', true);
 
       if (produtosResp.error) {
         console.error('Erro ao carregar produtos controlados:', produtosResp.error);
@@ -268,7 +270,20 @@ function PlanejamentoConteudo() {
         return;
       }
 
-      const idsControlados = (produtosResp.data || []).map((p) => p.id);
+      // Achata para {id, nome, grupo} -- mesma forma usada pelo restante
+      // do arquivo antes da unificação. Ordenado no cliente (grupo, depois
+      // nome) -- ordenar por coluna de relação embutida via
+      // .order({foreignTable}) não tem precedente no projeto.
+      const produtosAchatados = (produtosResp.data || [])
+        .map((p) => ({ id: p.id, nome: p.produtos?.nome || '', grupo: p.grupo }))
+        .sort((a, b) => {
+          const grupoA = a.grupo || '';
+          const grupoB = b.grupo || '';
+          if (grupoA !== grupoB) return grupoA.localeCompare(grupoB, 'pt-BR', { sensitivity: 'base' });
+          return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+        });
+
+      const idsControlados = produtosAchatados.map((p) => p.id);
 
       const historicoResp =
         idsControlados.length > 0
@@ -288,7 +303,7 @@ function PlanejamentoConteudo() {
         return;
       }
 
-      setProdutos(produtosResp.data || []);
+      setProdutos(produtosAchatados);
       setRegistrosHistorico(historicoResp.data || []);
       setCarregandoBase(false);
     }

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import MenuOpcoes from '../components/MenuOpcoes';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
-import { validar as validarProduto, montarPayload as montarPayloadProduto, mensagemErro as mensagemErroProduto } from '../components/catalogo/DadosProdutoForm';
+import { validar as validarProduto, montarPayload as montarPayloadProduto, mensagemErro as mensagemErroProduto, mensagemErroProducao } from '../components/catalogo/DadosProdutoForm';
 import GerenciarClassificacoesModal from '../components/catalogo/GerenciarClassificacoesModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
 import { BotaoIconeAcao, IconeOlho, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira } from '../components/producao/IconesAcoes';
@@ -95,6 +95,28 @@ function BadgeStatus({ ativo }) {
       }}
     >
       {ativo ? 'Ativo' : 'Inativo'}
+    </span>
+  );
+}
+
+// Só indicador -- nunca um toggle. Ativação/desativação de Produto de
+// Produção acontece exclusivamente em DadosProdutoForm (dentro de
+// /catalogo/[id]), nunca aqui -- ver decisão da rodada de unificação
+// Catálogo x Produção (não criar uma terceira rota de escrita).
+function BadgeProducao({ ativo }) {
+  return (
+    <span
+      style={{
+        padding: '4px 10px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        color: 'white',
+        backgroundColor: ativo ? '#2196F3' : '#9e9e9e',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {ativo ? 'Em Produção' : 'Fora de Produção'}
     </span>
   );
 }
@@ -235,6 +257,11 @@ function CatalogoConteudo() {
   const [categorias, setCategorias] = useState([]);
   const [modalClassificacoesAberto, setModalClassificacoesAberto] = useState(false);
 
+  // Estado REAL de "Produto de Produção" por produto, para o badge da
+  // listagem -- Map(catalogo_produto_id -> {id, ativo}). Carregado uma
+  // vez (mesmo padrão de secoes/categorias abaixo), não por linha.
+  const [producaoPorProdutoId, setProducaoPorProdutoId] = useState(new Map());
+
   const [filtroStatus, setFiltroStatus] = useState('ativos');
   const [filtroSecaoId, setFiltroSecaoId] = useState('todas');
   const [filtroCategoriaId, setFiltroCategoriaId] = useState('todas');
@@ -299,6 +326,37 @@ function CatalogoConteudo() {
     };
   }, []);
 
+  // Idem -- carregado uma vez, independente do filtro de status dos
+  // produtos (precisamos saber o estado de Produção mesmo para produtos
+  // fora da página filtrada atual, e o volume de receitas é pequeno).
+  useEffect(() => {
+    let efeitoAtivo = true;
+
+    async function carregarProducao() {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('receitas')
+        .select('id, catalogo_produto_id, ativo')
+        .not('catalogo_produto_id', 'is', null);
+
+      if (!efeitoAtivo) return;
+
+      if (error) {
+        console.error('Erro ao carregar estado de Produto de Produção:', error);
+        return;
+      }
+
+      setProducaoPorProdutoId(
+        new Map((data || []).map((r) => [r.catalogo_produto_id, { id: r.id, ativo: r.ativo }]))
+      );
+    }
+
+    carregarProducao();
+    return () => {
+      efeitoAtivo = false;
+    };
+  }, []);
+
   useEffect(() => {
     let efeitoAtivo = true;
 
@@ -338,12 +396,18 @@ function CatalogoConteudo() {
   // produtos e sem F5.
   const produtosComNomes = useMemo(
     () =>
-      produtos.map((p) => ({
-        ...p,
-        secaoNome: p.secao_id ? secoesPorId.get(p.secao_id)?.nome || null : null,
-        categoriaNome: p.categoria_id ? categoriasPorId.get(p.categoria_id)?.nome || null : null,
-      })),
-    [produtos, secoesPorId, categoriasPorId]
+      produtos.map((p) => {
+        const receita = producaoPorProdutoId.get(p.id);
+        return {
+          ...p,
+          secaoNome: p.secao_id ? secoesPorId.get(p.secao_id)?.nome || null : null,
+          categoriaNome: p.categoria_id ? categoriasPorId.get(p.categoria_id)?.nome || null : null,
+          // Defesa em profundidade: só conta como "em Produção" com o
+          // produto mestre ativo E a extensão ativa, nunca só a extensão.
+          producaoAtiva: !!p.ativo && !!receita?.ativo,
+        };
+      }),
+    [produtos, secoesPorId, categoriasPorId, producaoPorProdutoId]
   );
 
   const buscaNormalizada = busca.trim().toLowerCase();
@@ -437,6 +501,39 @@ function CatalogoConteudo() {
 
     const supabase = createClient();
     const payload = montarPayloadProduto(dados);
+
+    // Transição ativo -> inativo com extensão de Produção ativa: DESMARCA
+    // primeiro (nunca o inverso). Essa ordem garante que o estado proibido
+    // (produto inativo + extensão ativa) nunca é alcançável, mesmo sob
+    // falha parcial -- se desmarcar falhar, aborta aqui, sem tocar em
+    // produtos; se desmarcar funcionar e o UPDATE abaixo falhar, o estado
+    // resultante (produto ainda ativo + Produção já desmarcada) é válido,
+    // não precisa de nenhuma reversão.
+    const produtoOriginal = produtos.find((p) => p.id === id);
+    const estaInativando = produtoOriginal?.ativo === true && payload.ativo === false;
+    const receitaVinculada = producaoPorProdutoId.get(id);
+
+    if (estaInativando && receitaVinculada?.ativo) {
+      const { error: erroDesmarcar } = await supabase
+        .rpc('desmarcar_produto_producao', { p_produto_id: id })
+        .single();
+
+      if (erroDesmarcar) {
+        setSalvandoId(null);
+        setErroPorId((atual) => ({
+          ...atual,
+          [id]: `Não foi possível inativar: falha ao desmarcar Produto de Produção primeiro. ${mensagemErroProducao(erroDesmarcar)}`,
+        }));
+        return;
+      }
+
+      setProducaoPorProdutoId((atual) => {
+        const novo = new Map(atual);
+        novo.set(id, { ...receitaVinculada, ativo: false });
+        return novo;
+      });
+    }
+
     const { error } = await supabase.from('produtos').update(payload).eq('id', id);
 
     setSalvandoId(null);
@@ -622,6 +719,9 @@ function CatalogoConteudo() {
                   <ThOrdenavel campo="unidade_medida" label="Unidade" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
                   <ThOrdenavel campo="ativo" label="Status" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
                   <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                    Produção
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                     Ações
                   </th>
                 </tr>
@@ -736,6 +836,9 @@ function CatalogoConteudo() {
                           )}
                         </td>
                         <td style={{ padding: '12px' }}>
+                          <BadgeProducao ativo={produto.producaoAtiva} />
+                        </td>
+                        <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', gap: '6px' }}>
                             {emEdicao ? (
                               <>
@@ -783,7 +886,7 @@ function CatalogoConteudo() {
                       </tr>
                       {erroLinha && (
                         <tr style={{ borderBottom: '1px solid #ddd' }}>
-                          <td colSpan={8} style={{ padding: '0 12px 10px 12px', backgroundColor: '#fff8e1' }}>
+                          <td colSpan={9} style={{ padding: '0 12px 10px 12px', backgroundColor: '#fff8e1' }}>
                             <span style={{ color: '#f44336', fontSize: '13px' }}>{erroLinha}</span>
                           </td>
                         </tr>

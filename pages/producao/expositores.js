@@ -165,12 +165,26 @@ function ExpositoresConteudo() {
             )
             .order('data_entrada', { ascending: false })
             .limit(1000),
+          // Lista de itens ATUALMENTE ativos com controle de expositor --
+          // contexto operacional atual (não histórico), por isso exige
+          // defesa em profundidade (produtos.ativo=true E receitas.ativo=
+          // true) e nome vindo do produto mestre.
           supabase
             .from('receitas')
-            .select('id, nome, prazo_expositor_dias')
+            .select('id, prazo_expositor_dias, produtos!inner(nome)')
             .eq('controlar_expositor', true)
             .eq('ativo', true)
-            .order('nome', { ascending: true }),
+            .eq('produtos.ativo', true),
+          // registrosElegiveis (para criar um lote novo): mantido com a
+          // MESMA consulta/relacionamento de antes da unificação, de
+          // propósito -- é um lançamento recente (60 dias) já existente,
+          // não uma criação de identidade nova, e um embed aninhado
+          // adicional (receitas -> produtos, 2 níveis) não tem nenhum
+          // precedente testado neste projeto. O nome exibido é resolvido
+          // depois (registrosComDisponivel) preferindo produtos.nome já
+          // carregado acima (produtosControlados), com fallback para
+          // receitas.nome só se o produto não estiver nessa lista --
+          // evita introduzir uma consulta de risco maior sem necessidade.
           supabase
             .from('producao_registros')
             .select('id, data, turno, receita_id, quantidade_produzida, receitas!inner(nome, controlar_expositor)')
@@ -190,8 +204,14 @@ function ExpositoresConteudo() {
         return;
       }
 
+      // Achata para {id, nome, prazo_expositor_dias} -- mesma forma usada
+      // pelo restante do arquivo antes da unificação. Ordenado no cliente.
+      const produtosAchatados = (produtosData || [])
+        .map((p) => ({ id: p.id, nome: p.produtos?.nome || '', prazo_expositor_dias: p.prazo_expositor_dias }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
       setLotes(lotesData || []);
-      setProdutosControlados(produtosData || []);
+      setProdutosControlados(produtosAchatados);
       setRegistrosElegiveis(registrosData || []);
       setCarregando(false);
     }
@@ -220,19 +240,43 @@ function ExpositoresConteudo() {
     return mapa;
   }, [lotes]);
 
+  // produtosControlados já é a autoridade correta de elegibilidade ATUAL
+  // (receitas.controlar_expositor=true AND receitas.ativo=true AND
+  // produtos.ativo=true, ver consulta acima) -- reaproveitado aqui para
+  // (1) resolver o nome do produto mestre e (2) filtrar quais lançamentos
+  // recentes podem virar um lote NOVO. Nenhuma query aninhada adicional
+  // precisou ser criada. Isto NÃO afeta lotes/histórico já existentes
+  // (lotesComSituacao/lotesListaHistorico/relatorio vêm de outro estado,
+  // `lotes`, carregado à parte da view producao_expositor_detalhado, sem
+  // nenhum filtro novo) -- só a lista de lançamentos elegíveis para uma
+  // AÇÃO NOVA (criar lote) é restringida.
+  const nomeAtualPorReceitaId = useMemo(() => {
+    const mapa = new Map();
+    for (const p of produtosControlados) {
+      mapa.set(p.id, p.nome);
+    }
+    return mapa;
+  }, [produtosControlados]);
+
   const registrosComDisponivel = useMemo(
     () =>
       registrosElegiveis
+        // Elegibilidade ATUAL para criar um lote novo: a receita precisa
+        // estar no conjunto de produtosControlados agora, não só ter
+        // estado elegível no momento do lançamento (ex.: produto mestre
+        // desativado depois não pode receber um lote novo, mesmo que o
+        // lançamento em si continue com disponível > 0).
+        .filter((r) => nomeAtualPorReceitaId.has(r.receita_id))
         .map((r) => ({
           id: r.id,
           data: r.data,
           turno: r.turno,
-          produtoNome: r.receitas?.nome || '—',
+          produtoNome: nomeAtualPorReceitaId.get(r.receita_id) || r.receitas?.nome || '—',
           quantidadeProduzida: r.quantidade_produzida,
           disponivel: r.quantidade_produzida - (somaEnviadaPorRegistro.get(r.id) || 0),
         }))
         .filter((r) => r.disponivel > 0),
-    [registrosElegiveis, somaEnviadaPorRegistro]
+    [registrosElegiveis, somaEnviadaPorRegistro, nomeAtualPorReceitaId]
   );
 
   const lotesComSituacao = useMemo(

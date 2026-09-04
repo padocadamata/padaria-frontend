@@ -45,7 +45,15 @@ export default function AtencaoProducao({ corPrimaria }) {
           .select('id, data, turno, receita_id, status')
           .neq('status', 'fechado')
           .order('data', { ascending: true }),
-        supabase.from('receitas').select('id, nome'),
+        // Sem filtro de ativo (igual ao comportamento anterior à
+        // unificação): pendências antigas podem referenciar uma extensão
+        // ou um produto já desativado depois, e o nome precisa continuar
+        // aparecendo. Por isso, diferente de Tela Hoje/Planejamento, NÃO
+        // usar produtos!inner nem filtrar produtos.ativo/receitas.ativo
+        // aqui -- LEFT embed (produtos, sem !inner) + fallback
+        // produto.nome ?? receita.nome, mesmo princípio pedido para o
+        // contexto histórico de pages/producao/historico.js.
+        supabase.from('receitas').select('id, nome, produtos(nome)'),
       ]);
 
       if (!efeitoAtivo) return;
@@ -61,7 +69,7 @@ export default function AtencaoProducao({ corPrimaria }) {
 
       const mapa = {};
       for (const r of receitasResp.data || []) {
-        mapa[r.id] = r.nome;
+        mapa[r.id] = r.produtos?.nome ?? r.nome;
       }
 
       setReceitaNomePorId(mapa);

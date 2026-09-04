@@ -3,10 +3,25 @@ import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 
+// Formulário SOMENTE da extensão operacional de Produção (public.receitas).
+// Desde a unificação Catálogo x Produção (receitas.catalogo_produto_id,
+// migration 0034), este componente NUNCA cria uma receita nova -- toda
+// extensão nasce em marcar_produto_producao(), chamada a partir do
+// Catálogo (components/catalogo/DadosProdutoForm.js). `receita` é sempre
+// uma extensão JÁ existente e vinculada; `receita.produtos` traz o nome/
+// código mestre (embed via a query de pages/producao/produtos.js).
+//
+// nome/codigo_g3 NÃO são mais editáveis aqui -- identidade cadastral
+// pertence ao Catálogo. receitas.nome/receitas.codigo_g3 permanecem no
+// banco como snapshot legado (não removidos, não escritos por este
+// formulário) -- ver decisão da unificação. "Receita ativa" também saiu
+// daqui: ativar/desativar a extensão é feito exclusivamente pelo checkbox
+// "Produto de Produção" no Catálogo (marcar_produto_producao/
+// desmarcar_produto_producao) -- nunca um UPDATE direto de receitas.ativo
+// nesta tela, para não reabrir um segundo caminho de escrita que poderia
+// dessincronizar do produto mestre.
 function estadoInicial(receita) {
   return {
-    codigo_g3: receita?.codigo_g3 || '',
-    nome: receita?.nome || '',
     tipo: receita?.tipo || '',
     grupo: receita?.grupo || '',
     descricao: receita?.descricao || '',
@@ -16,7 +31,6 @@ function estadoInicial(receita) {
     tempo_fermentacao_climatica_horas: receita?.tempo_fermentacao_climatica_horas ?? '',
     rendimento_quantidade: receita?.rendimento_quantidade ?? '',
     unidade_medida_saida: receita?.unidade_medida_saida || '',
-    ativo: receita ? !!receita.ativo : true,
     controlado_producao: receita ? !!receita.controlado_producao : false,
     // Controle de Expositores (migration 0030).
     controlar_expositor: receita ? !!receita.controlar_expositor : false,
@@ -25,10 +39,6 @@ function estadoInicial(receita) {
 }
 
 function validar(dados) {
-  if (!dados.nome.trim()) {
-    return 'Informe o nome da receita.';
-  }
-
   const temQuantidade = dados.rendimento_quantidade !== '';
   const temUnidade = dados.unidade_medida_saida !== '';
 
@@ -62,10 +72,11 @@ function paraNumeroOuNull(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
-function montarPayload(dados, estaEditando) {
-  const payload = {
-    codigo_g3: dados.codigo_g3.trim() || null,
-    nome: dados.nome.trim(),
+// Payload contém SOMENTE campos operacionais -- nunca nome, codigo_g3 ou
+// ativo (essa é a exigência central desta rodada: o UPDATE afeta só a
+// extensão operacional, identidade e estado de Produção ficam de fora).
+function montarPayload(dados) {
+  return {
     tipo: dados.tipo.trim() || null,
     grupo: dados.grupo.trim() || null,
     descricao: dados.descricao.trim() || null,
@@ -75,28 +86,17 @@ function montarPayload(dados, estaEditando) {
     tempo_fermentacao_climatica_horas: paraNumeroOuNull(dados.tempo_fermentacao_climatica_horas),
     rendimento_quantidade: paraNumeroOuNull(dados.rendimento_quantidade),
     unidade_medida_saida: dados.unidade_medida_saida || null,
-    ativo: dados.ativo,
-    // Receita inativa nunca fica marcada como participante do controle de
-    // produção — reforçado aqui independente do que a UI já tiver feito no
-    // onChange do checkbox "Receita ativa".
-    controlado_producao: dados.ativo ? dados.controlado_producao : false,
-    // Controle de Expositores (0030): mesmo raciocínio de controlado_producao
-    // -- se desativado, prazo sempre null (nunca confia só no onChange do
-    // checkbox); o CHECK receitas_prazo_expositor_coerente_check garante
-    // isso também no banco.
+    controlado_producao: dados.controlado_producao,
+    // Controle de Expositores (0030): se desativado, prazo sempre null
+    // (nunca confia só no onChange do checkbox); o CHECK
+    // receitas_prazo_expositor_coerente_check garante isso também no banco.
     controlar_expositor: dados.controlar_expositor,
     prazo_expositor_dias: dados.controlar_expositor ? paraNumeroOuNull(dados.prazo_expositor_dias) : null,
+    // atualizado_em: não existe trigger de banco para isso (confirmado nas
+    // migrations — 0010 registra explicitamente que é a aplicação que
+    // mantém essa coluna a cada UPDATE).
+    atualizado_em: new Date().toISOString(),
   };
-
-  // atualizado_em: não existe trigger de banco para isso (confirmado nas
-  // migrations — 0010 registra explicitamente que é a aplicação que
-  // mantém essa coluna a cada UPDATE). Só faz sentido em edição; uma
-  // receita nova não precisa desse campo no insert.
-  if (estaEditando) {
-    payload.atualizado_em = new Date().toISOString();
-  }
-
-  return payload;
 }
 
 const rotuloEstilo = {
@@ -125,13 +125,12 @@ const UNIDADES_SAIDA = ['g', 'kg', 'ml', 'L', 'un', 'dz'];
 const GRUPOS_PRODUCAO = ['A', 'B', 'C', 'D'];
 
 export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
-  const estaEditando = receita != null;
   const [dados, setDados] = useState(() => estadoInicial(receita));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
-  // Migration 0016: RLS de receitas/receita_ingredientes passou de
-  // is_admin() puro para has_permissao('produtos_producao.editar').
+  // Migration 0016: RLS de receitas passou de is_admin() puro para
+  // has_permissao('produtos_producao.editar').
   const { permissoes } = useAuth();
   const podeEscrever = hasPermissao(permissoes, PERMISSOES.PRODUTOS_PRODUCAO_EDITAR);
 
@@ -139,24 +138,13 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
     setDados((atual) => ({ ...atual, [campo]: valor }));
   }
 
-  function atualizarAtivo(valor) {
-    setDados((atual) => ({
-      ...atual,
-      ativo: valor,
-      // Desmarca "Exibir na Tela Hoje" no mesmo instante em que a receita
-      // é desativada, para a UI nunca mostrar um estado que o salvar não
-      // vai respeitar.
-      controlado_producao: valor ? atual.controlado_producao : false,
-    }));
-  }
-
   function atualizarControlarExpositor(valor) {
     setDados((atual) => ({
       ...atual,
       controlar_expositor: valor,
-      // Mesmo raciocínio de atualizarAtivo: desmarcar já limpa o campo
-      // dependente na UI, para nunca mostrar um prazo que o salvar não vai
-      // enviar (montarPayload já força null de qualquer forma).
+      // Desmarcar já limpa o campo dependente na UI, para nunca mostrar
+      // um prazo que o salvar não vai enviar (montarPayload já força
+      // null de qualquer forma).
       prazo_expositor_dias: valor ? atual.prazo_expositor_dias : '',
     }));
   }
@@ -177,23 +165,20 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
     setSalvando(true);
 
     const supabase = createClient();
-    const payload = montarPayload(dados, estaEditando);
+    const payload = montarPayload(dados);
 
-    const resultado = estaEditando
-      ? await supabase.from('receitas').update(payload).eq('id', receita.id)
-      : await supabase.from('receitas').insert(payload);
+    // Sempre UPDATE -- nunca INSERT. A extensão já existe (criada por
+    // marcar_produto_producao a partir do Catálogo); este formulário só
+    // edita os campos operacionais dela.
+    const { error } = await supabase.from('receitas').update(payload).eq('id', receita.id);
 
     setSalvando(false);
 
-    if (resultado.error) {
-      if (resultado.error.code === '23505') {
-        setErro('Já existe uma receita com este Código G3.');
-      } else if (resultado.error.code === '23514') {
-        setErro(
-          'Não foi possível salvar: verifique o rendimento (quantidade e unidade devem vir juntas) ou o Código G3.'
-        );
+    if (error) {
+      if (error.code === '23514') {
+        setErro('Não foi possível salvar: verifique o rendimento (quantidade e unidade devem vir juntas).');
       } else {
-        console.error('Erro ao salvar receita:', resultado.error);
+        console.error('Erro ao salvar receita:', error);
         setErro('Não foi possível salvar a receita.');
       }
       return;
@@ -201,6 +186,9 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
 
     onSalvo();
   }
+
+  const nomeProduto = receita?.produtos?.nome || '—';
+  const codigoG3Produto = receita?.produtos?.codigo_g3 || '—';
 
   return (
     <div
@@ -230,10 +218,10 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
         }}
       >
-        <h3 style={{ marginTop: 0 }}>{estaEditando ? 'Editar receita' : 'Nova receita'}</h3>
+        <h3 style={{ marginTop: 0 }}>Editar extensão de Produção</h3>
 
         <h4 style={{ ...tituloBlocoEstilo, borderTop: 'none', paddingTop: 0, marginTop: 0 }}>
-          Dados gerais
+          Identidade (Catálogo)
         </h4>
         <div
           style={{
@@ -244,25 +232,27 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
           }}
         >
           <div>
-            <label style={rotuloEstilo}>Código G3</label>
-            <input
-              type="text"
-              value={dados.codigo_g3}
-              onChange={(e) => atualizarCampo('codigo_g3', e.target.value)}
-              style={campoEstilo}
-            />
+            <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#666', marginBottom: '2px' }}>Nome</div>
+            <div>{nomeProduto}</div>
           </div>
-
           <div>
-            <label style={rotuloEstilo}>Nome *</label>
-            <input
-              type="text"
-              value={dados.nome}
-              onChange={(e) => atualizarCampo('nome', e.target.value)}
-              style={campoEstilo}
-            />
+            <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#666', marginBottom: '2px' }}>Código G3</div>
+            <div>{codigoG3Produto}</div>
           </div>
+        </div>
+        <p style={{ fontSize: '12px', color: '#666', margin: '-10px 0 15px 0' }}>
+          Nome e Código G3 pertencem ao cadastro mestre do Catálogo — edite-os em Catálogo de Produtos.
+        </p>
 
+        <h4 style={tituloBlocoEstilo}>Dados gerais</h4>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '15px',
+            marginBottom: '15px',
+          }}
+        >
           <div>
             <label style={rotuloEstilo}>Tipo</label>
             <select
@@ -392,38 +382,18 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
           </div>
         </div>
 
-        <h4 style={tituloBlocoEstilo}>Status</h4>
+        <h4 style={tituloBlocoEstilo}>Tela Hoje</h4>
         <div style={{ marginBottom: '15px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '10px' }}>
             <input
               type="checkbox"
-              checked={dados.ativo}
-              onChange={(e) => atualizarAtivo(e.target.checked)}
-            />
-            Receita ativa
-          </label>
-
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 'bold',
-              color: dados.ativo ? '#000' : '#999',
-            }}
-          >
-            <input
-              type="checkbox"
               checked={dados.controlado_producao}
-              disabled={!dados.ativo}
               onChange={(e) => atualizarCampo('controlado_producao', e.target.checked)}
             />
             Exibir na Tela Hoje
           </label>
           <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 26px' }}>
-            {dados.ativo
-              ? 'Quando habilitado, o produto fica disponível no controle diário de Produção.'
-              : 'Desabilitado porque a receita está inativa.'}
+            Quando habilitado, o produto fica disponível no controle diário de Produção.
           </p>
         </div>
 
@@ -459,8 +429,8 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
           </p>
         </div>
 
-        {/* Etapa 3: bloco "Ficha técnica" entra aqui, condicionado a
-            estaEditando (precisa de receita.id já existente). */}
+        {/* Etapa 3: bloco "Ficha técnica" entra aqui (usa receita.id, que
+            este formulário sempre tem, já que nunca cria uma receita nova). */}
 
         {erro && (
           <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>
