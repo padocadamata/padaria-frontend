@@ -5,6 +5,7 @@ import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
 import ReceitaProducaoForm from '../../components/producao/ReceitaProducaoForm';
+import GerenciarClassificacoesProducaoModal from '../../components/producao/GerenciarClassificacoesProducaoModal';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -75,6 +76,13 @@ function ProdutosProducaoConteudo() {
   const [receitaEmEdicao, setReceitaEmEdicao] = useState(null);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
+
+  // Gerenciar Classificações (migration 0036): cadastro estruturado de
+  // Tipo/Grupo de Produção, separado da unificação Catálogo x Produção.
+  const [tiposProducao, setTiposProducao] = useState([]);
+  const [gruposProducao, setGruposProducao] = useState([]);
+  const [modalClassificacoesAberto, setModalClassificacoesAberto] = useState(false);
+  const [classificacoesTick, setClassificacoesTick] = useState(0);
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -180,6 +188,54 @@ function ProdutosProducaoConteudo() {
     return () => clearTimeout(timer);
   }, [mensagemSucesso]);
 
+  // Carrega producao_tipos/producao_grupos (migration 0036) -- inclui
+  // ativos e inativos: o modal de gerenciamento precisa listar os dois, e
+  // ReceitaProducaoForm precisa enxergar um valor inativo já em uso pela
+  // receita em edição (regra "(inativo)" -- nunca troca silenciosamente).
+  useEffect(() => {
+    let efeitoAtivo = true;
+
+    async function carregarClassificacoes() {
+      const supabase = createClient();
+
+      const [{ data: tipos, error: erroTipos }, { data: grupos, error: erroGrupos }] = await Promise.all([
+        supabase.from('producao_tipos').select('valor, ativo').order('valor'),
+        supabase.from('producao_grupos').select('valor, ativo').order('valor'),
+      ]);
+
+      if (!efeitoAtivo) {
+        return;
+      }
+
+      if (erroTipos) {
+        console.error('Erro ao carregar tipos de produção:', erroTipos);
+      } else {
+        setTiposProducao(tipos || []);
+      }
+
+      if (erroGrupos) {
+        console.error('Erro ao carregar grupos de produção:', erroGrupos);
+      } else {
+        setGruposProducao(grupos || []);
+      }
+    }
+
+    carregarClassificacoes();
+
+    return () => {
+      efeitoAtivo = false;
+    };
+  }, [classificacoesTick]);
+
+  // Renomear uma classificação propaga via ON UPDATE CASCADE no banco --
+  // a lista de receitas já carregada em memória fica desatualizada para
+  // quem usava o valor antigo, então uma alteração no modal recarrega as
+  // duas listas (classificações e receitas).
+  function aoAlterarClassificacoes() {
+    setClassificacoesTick((tick) => tick + 1);
+    setRecarregarTick((tick) => tick + 1);
+  }
+
   function abrirEdicao(receita) {
     setReceitaEmEdicao(receita);
     setModalAberto(true);
@@ -273,23 +329,42 @@ function ProdutosProducaoConteudo() {
         >
           <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Produtos</h2>
 
-          {/* Unificação Catálogo x Produção: não existe mais criação
-              independente de receita -- todo produto de Produção nasce de
-              um produto do Catálogo marcado como "Produto de Produção". */}
-          <button
-            onClick={() => router.push('/catalogo')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: aparencia.corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            Adicionar produto de produção
-          </button>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {podeEscrever && (
+              <button
+                onClick={() => setModalClassificacoesAberto(true)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: 'white',
+                  color: aparencia.corPrimaria,
+                  border: `1px solid ${aparencia.corPrimaria}`,
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+              >
+                Gerenciar Classificações
+              </button>
+            )}
+
+            {/* Unificação Catálogo x Produção: não existe mais criação
+                independente de receita -- todo produto de Produção nasce de
+                um produto do Catálogo marcado como "Produto de Produção". */}
+            <button
+              onClick={() => router.push('/catalogo')}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: aparencia.corPrimaria,
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              Adicionar produto de produção
+            </button>
+          </div>
         </div>
 
         <p style={{ color: '#666', fontSize: '13px', marginTop: '8px' }}>
@@ -529,10 +604,21 @@ function ProdutosProducaoConteudo() {
       {modalAberto && (
         <ReceitaProducaoForm
           receita={receitaEmEdicao}
+          tiposProducao={tiposProducao}
+          gruposProducao={gruposProducao}
           onFechar={fecharModal}
           onSalvo={aoSalvar}
         />
       )}
+
+      <GerenciarClassificacoesProducaoModal
+        aberto={modalClassificacoesAberto}
+        onFechar={() => setModalClassificacoesAberto(false)}
+        tipos={tiposProducao}
+        grupos={gruposProducao}
+        podeGerenciar={podeEscrever}
+        onAtualizar={aoAlterarClassificacoes}
+      />
     </div>
   );
 }

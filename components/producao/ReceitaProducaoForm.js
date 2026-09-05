@@ -122,9 +122,20 @@ const tituloBlocoEstilo = {
 };
 
 const UNIDADES_SAIDA = ['g', 'kg', 'ml', 'L', 'un', 'dz'];
-const GRUPOS_PRODUCAO = ['A', 'B', 'C', 'D'];
 
-export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
+// Gerenciar Classificações (migration 0036): oferece só classificações
+// ativas para escolhas novas -- mas se a receita já está com um valor que
+// foi inativado depois, ele continua aparecendo (marcado "(inativo)"),
+// nunca é trocado silenciosamente. NULL continua permitido nos dois casos
+// (option vazia acima desta lista, no JSX).
+function opcoesClassificacaoProducao(itens, valorAtual) {
+  const ativos = itens.filter((item) => item.ativo);
+  const atualInativo = valorAtual ? itens.find((item) => item.valor === valorAtual && !item.ativo) : null;
+  const lista = atualInativo ? [...ativos, atualInativo] : ativos;
+  return [...lista].sort((a, b) => a.valor.localeCompare(b.valor, 'pt-BR'));
+}
+
+export default function ReceitaProducaoForm({ receita, tiposProducao = [], gruposProducao = [], onFechar, onSalvo }) {
   const [dados, setDados] = useState(() => estadoInicial(receita));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -189,6 +200,8 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
 
   const nomeProduto = receita?.produtos?.nome || '—';
   const codigoG3Produto = receita?.produtos?.codigo_g3 || '—';
+  const opcoesTipo = opcoesClassificacaoProducao(tiposProducao, dados.tipo);
+  const opcoesGrupo = opcoesClassificacaoProducao(gruposProducao, dados.grupo);
 
   return (
     <div
@@ -261,8 +274,12 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
               style={campoEstilo}
             >
               <option value="">Selecione</option>
-              <option value="salgada">Salgada</option>
-              <option value="doce">Doce</option>
+              {opcoesTipo.map((item) => (
+                <option key={item.valor} value={item.valor}>
+                  {item.valor}
+                  {!item.ativo ? ' (inativo)' : ''}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -274,9 +291,10 @@ export default function ReceitaProducaoForm({ receita, onFechar, onSalvo }) {
               style={campoEstilo}
             >
               <option value="">Sem grupo</option>
-              {GRUPOS_PRODUCAO.map((grupo) => (
-                <option key={grupo} value={grupo}>
-                  {grupo}
+              {opcoesGrupo.map((item) => (
+                <option key={item.valor} value={item.valor}>
+                  {item.valor}
+                  {!item.ativo ? ' (inativo)' : ''}
                 </option>
               ))}
             </select>
