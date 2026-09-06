@@ -25,6 +25,7 @@ const ROTULOS = {
   producao: 'Produção',
   pedidos: 'Pedidos',
   catalogo: 'Catálogo',
+  agenda: 'Agenda',
 };
 
 export default function NavegacaoPrincipal({ corPrimaria }) {
