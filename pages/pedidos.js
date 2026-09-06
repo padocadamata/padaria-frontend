@@ -4,6 +4,7 @@ import MenuOpcoes from '../components/MenuOpcoes';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
+import CompraPresencialForm from '../components/pedidos/CompraPresencialForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
 import ReceberPedidoModal from '../components/pedidos/ReceberPedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
@@ -93,6 +94,32 @@ function BadgeStatusPedido({ pedido, hoje }) {
   );
 }
 
+// Badge discreto -- só aparece para compra_presencial (migration 0037);
+// pedido_com_entrega (a grande maioria, e todo o histórico anterior a
+// esta frente) não ganha nenhum badge extra, para não redesenhar a
+// listagem existente.
+function BadgeModalidadeCompra({ modalidade }) {
+  if (modalidade !== 'compra_presencial') return null;
+
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: '10px',
+        fontSize: '11px',
+        fontWeight: 'bold',
+        color: 'white',
+        backgroundColor: '#795548',
+        whiteSpace: 'nowrap',
+        marginLeft: '6px',
+      }}
+    >
+      Compra Presencial
+    </span>
+  );
+}
+
 function PedidosConteudo() {
   const router = useRouter();
   const { permissoes } = useAuth();
@@ -107,6 +134,13 @@ function PedidosConteudo() {
   const [mostrarNovoPedido, setMostrarNovoPedido] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
+
+  // Compras Presenciais (migration 0037) -- mesmo componente
+  // (CompraPresencialForm) para criação (compraParaEditar=null) e edição
+  // (compraParaEditar preenchido) de uma compra já recebida, via
+  // registrar_compra_presencial()/editar_compra_presencial().
+  const [mostrarNovaCompraPresencial, setMostrarNovaCompraPresencial] = useState(false);
+  const [compraParaEditar, setCompraParaEditar] = useState(null);
 
   const [filtroFornecedor, setFiltroFornecedor] = useState('todos');
   const [filtroStatus, setFiltroStatus] = useState('todos');
@@ -206,7 +240,7 @@ function PedidosConteudo() {
         supabase
           .from('pedidos')
           .select(
-            'id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, recebido_em, criado_em'
+            'id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, recebido_em, criado_em, modalidade_compra, numero_nota_fiscal, data_documento_fiscal'
           ),
         supabase
           .from('pedido_itens')
@@ -303,6 +337,33 @@ function PedidosConteudo() {
   function aoCriarPedido() {
     fecharNovoPedido();
     setMensagemSucesso('Pedido criado com sucesso.');
+    setRecarregarTick((tick) => tick + 1);
+  }
+
+  function abrirNovaCompraPresencial() {
+    setCompraParaEditar(null);
+    setMostrarNovaCompraPresencial(true);
+  }
+
+  // Edição reaproveita CompraPresencialForm (mesmo componente da
+  // criação, `compra` preenchido) -- ao contrário de PedidoForm, aqui
+  // TODOS os campos do cabeçalho continuam editáveis (decisão funcional
+  // desta frente).
+  function abrirEdicaoCompraPresencial(pedido) {
+    fecharDetalhe();
+    setCompraParaEditar(pedido);
+    setMostrarNovaCompraPresencial(true);
+  }
+
+  function fecharCompraPresencial() {
+    setMostrarNovaCompraPresencial(false);
+    setCompraParaEditar(null);
+  }
+
+  function aoSalvarCompraPresencial() {
+    const estaEditando = compraParaEditar != null;
+    fecharCompraPresencial();
+    setMensagemSucesso(estaEditando ? 'Compra presencial atualizada com sucesso.' : 'Compra presencial registrada com sucesso.');
     setRecarregarTick((tick) => tick + 1);
   }
 
@@ -534,22 +595,44 @@ function PedidosConteudo() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Pedidos a Fornecedores</h2>
 
-          {podeInserir && (
-            <button
-              onClick={abrirNovoPedido}
-              style={{
-                padding: '10px 18px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              + Novo pedido
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {podeInserir && (
+              <button
+                onClick={abrirNovoPedido}
+                style={{
+                  padding: '10px 18px',
+                  backgroundColor: aparencia.corPrimaria,
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+              >
+                + Novo pedido
+              </button>
+            )}
+
+            {/* registrar_compra_presencial() exige pedidos.inserir E
+                pedidos.receber (a operação cria e já recebe na mesma
+                chamada, migration 0037) -- o botão só aparece com as duas. */}
+            {podeInserir && podeReceber && (
+              <button
+                onClick={abrirNovaCompraPresencial}
+                style={{
+                  padding: '10px 18px',
+                  backgroundColor: 'white',
+                  color: aparencia.corPrimaria,
+                  border: `1px solid ${aparencia.corPrimaria}`,
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+              >
+                + Nova Compra Presencial
+              </button>
+            )}
+          </div>
         </div>
 
         {mensagemSucesso && (
@@ -668,6 +751,7 @@ function PedidosConteudo() {
                     <tr key={pedido.id} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: '12px' }}>
                         {fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}
+                        <BadgeModalidadeCompra modalidade={pedido.modalidade_compra} />
                         {pedido.observacoes && (
                           <div
                             title={pedido.observacoes}
@@ -739,6 +823,23 @@ function PedidosConteudo() {
         />
       )}
 
+      {mostrarNovaCompraPresencial && (
+        <CompraPresencialForm
+          compra={compraParaEditar}
+          itensIniciais={
+            compraParaEditar
+              ? (itensPorPedido[compraParaEditar.id] || []).map((item) => ({
+                  ...item,
+                  produtoNome: item.produto_id ? produtoNomePorId[item.produto_id] || item.descricao : item.descricao,
+                }))
+              : undefined
+          }
+          corPrimaria={aparencia.corPrimaria}
+          onSalvo={aoSalvarCompraPresencial}
+          onCancelar={fecharCompraPresencial}
+        />
+      )}
+
       {pedidoDetalhe && (
         <DetalhePedidoModal
           pedido={pedidoDetalhe}
@@ -752,7 +853,11 @@ function PedidosConteudo() {
           podeCancelar={podeCancelar}
           podeExcluir={podeExcluir}
           podeReabrirRecebimento={podeReabrirRecebimento}
-          onEditar={() => abrirEdicao(pedidoDetalhe)}
+          onEditar={() =>
+            pedidoDetalhe.modalidade_compra === 'compra_presencial'
+              ? abrirEdicaoCompraPresencial(pedidoDetalhe)
+              : abrirEdicao(pedidoDetalhe)
+          }
           onReceber={() => abrirRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
           onExcluir={() => abrirConfirmarExclusao(pedidoDetalhe)}

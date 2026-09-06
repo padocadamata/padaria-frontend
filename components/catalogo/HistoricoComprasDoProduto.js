@@ -13,13 +13,25 @@ function formatarMoeda(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Mapa explícito (migration 0037 ampliou o domínio de origem para 3
+// valores) -- nunca um ternário binário que trataria qualquer origem
+// não-manual como "Recebimento", o que rotularia compra_presencial
+// incorretamente.
+const ORIGEM_LABEL = {
+  manual: 'Manual',
+  recebimento_pedido: 'Recebimento de pedido',
+  compra_presencial: 'Compra presencial',
+};
+
 // Card "Histórico de compras" de /catalogo/[id]. `lancamentos` já vem
 // carregado pela página (ver comentário em FornecedoresDoProduto.js
 // sobre a mesma decisão). "Editar" só aparece para origem='manual' --
-// linhas origem='recebimento_pedido' (Fase C, nenhuma existe ainda) são
+// linhas origem='recebimento_pedido' (recebimento de pedido de entrega,
+// migration 0026) e origem='compra_presencial' (migration 0037) são
 // somente leitura por desenho do banco (trigger
-// produtos_historico_compras_protecao, migration 0023), então nem
-// tentamos oferecer editar para elas aqui.
+// produtos_historico_compras_protecao) -- a segunda é corrigida
+// exclusivamente via "Editar compra presencial" em /pedidos, nunca por
+// aqui.
 export default function HistoricoComprasDoProduto({ produtoId, lancamentos, configuracoesComerciais, fornecedoresAtivos, podeEditar, corPrimaria = '#8B4513', onRecarregar }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [lancamentoEmEdicao, setLancamentoEmEdicao] = useState(null);
@@ -148,7 +160,7 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
                     {lancamento.preco_unitario_base != null ? formatarMoeda(lancamento.preco_unitario_base) : '—'}
                   </td>
                   <td style={{ padding: '8px' }}>
-                    {lancamento.origem === 'manual' ? 'Manual' : 'Recebimento'}
+                    {ORIGEM_LABEL[lancamento.origem] || lancamento.origem}
                   </td>
                   <td style={{ padding: '8px' }}>
                     {podeEditar && lancamento.origem === 'manual' && (

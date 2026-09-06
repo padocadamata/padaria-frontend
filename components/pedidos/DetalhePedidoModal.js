@@ -1,5 +1,10 @@
 import { BotaoIconeAcao, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira, IconeReabrir } from '../producao/IconesAcoes';
 
+const MODALIDADE_LABEL = {
+  pedido_com_entrega: 'Pedido com entrega',
+  compra_presencial: 'Compra Presencial',
+};
+
 const STATUS_LABEL = {
   aguardando_entrega: 'Aguardando entrega',
   recebido: 'Recebido',
@@ -102,6 +107,7 @@ export default function DetalhePedidoModal({
     ? '#f44336'
     : { aguardando_entrega: '#FF9800', recebido: '#4CAF50', cancelado: '#9e9e9e' }[pedido.status] || '#9e9e9e';
   const rotuloStatus = atrasado ? 'Atrasado' : STATUS_LABEL[pedido.status] || pedido.status;
+  const ehCompraPresencial = pedido.modalidade_compra === 'compra_presencial';
 
   // Só existe um total quando TODOS os itens têm preço -- somar só os
   // precificados e apresentar como "total do pedido" seria enganoso
@@ -119,17 +125,35 @@ export default function DetalhePedidoModal({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '15px' }}>
           <div>
+            <div style={rotuloEstilo}>Modalidade</div>
+            <div>{MODALIDADE_LABEL[pedido.modalidade_compra] || pedido.modalidade_compra}</div>
+          </div>
+          <div>
             <div style={rotuloEstilo}>Fornecedor</div>
             <div>{fornecedorNome}</div>
           </div>
           <div>
-            <div style={rotuloEstilo}>Data do pedido</div>
+            <div style={rotuloEstilo}>{ehCompraPresencial ? 'Data da compra' : 'Data do pedido'}</div>
             <div>{formatarDataExibicao(pedido.data_pedido)}</div>
           </div>
-          <div>
-            <div style={rotuloEstilo}>Previsão de entrega</div>
-            <div>{formatarDataExibicao(pedido.previsao_entrega)}</div>
-          </div>
+          {!ehCompraPresencial && (
+            <div>
+              <div style={rotuloEstilo}>Previsão de entrega</div>
+              <div>{formatarDataExibicao(pedido.previsao_entrega)}</div>
+            </div>
+          )}
+          {ehCompraPresencial && pedido.numero_nota_fiscal && (
+            <div>
+              <div style={rotuloEstilo}>Número da nota fiscal</div>
+              <div>{pedido.numero_nota_fiscal}</div>
+            </div>
+          )}
+          {ehCompraPresencial && pedido.data_documento_fiscal && (
+            <div>
+              <div style={rotuloEstilo}>Data do documento fiscal</div>
+              <div>{formatarDataExibicao(pedido.data_documento_fiscal)}</div>
+            </div>
+          )}
           <div>
             <div style={rotuloEstilo}>Status</div>
             <span
@@ -291,7 +315,15 @@ export default function DetalhePedidoModal({
             <BotaoIconeAcao rotulo="Excluir pedido definitivamente" icone={IconeLixeira} destrutivo onClick={onExcluir} />
           )}
 
-          {pedido.status === 'recebido' && podeReabrirRecebimento && (
+          {/* Compra presencial nunca sai de recebido -- correção passa por
+              editar_compra_presencial(), nunca por reabrir_recebimento_
+              pedido() (migration 0037 bloqueia essa RPC para esta
+              modalidade). */}
+          {pedido.status === 'recebido' && ehCompraPresencial && podeEditar && (
+            <BotaoIconeAcao rotulo="Editar compra presencial" icone={IconeLapis} cor={corPrimaria} onClick={onEditar} />
+          )}
+
+          {pedido.status === 'recebido' && !ehCompraPresencial && podeReabrirRecebimento && (
             <BotaoIconeAcao rotulo="Reabrir recebimento" icone={IconeReabrir} destrutivo onClick={onReabrirRecebimento} />
           )}
 
