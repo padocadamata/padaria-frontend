@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
 
 function normalizar(texto) {
   return (texto || '').trim().toLowerCase();
@@ -248,10 +249,8 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
     );
   }
 
-  const buscaNormalizada = item.buscaProduto.trim().toLowerCase();
-  const resultados = buscaNormalizada
-    ? produtos.filter((p) => p.nome.toLowerCase().includes(buscaNormalizada)).slice(0, 8)
-    : [];
+  const termoBusca = item.buscaProduto.trim();
+  const resultados = buscarProdutosPorRelevancia(produtos, item.buscaProduto);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -267,7 +266,7 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
         placeholder="Buscar produto do Catálogo..."
         style={{ ...campoEstilo, fontSize: '13px' }}
       />
-      {aberto && buscaNormalizada && (
+      {aberto && termoBusca && (
         <div
           style={{
             position: 'absolute',

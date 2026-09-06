@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { diaSemanaISO, calcularDataEntrega } from '../../lib/fornecedores/regrasPedido';
+import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
 
 // Mesma convenção de rótulo de dia usada em components/dashboard/ProximosPedidos.js
 // e components/fornecedores/FornecedorRegras.js.
@@ -224,10 +225,8 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
     );
   }
 
-  const buscaNormalizada = item.buscaProduto.trim().toLowerCase();
-  const resultados = buscaNormalizada
-    ? produtos.filter((p) => p.nome.toLowerCase().includes(buscaNormalizada)).slice(0, 8)
-    : [];
+  const termoBusca = item.buscaProduto.trim();
+  const resultados = buscarProdutosPorRelevancia(produtos, item.buscaProduto);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -243,7 +242,7 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
         placeholder="Buscar produto do Catálogo..."
         style={{ ...campoEstilo, fontSize: '13px' }}
       />
-      {aberto && buscaNormalizada && (
+      {aberto && termoBusca && (
         <div
           style={{
             position: 'absolute',
