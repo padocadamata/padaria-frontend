@@ -55,6 +55,12 @@ function normalizarUnidade(texto) {
 // Retirada -- mantido no estado do item para as duas modalidades,
 // simplesmente porque nenhuma tela de Entrega chega a lê-lo.
 function estadoInicialItem(itemExistente) {
+  // buscaProduto: pré-preenchido com a descrição SÓ quando o item não tem
+  // produto_id (ex.: item vindo de uma Solicitação não cadastrada, ou um
+  // item de pedido antigo cujo produto foi excluído do Catálogo depois --
+  // on delete set null) -- dá um ponto de partida pra busca em vez de um
+  // campo vazio. Não afeta a validação existente: produtoId continua
+  // exigido antes de salvar (validar()), isto só ajuda a achar mais rápido.
   return {
     id: itemExistente?.id || null,
     produtoId: itemExistente?.produto_id || null,
@@ -64,7 +70,7 @@ function estadoInicialItem(itemExistente) {
     quantidade: itemExistente?.quantidade_pedida != null ? String(itemExistente.quantidade_pedida) : '',
     valorUnitario: itemExistente?.valor_unitario != null ? String(itemExistente.valor_unitario) : '',
     fatorConversaoBase: '',
-    buscaProduto: '',
+    buscaProduto: !itemExistente?.produto_id && itemExistente?.descricao ? itemExistente.descricao : '',
   };
 }
 
@@ -528,8 +534,15 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     estaEditando ? pedido.data_documento_fiscal || '' : ''
   );
   const [observacoes, setObservacoes] = useState(() => (estaEditando ? pedido.observacoes || '' : ''));
+  // itensIniciais agora também prefila a CRIAÇÃO (auditoria da frente de
+  // Solicitações — fluxo "Criar pedido" a partir de uma solicitação
+  // pendente): antes, só era usado quando estaEditando=true, então uma
+  // criação nova sempre começava com uma linha vazia mesmo recebendo essa
+  // prop. Criação SEM itensIniciais continua exatamente como sempre foi
+  // (fallback [estadoInicialItem()]); edição continua exatamente como
+  // sempre foi (só usa itensIniciais quando estaEditando).
   const [itens, setItens] = useState(() =>
-    estaEditando && itensIniciais?.length ? itensIniciais.map(estadoInicialItem) : [estadoInicialItem()]
+    itensIniciais?.length ? itensIniciais.map(estadoInicialItem) : [estadoInicialItem()]
   );
   const [regraEscolhidaId, setRegraEscolhidaId] = useState('');
 
@@ -896,7 +909,7 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     // registrar_compra_presencial(). O usuário não precisa saber que são
     // RPCs diferentes -- só escolheu "Entrega"/"Retirada" no topo.
     if (ehRetirada) {
-      const { error } = await supabase.rpc('registrar_compra_presencial', {
+      const { data, error } = await supabase.rpc('registrar_compra_presencial', {
         p_fornecedor_id: fornecedorId,
         p_data_compra: dataPedido,
         p_numero_nota_fiscal: numeroNotaFiscal.trim() || null,
@@ -912,11 +925,17 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
         return;
       }
 
-      onSalvo();
+      // `data` é a linha de public.pedidos recém-criada (registrar_compra_
+      // presencial retorna public.pedidos) -- repassada para quem criou
+      // este formulário poder, por exemplo, vincular um pedido a uma
+      // solicitação de origem (concluir_solicitacao_com_pedido). onSalvo
+      // sem argumento continua funcionando normalmente (pages/pedidos.js
+      // ignora o argumento extra).
+      onSalvo(data);
       return;
     }
 
-    const { error } = await supabase.rpc('criar_pedido', montarPayloadCriacaoEntrega(dados));
+    const { data, error } = await supabase.rpc('criar_pedido', montarPayloadCriacaoEntrega(dados));
 
     setSalvando(false);
 
@@ -926,7 +945,9 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
       return;
     }
 
-    onSalvo();
+    // Mesmo raciocínio do bloco de Retirada acima -- criar_pedido também
+    // retorna public.pedidos.
+    onSalvo(data);
   }
 
   const tituloModal = estaEditando

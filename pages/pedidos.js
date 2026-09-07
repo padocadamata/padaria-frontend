@@ -7,11 +7,37 @@ import PedidoForm from '../components/pedidos/PedidoForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
 import ReceberPedidoModal from '../components/pedidos/ReceberPedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
+import NavegacaoPedidos from '../components/pedidos/NavegacaoPedidos';
 import { BotaoIconeAcao, IconeOlho } from '../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
-import { dataLocalHoje } from '../lib/data/dataLocal';
+import { dataLocalHoje, somarDias } from '../lib/data/dataLocal';
+import { JANELA_RECEBIDOS_DIAS } from '../lib/pedidos/resumoConfig';
+
+// A URL (?filtro=<chave>) é a ÚNICA fonte persistente do filtro de
+// Status -- não existe mais um useState('filtroStatus') separado que
+// pudesse divergir dela. Mapa bidirecional entre a chave pública da URL
+// (também usada por pages/pedidos/resumo.js nos 4 cards) e o valor
+// interno já usado pelo <select>/pela lógica de filtragem -- "todos"
+// nunca aparece aqui de propósito: ausência de ?filtro= (ou uma chave
+// desconhecida) já significa "todos" (sem parâmetro).
+const FILTRO_URL_PARA_STATUS = {
+  aguardando: 'aguardando_entrega',
+  atrasados: 'atrasado',
+  previstos_hoje: 'previsto_hoje',
+  recebido: 'recebido',
+  recebidos_recentemente: 'recebidos_recente',
+  cancelado: 'cancelado',
+};
+const FILTRO_STATUS_PARA_URL = {
+  aguardando_entrega: 'aguardando',
+  atrasado: 'atrasados',
+  previsto_hoje: 'previstos_hoje',
+  recebido: 'recebido',
+  recebidos_recente: 'recebidos_recentemente',
+  cancelado: 'cancelado',
+};
 
 const STATUS_LABEL = {
   aguardando_entrega: 'Aguardando entrega',
@@ -109,7 +135,6 @@ function PedidosConteudo() {
   const [recarregarTick, setRecarregarTick] = useState(0);
 
   const [filtroFornecedor, setFiltroFornecedor] = useState('todos');
-  const [filtroStatus, setFiltroStatus] = useState('todos');
   const [filtroModalidade, setFiltroModalidade] = useState('todas');
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
   const [filtroPeriodoFim, setFiltroPeriodoFim] = useState('');
@@ -293,6 +318,32 @@ function PedidosConteudo() {
     }
   }, [router.isReady, router.query.id, pedidos, carregando]);
 
+  // filtroStatus é DERIVADO da URL, nunca guardado em useState -- a URL é
+  // a única fonte de verdade, então não existem dois estados que possam
+  // divergir. Antes de router.isReady (só no instante inicial de um
+  // hard-refresh), trata como "todos" -- mesma janela já tolerada pelo
+  // efeito de ?id= acima, sem efeito prático (a tabela ainda mostra
+  // "Carregando pedidos..." nesse instante).
+  const filtroParamUrl = router.isReady && typeof router.query.filtro === 'string' ? router.query.filtro : undefined;
+  const filtroStatus = (filtroParamUrl && FILTRO_URL_PARA_STATUS[filtroParamUrl]) || 'todos';
+
+  // Único ponto de escrita do filtro de Status: atualiza a URL (nunca um
+  // setState local) -- "Todos" remove ?filtro= por completo; qualquer
+  // outro valor grava a chave pública correspondente. Usa router.push
+  // (não replace) para que voltar/avançar no navegador percorra cada
+  // escolha de filtro como uma parada de histórico própria, e preserva
+  // todo o resto de router.query (?id=, se presente) via o spread.
+  function aoMudarFiltroStatus(novoStatus) {
+    const novaQuery = { ...router.query };
+    const chaveUrl = FILTRO_STATUS_PARA_URL[novoStatus];
+    if (chaveUrl) {
+      novaQuery.filtro = chaveUrl;
+    } else {
+      delete novaQuery.filtro;
+    }
+    router.push({ pathname: '/pedidos', query: novaQuery }, undefined, { shallow: true });
+  }
+
   function abrirNovoPedido() {
     setMostrarNovoPedido(true);
   }
@@ -349,17 +400,21 @@ function PedidosConteudo() {
     setErroExclusaoPedido('');
   }
 
-  // Único caminho de exclusão definitiva: RPC excluir_pedido (migration
-  // 0025) -- SECURITY DEFINER, RPC-only por desenho (nenhuma policy de
-  // DELETE existe em pedidos/pedido_itens). Nunca
-  // .from('pedidos').delete() nem .from('pedido_itens').delete() para
-  // exclusão completa do pedido.
+  // Único caminho de exclusão definitiva: RPC excluir_pedido_com_solicitacoes
+  // (migration 0045) -- exige a MESMA permissão pedidos.excluir de sempre,
+  // e por dentro chama excluir_pedido (migration 0025, SECURITY DEFINER,
+  // RPC-only por desenho) sem nenhuma modificação -- a única diferença é
+  // que, antes de excluir, desvincula atomicamente qualquer Solicitação
+  // interna de compra ligada a este pedido (volta para pendente,
+  // pedido_id=NULL) -- comportamento idêntico a excluir_pedido quando não
+  // há nenhuma Solicitação vinculada. Nunca .from('pedidos').delete() nem
+  // .from('pedido_itens').delete() para exclusão completa do pedido.
   async function confirmarExclusaoPedido() {
     setExcluindoPedido(true);
     setErroExclusaoPedido('');
 
     const supabase = createClient();
-    const { error } = await supabase.rpc('excluir_pedido', { p_pedido_id: pedidoParaExcluir.id });
+    const { error } = await supabase.rpc('excluir_pedido_com_solicitacoes', { p_pedido_id: pedidoParaExcluir.id });
 
     setExcluindoPedido(false);
 
@@ -495,6 +550,8 @@ function PedidosConteudo() {
     .map((id) => ({ id, nome: fornecedorNomePorId[id] || id }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
+  const cutoffRecebidosRecentes = somarDias(hoje, -JANELA_RECEBIDOS_DIAS);
+
   const pedidosFiltrados = pedidos.filter((pedido) => {
     if (filtroFornecedor !== 'todos' && pedido.fornecedor_id !== filtroFornecedor) return false;
     if (filtroModalidade !== 'todas' && pedido.modalidade_compra !== filtroModalidade) return false;
@@ -503,6 +560,16 @@ function PedidosConteudo() {
 
     if (filtroStatus === 'atrasado') {
       return estaAtrasado(pedido, hoje);
+    }
+    // Mesma definição de pages/pedidos/resumo.js: previsto p/ hoje é
+    // aguardando_entrega com previsao_entrega === hoje.
+    if (filtroStatus === 'previsto_hoje') {
+      return pedido.status === 'aguardando_entrega' && pedido.previsao_entrega === hoje;
+    }
+    // Mesma janela/definição de pages/pedidos/resumo.js (JANELA_RECEBIDOS_DIAS
+    // compartilhada via lib/pedidos/resumoConfig.js).
+    if (filtroStatus === 'recebidos_recente') {
+      return pedido.status === 'recebido' && !!pedido.recebido_em && pedido.recebido_em.slice(0, 10) >= cutoffRecebidosRecentes;
     }
     if (filtroStatus !== 'todos' && pedido.status !== filtroStatus) return false;
     return true;
@@ -537,6 +604,7 @@ function PedidosConteudo() {
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
+        <NavegacaoPedidos abaAtiva="pedidos" corPrimaria={aparencia.corPrimaria} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Pedidos a Fornecedores</h2>
@@ -601,13 +669,15 @@ function PedidosConteudo() {
               <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Status</label>
               <select
                 value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value)}
+                onChange={(e) => aoMudarFiltroStatus(e.target.value)}
                 style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
               >
                 <option value="todos">Todos</option>
                 <option value="aguardando_entrega">Aguardando entrega</option>
                 <option value="atrasado">Atrasado</option>
+                <option value="previsto_hoje">Previsto para hoje</option>
                 <option value="recebido">Recebido</option>
+                <option value="recebidos_recente">Recebidos recentemente</option>
                 <option value="cancelado">Cancelado</option>
               </select>
             </div>
@@ -889,10 +959,63 @@ function PedidosConteudo() {
   );
 }
 
+// Gate de permissão desta página específica (auditoria da frente de
+// Solicitações): MODULOS.pedidos (lib/auth/permissoes.js) agora mostra o
+// botão "Pedidos" da barra principal para quem tem pedidos.visualizar OU
+// pedidos_solicitacoes.visualizar -- mas /pedidos continua sendo,
+// fisicamente, a tela de PEDIDOS (nunca um redirect, conforme decisão
+// fechada). Um usuário só-solicitante (sem pedidos.visualizar) que clique
+// em "Pedidos" cairia aqui e veria "Acesso negado" sem nenhum caminho de
+// volta para Solicitações -- por isso, em vez do <RequireAuth permissao=.../>
+// de sempre, este componente checa as DUAS permissões e redireciona para
+// /pedidos/solicitacoes quando só a segunda está presente. RequireAuth
+// (sem `permissao`) continua cuidando de sessão/perfil ativo, igual a
+// qualquer outra página.
+function PedidosGate() {
+  const router = useRouter();
+  const { permissoes } = useAuth();
+  const podeVerPedidos = hasPermissao(permissoes, PERMISSOES.PEDIDOS_VISUALIZAR);
+  const podeVerSolicitacoes = hasPermissao(permissoes, PERMISSOES.PEDIDOS_SOLICITACOES_VISUALIZAR);
+
+  useEffect(() => {
+    if (!podeVerPedidos && podeVerSolicitacoes) {
+      router.replace('/pedidos/solicitacoes');
+    }
+  }, [podeVerPedidos, podeVerSolicitacoes, router]);
+
+  if (podeVerPedidos) {
+    return <PedidosConteudo />;
+  }
+
+  if (podeVerSolicitacoes) {
+    // Redirecionando (efeito acima) -- não renderiza nada da tela de
+    // Pedidos enquanto isso acontece.
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+        textAlign: 'center',
+        padding: '20px',
+      }}
+    >
+      <h1 style={{ color: '#8B4513' }}>Acesso negado</h1>
+      <p style={{ color: '#666', maxWidth: '420px' }}>Você não tem permissão para acessar esta página.</p>
+    </div>
+  );
+}
+
 export default function Pedidos() {
   return (
-    <RequireAuth permissao={PERMISSOES.PEDIDOS_VISUALIZAR}>
-      <PedidosConteudo />
+    <RequireAuth>
+      <PedidosGate />
     </RequireAuth>
   );
 }

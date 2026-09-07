@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router';
 import { useAuth } from '../hooks/useAuth';
-import { MODULOS, ITENS_NAVEGACAO_PRINCIPAL, hasPermissao } from '../lib/auth/permissoes';
+import { MODULOS, ITENS_NAVEGACAO_PRINCIPAL, moduloVisivel } from '../lib/auth/permissoes';
 
 // Barra horizontal principal (Dashboard/Fornecedores/Produção/Pedidos/...),
 // fonte única substituindo os blocos de botões que antes eram duplicados
@@ -33,7 +33,7 @@ export default function NavegacaoPrincipal({ corPrimaria }) {
   const { permissoes } = useAuth();
 
   const itensVisiveis = ITENS_NAVEGACAO_PRINCIPAL
-    .filter((chave) => hasPermissao(permissoes, MODULOS[chave].permissao))
+    .filter((chave) => moduloVisivel(permissoes, MODULOS[chave]))
     .map((chave) => ({ chave, ...MODULOS[chave] }));
 
   return (

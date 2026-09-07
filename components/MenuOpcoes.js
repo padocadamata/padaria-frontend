@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../hooks/useAuth';
-import { MODULOS, hasPermissao } from '../lib/auth/permissoes';
+import { MODULOS, moduloVisivel } from '../lib/auth/permissoes';
 
 // Itens do menu na ordem em que devem aparecer. Cada um só é renderizado se
 // o usuário tiver a permissão correspondente (MODULOS, em lib/auth/permissoes.js)
@@ -34,7 +34,7 @@ export default function MenuOpcoes({ corPrimaria }) {
 
   const itensVisiveis = ITENS_MENU
     .map((chave) => MODULOS[chave])
-    .filter((modulo) => hasPermissao(permissoes, modulo.permissao));
+    .filter((modulo) => moduloVisivel(permissoes, modulo));
 
   return (
     <div style={{ position: 'relative' }} ref={menuRef}>
