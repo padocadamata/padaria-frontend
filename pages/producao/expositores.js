@@ -729,7 +729,37 @@ function ExpositoresConteudo() {
                           </td>
                           <td style={{ padding: '10px' }}><BadgeSituacao situacao={lote.situacao} /></td>
                           <td style={{ padding: '10px' }}>
-                            <div style={{ display: 'flex', gap: '6px' }}>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              {/* Retirada rápida também aqui, não só no painel "Retirar hoje" --
+                                  um produto pode esgotar no expositor ANTES da data prevista (ex.:
+                                  pão do dia vende tudo de manhã, mas o prazo só vence à noite), e o
+                                  operador precisa conseguir concluir o lote na hora, sem esperar a
+                                  situação virar "Atrasado"/"Retirar hoje". Mesmo handler
+                                  (confirmarRetirada) e mesmo estado (quantidadeRetiradaPorLote) do
+                                  painel urgente -- nenhuma lógica nova. */}
+                              {!lote.concluido_em && podeOperar && (
+                                <>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={lote.quantidade_enviada}
+                                    value={quantidadeRetiradaPorLote[lote.lote_id] ?? ''}
+                                    onChange={(e) =>
+                                      setQuantidadeRetiradaPorLote((atual) => ({ ...atual, [lote.lote_id]: e.target.value }))
+                                    }
+                                    placeholder="Qtd."
+                                    title="Quantidade retirada -- use também se o produto esgotou antes do prazo previsto."
+                                    style={{ ...campoInlineEstilo, width: '55px' }}
+                                  />
+                                  <BotaoIconeAcao
+                                    rotulo="Retirado (esgotou ou encerrou antes do prazo previsto)"
+                                    icone={IconeCheck}
+                                    cor="#4CAF50"
+                                    disabled={concluindoLoteId === lote.lote_id}
+                                    onClick={() => confirmarRetirada(lote)}
+                                  />
+                                </>
+                              )}
                               {!lote.concluido_em && podeOperar && (
                                 <BotaoIconeAcao
                                   rotulo="Editar"
@@ -755,6 +785,11 @@ function ExpositoresConteudo() {
                                 />
                               )}
                             </div>
+                            {erroRetiradaPorLote[lote.lote_id] && (
+                              <div style={{ color: '#f44336', fontSize: '11px', marginTop: '4px' }}>
+                                {erroRetiradaPorLote[lote.lote_id]}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
