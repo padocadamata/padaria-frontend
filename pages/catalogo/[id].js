@@ -92,7 +92,7 @@ function ProdutoDetalheConteudo() {
         supabase.from('fornecedores').select('id, nome, nome_fantasia, ativo').order('nome_fantasia', { ascending: true, nullsFirst: false }),
         supabase
           .from('produto_fornecedores')
-          .select('id, fornecedor_id, unidade_comercial, apresentacao, quantidade_embalagem, codigo_produto_fornecedor, observacao, ativo')
+          .select('id, fornecedor_id, unidade_comercial, apresentacao, quantidade_embalagem, codigo_produto_fornecedor, observacao, ativo, controla_sacos_fechados, peso_por_saco_kg')
           .eq('produto_id', id),
         supabase
           .from('produtos_historico_compras')
@@ -181,6 +181,7 @@ function ProdutoDetalheConteudo() {
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
           <FornecedoresDoProduto
             produtoId={produto.id}
+            produtoUnidadeMedida={produto.unidade_medida}
             configuracoes={configuracoes}
             fornecedoresAtivos={fornecedoresAtivos}
             podeEditar={podeEditar}

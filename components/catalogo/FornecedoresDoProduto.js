@@ -11,7 +11,7 @@ import { createClient } from '../../lib/supabase/client';
 // opcional em LancarCompraForm), então a busca fica centralizada em
 // pages/catalogo/[id].js para não duplicar a query nem arriscar as duas
 // listas ficarem dessincronizadas entre si.
-export default function FornecedoresDoProduto({ produtoId, configuracoes, fornecedoresAtivos, podeEditar, corPrimaria = '#8B4513', onRecarregar }) {
+export default function FornecedoresDoProduto({ produtoId, produtoUnidadeMedida, configuracoes, fornecedoresAtivos, podeEditar, corPrimaria = '#8B4513', onRecarregar }) {
   const [mostrarInativas, setMostrarInativas] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [configEmEdicao, setConfigEmEdicao] = useState(null);
@@ -159,6 +159,12 @@ export default function FornecedoresDoProduto({ produtoId, configuracoes, fornec
                   </div>
                 )}
 
+                {config.controla_sacos_fechados && (
+                  <div style={{ fontSize: '13px', color: '#8B4513' }}>
+                    Controla sacos fechados — {config.peso_por_saco_kg} kg/saco
+                  </div>
+                )}
+
                 {config.codigo_produto_fornecedor && (
                   <div style={{ fontSize: '13px', color: '#666' }}>
                     Código no fornecedor: {config.codigo_produto_fornecedor}
@@ -194,6 +200,7 @@ export default function FornecedoresDoProduto({ produtoId, configuracoes, fornec
       {modalAberto && (
         <ConfiguracaoComercialForm
           produtoId={produtoId}
+          produtoUnidadeMedida={produtoUnidadeMedida}
           fornecedoresAtivos={fornecedoresAtivos}
           configuracao={configEmEdicao}
           corPrimaria={corPrimaria}

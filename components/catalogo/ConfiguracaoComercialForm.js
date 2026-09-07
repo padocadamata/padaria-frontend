@@ -15,6 +15,8 @@ function estadoInicial(config) {
     codigo_produto_fornecedor: config?.codigo_produto_fornecedor || '',
     observacao: config?.observacao || '',
     ativo: config ? !!config.ativo : true,
+    controla_sacos_fechados: config ? !!config.controla_sacos_fechados : false,
+    peso_por_saco_kg: config?.peso_por_saco_kg != null ? String(config.peso_por_saco_kg) : '',
   };
 }
 
@@ -31,6 +33,12 @@ function validar(dados, estaEditando) {
       return 'Quantidade por embalagem deve ser maior que zero.';
     }
   }
+  if (dados.controla_sacos_fechados) {
+    const peso = Number(dados.peso_por_saco_kg);
+    if (dados.peso_por_saco_kg === '' || !Number.isFinite(peso) || peso <= 0) {
+      return 'Informe o peso por saco (kg), maior que zero.';
+    }
+  }
   return null;
 }
 
@@ -44,6 +52,10 @@ function montarPayload(dados, produtoId, estaEditando) {
     quantidade_embalagem: dados.quantidade_embalagem === '' ? null : Number(dados.quantidade_embalagem),
     codigo_produto_fornecedor: dados.codigo_produto_fornecedor.trim() || null,
     observacao: dados.observacao.trim() || null,
+    controla_sacos_fechados: dados.controla_sacos_fechados,
+    // Nulo quando desmarcado -- evita deixar um peso "fantasma" preenchido
+    // atrás de uma configuração que não controla mais sacos fechados.
+    peso_por_saco_kg: dados.controla_sacos_fechados ? Number(dados.peso_por_saco_kg) : null,
   };
 
   if (estaEditando) {
@@ -68,6 +80,12 @@ function mensagemErro(error) {
   }
   if (msg.includes('quantidade_embalagem')) {
     return 'Quantidade por embalagem deve ser maior que zero.';
+  }
+  if (msg.includes('peso_por_saco_kg nao pode ser alterado')) {
+    return 'Não é possível alterar o peso por saco: já existem movimentações de Sacos Fechados registradas para esta configuração. Cadastre uma nova configuração comercial se o peso do saco mudou.';
+  }
+  if (msg.includes('peso_saco_coerente') || msg.includes('controla_sacos_fechados')) {
+    return 'Para controlar sacos fechados, informe o peso por saco (kg), maior que zero.';
   }
 
   console.error('Erro ao salvar configuração comercial:', error);
@@ -109,7 +127,7 @@ const campoEstilo = {
   boxSizing: 'border-box',
 };
 
-export default function ConfiguracaoComercialForm({ produtoId, fornecedoresAtivos, configuracao, corPrimaria = '#8B4513', onFechar, onSalvo }) {
+export default function ConfiguracaoComercialForm({ produtoId, produtoUnidadeMedida, fornecedoresAtivos, configuracao, corPrimaria = '#8B4513', onFechar, onSalvo }) {
   const estaEditando = configuracao != null;
   const [dados, setDados] = useState(() => estadoInicial(configuracao));
   const [salvando, setSalvando] = useState(false);
@@ -118,6 +136,13 @@ export default function ConfiguracaoComercialForm({ produtoId, fornecedoresAtivo
   function atualizarCampo(campo, valor) {
     setDados((atual) => ({ ...atual, [campo]: valor }));
   }
+
+  // Sacos Fechados só opera sobre produtos cuja unidade-base seja KG
+  // (validado de verdade no banco, em registrar_abertura_saco) -- aqui é
+  // só um aviso informativo, não um bloqueio de formulário, para não
+  // duplicar a validação real do lado do cliente.
+  const unidadeNaoEhKg =
+    !!produtoUnidadeMedida && produtoUnidadeMedida.trim().toUpperCase() !== 'KG';
 
   async function salvar() {
     const mensagemValidacao = validar(dados, estaEditando);
@@ -226,6 +251,48 @@ export default function ConfiguracaoComercialForm({ produtoId, fornecedoresAtivo
             onChange={(e) => atualizarCampo('observacao', e.target.value)}
             style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
           />
+        </div>
+
+        <div style={{ marginBottom: '15px', backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '5px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+            <input
+              type="checkbox"
+              checked={dados.controla_sacos_fechados}
+              onChange={(e) => atualizarCampo('controla_sacos_fechados', e.target.checked)}
+            />
+            Controlar sacos fechados
+          </label>
+          <p style={{ fontSize: '12px', color: '#666', marginTop: '6px', marginBottom: dados.controla_sacos_fechados ? '10px' : 0 }}>
+            Sacos Fechados (Produção) só funciona para produtos cuja unidade-base seja KG.
+            {unidadeNaoEhKg && (
+              <strong style={{ color: '#e65100' }}>
+                {' '}
+                Este produto está cadastrado com unidade-base "{produtoUnidadeMedida}" — abrir sacos desta
+                configuração será rejeitado pelo sistema até a unidade do produto ser KG.
+              </strong>
+            )}
+          </p>
+
+          {dados.controla_sacos_fechados && (
+            <div>
+              <label style={rotuloEstilo}>Peso por saco (kg) *</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={dados.peso_por_saco_kg}
+                onChange={(e) => atualizarCampo('peso_por_saco_kg', e.target.value)}
+                placeholder="Ex.: 8"
+                style={campoEstilo}
+              />
+              {estaEditando && configuracao?.controla_sacos_fechados && (
+                <p style={{ fontSize: '11px', color: '#999', marginTop: '4px', marginBottom: 0 }}>
+                  Se já existir alguma movimentação de sacos fechados para esta configuração, o banco impede
+                  alterar este peso — cadastre uma nova configuração comercial nesse caso.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {estaEditando && (

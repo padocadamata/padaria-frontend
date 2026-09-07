@@ -17,6 +17,8 @@ const ABAS = [
   { chave: 'produtos', label: 'Produtos', rota: '/producao/produtos', permissao: PERMISSOES.PRODUTOS_PRODUCAO_VISUALIZAR },
   // Nova aba (0030): Controle de Expositores.
   { chave: 'expositores', label: 'Expositores', rota: '/producao/expositores', permissao: PERMISSOES.PRODUCAO_EXPOSITORES_VISUALIZAR },
+  // Nova aba (0042): Controle de Sacos Fechados.
+  { chave: 'sacos', label: 'Sacos Fechados', rota: '/producao/sacos', permissao: PERMISSOES.PRODUCAO_SACOS_VISUALIZAR },
 ];
 
 export default function NavegacaoProducao({ abaAtiva, corPrimaria }) {
