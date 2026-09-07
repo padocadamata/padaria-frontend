@@ -6,7 +6,8 @@ import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
 import AbrirSacoModal from '../../components/producao/AbrirSacoModal';
 import LancarSaldoInicialModal from '../../components/producao/LancarSaldoInicialModal';
 import EditarMovimentacaoSacoModal from '../../components/producao/EditarMovimentacaoSacoModal';
-import { BotaoIconeAcao, IconeCaixa, IconeLapis } from '../../components/producao/IconesAcoes';
+import ExcluirMovimentacaoSacoModal from '../../components/producao/ExcluirMovimentacaoSacoModal';
+import { BotaoIconeAcao, IconeCaixa, IconeLapis, IconeLixeira } from '../../components/producao/IconesAcoes';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -59,6 +60,7 @@ function SacosConteudo() {
   const podeVisualizar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_VISUALIZAR);
   const podeOperar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_OPERAR);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_EDITAR);
+  const podeExcluir = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_EXCLUIR);
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -223,6 +225,7 @@ function SacosConteudo() {
   const [configuracaoParaAbrir, setConfiguracaoParaAbrir] = useState(null);
   const [configuracaoParaSaldoInicial, setConfiguracaoParaSaldoInicial] = useState(null);
   const [movimentacaoParaEditar, setMovimentacaoParaEditar] = useState(null);
+  const [movimentacaoParaExcluir, setMovimentacaoParaExcluir] = useState(null);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
@@ -371,7 +374,9 @@ function SacosConteudo() {
                     <tbody>
                       {movimentacoesFiltradas.map((m) => {
                         const positivo = m.quantidade_sacos > 0;
-                        const editavel = podeEditar && (m.tipo === 'abertura' || m.tipo === 'ajuste_manual' || m.tipo === 'saldo_inicial');
+                        const ehManual = m.tipo === 'abertura' || m.tipo === 'ajuste_manual' || m.tipo === 'saldo_inicial';
+                        const editavel = podeEditar && ehManual;
+                        const excluivel = podeExcluir && ehManual;
                         return (
                           <tr key={m.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                             <td style={{ padding: '10px', whiteSpace: 'nowrap' }}>{formatarDataHora(m.criado_em)}</td>
@@ -384,13 +389,21 @@ function SacosConteudo() {
                             <td style={{ padding: '10px' }}>{formatarKg(m.kg)} kg</td>
                             <td style={{ padding: '10px' }}>{ORIGEM_MOVIMENTO_LABEL[m.origem] || m.origem}</td>
                             <td style={{ padding: '10px' }}>{m.responsavelNome}</td>
-                            <td style={{ padding: '10px' }}>
+                            <td style={{ padding: '10px', display: 'flex', gap: '4px' }}>
                               {editavel && (
                                 <BotaoIconeAcao
                                   rotulo="Editar"
                                   icone={IconeLapis}
                                   cor={aparencia.corPrimaria}
                                   onClick={() => setMovimentacaoParaEditar(m)}
+                                />
+                              )}
+                              {excluivel && (
+                                <BotaoIconeAcao
+                                  rotulo="Excluir"
+                                  icone={IconeLixeira}
+                                  destrutivo
+                                  onClick={() => setMovimentacaoParaExcluir(m)}
                                 />
                               )}
                             </td>
@@ -439,6 +452,18 @@ function SacosConteudo() {
             recarregar('Movimentação corrigida.');
           }}
           onCancelar={() => setMovimentacaoParaEditar(null)}
+        />
+      )}
+
+      {movimentacaoParaExcluir && (
+        <ExcluirMovimentacaoSacoModal
+          movimentacao={movimentacaoParaExcluir}
+          corPrimaria={aparencia.corPrimaria}
+          onExcluido={() => {
+            setMovimentacaoParaExcluir(null);
+            recarregar('Movimentação excluída com sucesso.');
+          }}
+          onCancelar={() => setMovimentacaoParaExcluir(null)}
         />
       )}
     </div>
