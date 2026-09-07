@@ -4,6 +4,24 @@ import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { diaSemanaISO, calcularDataEntrega } from '../../lib/fornecedores/regrasPedido';
 import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
 
+// Formulário ÚNICO de pedido a fornecedor -- absorve o que antes era
+// components/pedidos/CompraPresencialForm.js (removido nesta migração de
+// frontend). O usuário escolhe explicitamente a MODALIDADE no topo
+// (Entrega/Retirada) só na criação; na edição a modalidade vem do
+// próprio pedido carregado e nunca muda. As DUAS RPCs de backend
+// continuam INTEIRAS e DISTINTAS (criar_pedido/RPC nenhuma para editar
+// entrega vs. registrar_compra_presencial/editar_compra_presencial,
+// migration 0037/0040) -- este arquivo só decide QUAL delas chamar,
+// nunca tenta unificar o contrato de banco. O usuário final não precisa
+// saber que são RPCs diferentes por trás.
+//
+// Valor interno da modalidade -- NUNCA exibido cru na tela, só usado
+// como valor de estado/payload:
+//   'pedido_com_entrega' -> rótulo visual "Entrega"
+//   'compra_presencial'  -> rótulo visual "Retirada"
+// (mesmo valor de sempre, só o texto da interface mudou -- ver auditoria
+// desta frente: preservar o valor interno existente).
+
 // Mesma convenção de rótulo de dia usada em components/dashboard/ProximosPedidos.js
 // e components/fornecedores/FornecedorRegras.js.
 const DIA_SEMANA_LABEL = {
@@ -26,9 +44,16 @@ function descreverRegra(regra) {
   return `Pedido ${pedido} → ${entrega}${horario}`;
 }
 
+function normalizarUnidade(texto) {
+  return (texto || '').trim().toLowerCase();
+}
+
 // `id`: id real de pedido_itens quando o item já existe (edição) -- null
 // para item novo, adicionado nesta sessão de edição/criação. É o que
-// distingue INSERT de UPDATE na hora de salvar uma edição.
+// distingue INSERT de UPDATE (entrega) / item novo x existente no
+// payload (retirada). `fatorConversaoBase` só é usado/exibido em
+// Retirada -- mantido no estado do item para as duas modalidades,
+// simplesmente porque nenhuma tela de Entrega chega a lê-lo.
 function estadoInicialItem(itemExistente) {
   return {
     id: itemExistente?.id || null,
@@ -38,47 +63,87 @@ function estadoInicialItem(itemExistente) {
     unidade: itemExistente?.unidade || '',
     quantidade: itemExistente?.quantidade_pedida != null ? String(itemExistente.quantidade_pedida) : '',
     valorUnitario: itemExistente?.valor_unitario != null ? String(itemExistente.valor_unitario) : '',
+    fatorConversaoBase: '',
     buscaProduto: '',
   };
 }
 
+// `dados.fornecedorDataEditavel`: true quando fornecedor_id/data_pedido
+// ainda podem ser alterados nesta tela -- sempre true na criação, e
+// também true editando uma Retirada já recebida (decisão herdada de
+// CompraPresencialForm: corrigir fornecedor/data é parte do requisito de
+// correção da 0037). Falso só editando uma Entrega (mesma decisão de
+// segurança já documentada abaixo, no componente).
 function validar(dados) {
-  if (!dados.estaEditando) {
+  if (dados.fornecedorDataEditavel) {
     if (!dados.fornecedorId) {
       return 'Selecione o fornecedor.';
     }
     if (!dados.dataPedido) {
-      return 'Informe a data do pedido.';
+      return dados.ehRetirada ? 'Informe a data da compra.' : 'Informe a data do pedido.';
     }
   }
-  if (dados.previsaoEntrega && dados.dataPedido && dados.previsaoEntrega < dados.dataPedido) {
+
+  if (dados.ehRetirada) {
+    if (dados.dataPedido > dados.hoje) {
+      return 'A data da compra não pode ser uma data futura.';
+    }
+    if (dados.dataDocumentoFiscal && dados.dataDocumentoFiscal > dados.hoje) {
+      return 'A data do documento fiscal não pode ser uma data futura.';
+    }
+  } else if (dados.previsaoEntrega && dados.dataPedido && dados.previsaoEntrega < dados.dataPedido) {
     return 'A previsão de entrega não pode ser anterior à data do pedido.';
   }
+
   if (dados.itens.length === 0) {
     return 'Adicione ao menos um item.';
   }
+
   for (const item of dados.itens) {
     if (!item.produtoId) {
       return 'Selecione um produto do Catálogo para cada item.';
     }
     if (!item.unidade.trim()) {
-      return 'O produto selecionado não tem unidade-base cadastrada no Catálogo — cadastre a unidade lá antes de usá-lo num pedido.';
+      return dados.ehRetirada
+        ? 'Informe a unidade de cada item.'
+        : 'O produto selecionado não tem unidade-base cadastrada no Catálogo — cadastre a unidade lá antes de usá-lo num pedido.';
     }
+
     const quantidade = Number(item.quantidade);
     if (item.quantidade === '' || !Number.isFinite(quantidade) || quantidade <= 0) {
-      return 'A quantidade pedida de cada item deve ser maior que zero.';
+      return dados.ehRetirada
+        ? 'A quantidade de cada item deve ser maior que zero.'
+        : 'A quantidade pedida de cada item deve ser maior que zero.';
     }
-    if (item.valorUnitario !== '') {
+
+    if (dados.ehRetirada) {
+      const valor = Number(item.valorUnitario);
+      if (item.valorUnitario === '' || !Number.isFinite(valor) || valor < 0) {
+        return 'Informe o preço unitário efetivamente pago de cada item (pode ser 0, mas não pode ficar em branco nem ser negativo).';
+      }
+      if (item.fatorConversaoBase.trim() !== '') {
+        const fator = Number(item.fatorConversaoBase);
+        if (!Number.isFinite(fator) || fator <= 0) {
+          return 'O fator de conversão, quando informado, deve ser maior que zero.';
+        }
+      }
+    } else if (item.valorUnitario !== '') {
       const valor = Number(item.valorUnitario);
       if (!Number.isFinite(valor) || valor < 0) {
         return 'O preço unitário estimado não pode ser negativo.';
       }
     }
   }
+
   return null;
 }
 
-function montarPayloadCriacao(dados) {
+// ============================================================
+// ENTREGA -- payloads/mensagens de criar_pedido() e da edição direta
+// (UPDATE em pedidos/pedido_itens, sem RPC dedicada). Nada muda aqui em
+// relação ao PedidoForm.js anterior.
+// ============================================================
+function montarPayloadCriacaoEntrega(dados) {
   return {
     p_fornecedor_id: dados.fornecedorId,
     p_data_pedido: dados.dataPedido,
@@ -95,7 +160,7 @@ function montarPayloadCriacao(dados) {
   };
 }
 
-function montarPayloadItem(item, pedidoId) {
+function montarPayloadItemEntrega(item, pedidoId) {
   return {
     pedido_id: pedidoId,
     produto_id: item.produtoId,
@@ -106,15 +171,15 @@ function montarPayloadItem(item, pedidoId) {
   };
 }
 
-function mensagemErroCriacao(error) {
+function mensagemErroCriacaoEntrega(error) {
   if (!error) return '';
   const msg = error.message || '';
 
   if (msg.includes('requer a permissao pedidos.inserir')) {
     return 'Você não tem permissão para criar pedidos.';
   }
-  if (msg.includes('fornecedor') && msg.includes('nao encontrado, inativo, ou nao usa modalidade')) {
-    return 'Fornecedor inválido, inativo, ou não configurado para pedido com entrega.';
+  if (msg.includes('fornecedor') && msg.includes('nao encontrado ou inativo')) {
+    return 'Fornecedor inválido ou inativo.';
   }
   if (msg.includes('data_pedido e obrigatoria')) {
     return 'Informe a data do pedido.';
@@ -143,6 +208,122 @@ function mensagemErroCriacao(error) {
   return 'Não foi possível criar o pedido. Tente novamente ou avise um administrador.';
 }
 
+// ============================================================
+// RETIRADA -- payloads/mensagens de registrar_compra_presencial() e
+// editar_compra_presencial() (migration 0037). Nada muda aqui em
+// relação a CompraPresencialForm.js anterior, só os nomes das funções
+// (evitar colisão com as de Entrega no mesmo arquivo).
+// ============================================================
+
+// Configuração comercial aplicável (produto_fornecedores), quando
+// determinável -- mesma regra usada em ReceberPedidoModal.js/
+// _resolver_config_comercial_historico() (migration 0037): só resolve
+// automaticamente quando existe EXATAMENTE UMA configuração ativa para
+// produto+fornecedor com a MESMA unidade comercial informada agora.
+function resolverConfigComercial(item, configsPorProduto) {
+  const candidatas = (configsPorProduto[item.produtoId] || []).filter(
+    (c) => normalizarUnidade(c.unidade_comercial) === normalizarUnidade(item.unidade)
+  );
+  if (candidatas.length === 1) {
+    return { produtoFornecedorId: candidatas[0].id, fatorConfig: candidatas[0].quantidade_embalagem };
+  }
+  return { produtoFornecedorId: null, fatorConfig: null };
+}
+
+function montarPayloadItensRetirada(itens, configsPorProduto) {
+  return itens.map((item) => {
+    const payloadItem = {
+      produto_id: item.produtoId,
+      descricao: item.descricao.trim() || item.produtoNome,
+      unidade: item.unidade.trim(),
+      quantidade_pedida: Number(item.quantidade),
+      valor_unitario: Number(item.valorUnitario),
+    };
+
+    if (item.id) {
+      payloadItem.pedido_item_id = item.id;
+    }
+
+    const { produtoFornecedorId } = resolverConfigComercial(item, configsPorProduto);
+    if (produtoFornecedorId) {
+      payloadItem.produto_fornecedor_id = produtoFornecedorId;
+    }
+
+    const fatorTexto = item.fatorConversaoBase.trim();
+    if (fatorTexto !== '') {
+      payloadItem.fator_conversao_base = Number(fatorTexto);
+    }
+
+    return payloadItem;
+  });
+}
+
+function mensagemErroRetirada(error, estaEditando) {
+  if (!error) return '';
+  const msg = error.message || '';
+  const prefixo = estaEditando ? 'editar_compra_presencial' : 'registrar_compra_presencial';
+
+  if (msg.includes('requer sessao autenticada')) {
+    return 'Sua sessão expirou. Faça login novamente.';
+  }
+  if (msg.includes('requer a permissao pedidos.inserir') || msg.includes('requer a permissao pedidos.receber')) {
+    return 'Você não tem permissão para registrar retiradas (compras presenciais).';
+  }
+  if (msg.includes('requer a permissao pedidos.editar')) {
+    return 'Você não tem permissão para editar esta retirada.';
+  }
+  if (msg.includes('fornecedor') && msg.includes('nao encontrado ou inativo')) {
+    return 'Fornecedor inválido ou inativo.';
+  }
+  if (msg.includes('data da compra e obrigatoria')) {
+    return 'Informe a data da compra.';
+  }
+  if (msg.includes('nao pode ser no futuro')) {
+    return 'A data da compra não pode ser uma data futura.';
+  }
+  if (msg.includes('e obrigatorio informar ao menos 1 item')) {
+    return 'Informe ao menos um item.';
+  }
+  if (msg.includes('item sem descricao valida')) {
+    return 'Todos os itens precisam de uma descrição.';
+  }
+  if (msg.includes('item sem unidade valida')) {
+    return 'Todos os itens precisam de uma unidade.';
+  }
+  if (msg.includes('quantidade_pedida')) {
+    return 'Quantidade inválida em algum item — deve ser um número maior que zero.';
+  }
+  if (msg.includes('valor_unitario invalido')) {
+    return 'Preço unitário inválido em algum item.';
+  }
+  if (msg.includes('produto_id') && (msg.includes('invalido') || msg.includes('nao existe'))) {
+    return 'O produto selecionado em algum item é inválido ou não existe mais.';
+  }
+  if (msg.includes('fator_conversao_base') && msg.includes('nao bate com a configuracao')) {
+    return 'O fator de conversão informado não corresponde à configuração comercial cadastrada para este produto/fornecedor.';
+  }
+  if (msg.includes('fator_conversao_base')) {
+    return 'Fator de conversão inválido em algum item — deve ser maior que zero, quando informado.';
+  }
+  if (msg.includes('unidade informada') && msg.includes('nao bate com a configuracao')) {
+    return 'A unidade informada não corresponde à configuração comercial cadastrada para este produto/fornecedor.';
+  }
+  if (msg.includes('produto_fornecedor_id') && msg.includes('nao corresponde')) {
+    return 'Configuração comercial inválida para algum item. Recarregue a página e tente novamente.';
+  }
+  if (msg.includes('nao e uma compra presencial')) {
+    return 'Este pedido não é uma retirada (compra presencial).';
+  }
+  if (msg.includes('esperado recebido')) {
+    return 'Esta retirada não está mais com status Recebido. Recarregue a página.';
+  }
+  if (msg.includes('nao pertence a esta compra') || msg.includes('duplicado no payload')) {
+    return 'Erro interno ao montar os itens da retirada. Recarregue a página.';
+  }
+  console.error(`Erro em ${prefixo}:`, error);
+  return 'Não foi possível salvar esta retirada. Tente novamente ou avise um administrador.';
+}
+
 function formatarMoeda(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -165,7 +346,7 @@ const caixaEstilo = {
   backgroundColor: 'white',
   padding: '25px',
   borderRadius: '10px',
-  maxWidth: '760px',
+  maxWidth: '820px',
   width: '100%',
   maxHeight: '90vh',
   overflowY: 'auto',
@@ -183,19 +364,19 @@ const campoEstilo = {
 };
 
 // Seleção OBRIGATÓRIA de um produto do Catálogo (public.produtos, só
-// ativos) -- não existe "item livre" digitado à mão. Ao selecionar,
-// descricao/unidade são preenchidos a partir do cadastro ATUAL do
-// produto (nome + unidade_medida) -- vira o snapshot gravado em
-// pedido_itens.descricao/unidade. Unidade fica só-leitura por design
-// nesta fase (sem produto_fornecedores ainda, não há como o usuário
-// escolher CX/PCT/apresentação com segurança -- fica para uma fase
-// futura). Descrição também não é mais editável livremente: só muda
-// via "Trocar" (nova seleção de produto), nunca por digitação direta.
-// Para item já existente (edição), o valor exibido é o SNAPSHOT já
-// gravado no banco (item.produtoNome/item.unidade vindos de
-// itensIniciais) -- nunca recalculado a partir do cadastro atual do
-// produto a menos que o usuário explicitamente clique "Trocar".
-function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
+// ativos) -- não existe "item livre" digitado à mão, nas duas
+// modalidades. Ao selecionar, descricao/unidade são preenchidos a
+// partir do cadastro ATUAL do produto -- vira o snapshot gravado em
+// pedido_itens.descricao/unidade. Em Entrega, a unidade fica só-leitura
+// (mostrada aqui mesmo, "Unidade: ..."); em Retirada, a unidade
+// aparece num campo PRÓPRIO editável no corpo do item (compra pode ser
+// numa apresentação comercial diferente da unidade-base), então esta
+// linha "Unidade: ..." fica oculta para não duplicar a informação --
+// `ocultarUnidadeInline` controla isso. Para item já existente (edição),
+// o valor exibido é o SNAPSHOT já gravado no banco -- nunca recalculado
+// a partir do cadastro atual do produto a menos que o usuário
+// explicitamente clique "Trocar".
+function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem, ocultarUnidadeInline, registrarInputRef }) {
   const [aberto, setAberto] = useState(false);
 
   if (item.produtoId) {
@@ -218,9 +399,11 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
             Trocar
           </button>
         </div>
-        <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
-          Unidade: {item.unidade || '—'}
-        </div>
+        {!ocultarUnidadeInline && (
+          <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+            Unidade: {item.unidade || '—'}
+          </div>
+        )}
       </div>
     );
   }
@@ -231,6 +414,7 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
   return (
     <div style={{ position: 'relative' }}>
       <input
+        ref={registrarInputRef}
         type="text"
         value={item.buscaProduto}
         onChange={(e) => {
@@ -294,37 +478,55 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem }) {
   );
 }
 
-// Formulário único de criação E edição -- mesmo componente, mesmas
-// regras, para nunca duplicar validação/layout entre as duas telas
-// (mesmo padrão já usado em DadosProdutoForm.js do Catálogo). `pedido`
-// null = criação (via RPC criar_pedido, único caminho de INSERT --
-// nenhuma policy de INSERT existe em public.pedidos, migration 0022).
-// `pedido` preenchido = edição de um pedido aguardando_entrega, via
-// UPDATE direto em pedidos/pedido_itens -- RLS já permite isso para
-// quem tem pedidos.editar (pedidos_update e pedido_itens_insert/update/
-// delete, migration 0022); nenhuma RPC nova foi criada para isso.
+// Formulário único de criação E edição de pedido a fornecedor -- nas
+// DUAS modalidades (Entrega/Retirada). `pedido` null = criação (usuário
+// escolhe a modalidade no topo); `pedido` preenchido = edição (a
+// modalidade vem de `pedido.modalidade_compra`, nunca muda depois).
 //
-// Campos do cabeçalho deliberadamente SOMENTE LEITURA na edição:
-// fornecedor_id e data_pedido. A trigger pedidos_protecao permite
-// alterá-los via UPDATE comum (só bloqueia recebido_em/cancelado_em/
-// motivo_cancelamento fora de uma transição formal) -- mas criar_pedido()
-// valida fornecedor ativo + modalidade_compra='pedido_com_entrega' no
-// momento da criação, e NENHUM gatilho revalida isso num UPDATE comum.
-// Permitir trocar o fornecedor por edição contornaria essa validação
-// silenciosamente. Não é uma limitação de RLS/trigger -- é uma decisão
-// de segurança de negócio, documentada aqui explicitamente.
-export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B4513', onSalvo, onCancelar }) {
+// EDIÇÃO -- por que fornecedor/data ficam somente-leitura em Entrega mas
+// EDITÁVEIS em Retirada (`fornecedorDataEditavel` abaixo):
+//   * Entrega: a trigger pedidos_protecao permite alterar fornecedor_id/
+//     data_pedido via UPDATE comum (só bloqueia recebido_em/
+//     cancelado_em/motivo_cancelamento fora de uma transição formal) --
+//     mas criar_pedido() valida fornecedor ativo no MOMENTO DA CRIAÇÃO, e
+//     nenhum gatilho revalida isso num UPDATE comum. Permitir trocar o
+//     fornecedor por edição contornaria essa validação silenciosamente --
+//     decisão de segurança de negócio, não uma limitação técnica.
+//   * Retirada: editar_compra_presencial() (migration 0037) É a própria
+//     validação -- ela reconfirma fornecedor ativo a cada chamada, então
+//     não existe o mesmo risco de contorno silencioso. Corrigir
+//     fornecedor/data faz parte do requisito funcional da 0037.
+export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B4513', podeReceber = true, onSalvo, onCancelar }) {
   const estaEditando = pedido != null;
+  const hoje = dataLocalHoje();
+
+  // Modalidade -- escolhida pelo usuário só na criação (radio no topo);
+  // na edição vem fixa do próprio pedido carregado e nunca muda de
+  // estado depois (nenhum controle de UI altera `modalidade` quando
+  // estaEditando=true). Default de um pedido NOVO é Entrega -- não
+  // depende de nenhuma característica do fornecedor (auditoria desta
+  // frente: "não alterar automaticamente essa escolha com base na
+  // modalidade principal cadastrada no fornecedor").
+  const [modalidade, setModalidade] = useState(() =>
+    estaEditando ? pedido.modalidade_compra : 'pedido_com_entrega'
+  );
+  const ehRetirada = modalidade === 'compra_presencial';
+  const fornecedorDataEditavel = !estaEditando || ehRetirada;
 
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState('');
   const [fornecedores, setFornecedores] = useState([]);
   const [regras, setRegras] = useState([]);
   const [produtos, setProdutos] = useState([]);
+  const [configsPorProduto, setConfigsPorProduto] = useState({});
 
-  const [fornecedorId, setFornecedorId] = useState('');
-  const [dataPedido, setDataPedido] = useState(() => (estaEditando ? pedido.data_pedido : dataLocalHoje()));
+  const [fornecedorId, setFornecedorId] = useState(() => (estaEditando ? pedido.fornecedor_id : ''));
+  const [dataPedido, setDataPedido] = useState(() => (estaEditando ? pedido.data_pedido : hoje));
   const [previsaoEntrega, setPrevisaoEntrega] = useState(() => (estaEditando ? pedido.previsao_entrega || '' : ''));
+  const [numeroNotaFiscal, setNumeroNotaFiscal] = useState(() => (estaEditando ? pedido.numero_nota_fiscal || '' : ''));
+  const [dataDocumentoFiscal, setDataDocumentoFiscal] = useState(() =>
+    estaEditando ? pedido.data_documento_fiscal || '' : ''
+  );
   const [observacoes, setObservacoes] = useState(() => (estaEditando ? pedido.observacoes || '' : ''));
   const [itens, setItens] = useState(() =>
     estaEditando && itensIniciais?.length ? itensIniciais.map(estadoInicialItem) : [estadoInicialItem()]
@@ -336,13 +538,45 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
 
   const proximaChaveItem = useRef(itens.length);
   const chavesItens = useRef(itens.map((_, i) => i));
-  // Ids reais de pedido_itens removidos nesta sessão de edição -- usados
-  // no DELETE final ao salvar (item já pode ter sumido do array `itens`
-  // por aqui, mas ainda precisa ser apagado no banco).
+  // Ids reais de pedido_itens removidos nesta sessão de edição -- só
+  // usado no caminho de edição de Entrega (DELETE final ao salvar, sem
+  // RPC); a edição de Retirada (editar_compra_presencial) reconstrói a
+  // diferença sozinha a partir do payload completo, não precisa disto.
   const idsRemovidosRef = useRef([]);
 
+  // Foco automático no campo de busca do item recém-adicionado (ver
+  // adicionarItem abaixo) -- só dispara quando `chaveRecemAdicionada`
+  // muda de valor (ou seja, só depois de um clique real em "+ Item"),
+  // nunca em re-renders comuns causados por digitação em outro campo.
+  const inputsBuscaRef = useRef(new Map());
+  const [chaveRecemAdicionada, setChaveRecemAdicionada] = useState(null);
+
+  useEffect(() => {
+    if (chaveRecemAdicionada == null) return;
+    const input = inputsBuscaRef.current.get(chaveRecemAdicionada);
+    if (input) {
+      input.focus();
+    }
+    setChaveRecemAdicionada(null);
+  }, [chaveRecemAdicionada]);
+
+  // Fornecedores/regras/produtos. `ehRetirada`/`estaEditando` aqui são
+  // avaliados só UMA VEZ, no mount (deps []) -- seguro porque, editando,
+  // a modalidade nunca muda de valor depois do estado inicial (nenhum
+  // controle altera `modalidade` quando estaEditando=true); criando,
+  // `!estaEditando` já é suficiente por si só (verdadeiro
+  // independentemente de qual modalidade o rádio começa marcado).
+  //
+  // Fornecedores: SEM filtro de modalidade_compra (auditoria desta
+  // frente + migration 0040) -- qualquer fornecedor ATIVO serve para
+  // Entrega ou Retirada. Buscados quando: criando (as duas modalidades
+  // precisam) OU editando uma Retirada (fornecedor é editável nesse
+  // caso). Nunca buscados editando uma Entrega (fornecedor é
+  // somente-leitura, mesma decisão de sempre).
   useEffect(() => {
     let efeitoAtivo = true;
+    const precisaFornecedores = !estaEditando || ehRetirada;
+    const precisaRegras = !estaEditando;
 
     async function carregar() {
       setCarregandoDados(true);
@@ -350,24 +584,31 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
 
       const supabase = createClient();
 
-      // Fornecedores/regras só importam na criação (escolha de
-      // fornecedor + sugestão de previsão) -- na edição, fornecedor é
-      // somente leitura, então nem são buscados.
-      const promessas = [supabase.from('produtos').select('id, nome, unidade_medida').eq('ativo', true).order('nome', { ascending: true })];
+      const promessas = [
+        supabase.from('produtos').select('id, nome, unidade_medida').eq('ativo', true).order('nome', { ascending: true }),
+      ];
 
-      if (!estaEditando) {
+      if (precisaFornecedores) {
         promessas.push(
           supabase
             .from('fornecedores')
             .select('id, nome, nome_fantasia, razao_social')
             .eq('ativo', true)
-            .eq('modalidade_compra', 'pedido_com_entrega')
-            .order('nome_fantasia', { ascending: true }),
+            .order('nome_fantasia', { ascending: true })
+        );
+      } else {
+        promessas.push(Promise.resolve({ data: [], error: null }));
+      }
+
+      if (precisaRegras) {
+        promessas.push(
           supabase
             .from('fornecedor_regras_pedido')
             .select('id, fornecedor_id, dia_pedido, horario_limite, tipo_entrega, dias_prazo, dia_entrega')
             .eq('ativo', true)
         );
+      } else {
+        promessas.push(Promise.resolve({ data: [], error: null }));
       }
 
       const [produtosResp, fornecedoresResp, regrasResp] = await Promise.all(promessas);
@@ -395,11 +636,62 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Configurações comerciais (produto_fornecedores) -- só relevante para
+  // Retirada (resolução de fator_conversao_base ao montar o payload de
+  // registrar_compra_presencial/editar_compra_presencial). Em Entrega
+  // fica sempre vazio, sem custo de rede.
+  useEffect(() => {
+    let efeitoAtivo = true;
+
+    async function carregarConfigs() {
+      if (!ehRetirada) {
+        if (efeitoAtivo) setConfigsPorProduto({});
+        return;
+      }
+
+      const produtoIds = Array.from(new Set(itens.map((i) => i.produtoId).filter(Boolean)));
+
+      if (!fornecedorId || produtoIds.length === 0) {
+        if (efeitoAtivo) setConfigsPorProduto({});
+        return;
+      }
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('produto_fornecedores')
+        .select('id, produto_id, unidade_comercial, quantidade_embalagem')
+        .eq('fornecedor_id', fornecedorId)
+        .eq('ativo', true)
+        .in('produto_id', produtoIds);
+
+      if (!efeitoAtivo) return;
+
+      if (error) {
+        console.error('Erro ao carregar configurações comerciais:', error);
+        return;
+      }
+
+      const mapa = {};
+      for (const c of data || []) {
+        if (!mapa[c.produto_id]) mapa[c.produto_id] = [];
+        mapa[c.produto_id].push(c);
+      }
+      setConfigsPorProduto(mapa);
+    }
+
+    carregarConfigs();
+    return () => {
+      efeitoAtivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehRetirada, fornecedorId, itens.map((i) => i.produtoId).join(',')]);
+
   // Regras aplicáveis + sugestão automática de previsão -- só faz
-  // sentido na criação (fornecedor/data mutáveis); na edição isso não
-  // roda (fornecedorId nunca é setado, regras vem vazio).
+  // sentido criando uma Entrega (fornecedor/data mutáveis e a UI de
+  // regras só existe para essa combinação); em qualquer outro caso fica
+  // vazio, sem alterar nada.
   const regrasAplicaveis =
-    !estaEditando && fornecedorId && dataPedido
+    !estaEditando && !ehRetirada && fornecedorId && dataPedido
       ? regras.filter(
           (r) =>
             r.fornecedor_id === fornecedorId &&
@@ -408,14 +700,14 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
       : [];
 
   useEffect(() => {
-    if (estaEditando) return;
+    if (estaEditando || ehRetirada) return;
     setRegraEscolhidaId('');
     setPrevisaoEntrega('');
     if (regrasAplicaveis.length === 1) {
       setPrevisaoEntrega(calcularDataEntrega(dataPedido, regrasAplicaveis[0]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fornecedorId, dataPedido]);
+  }, [fornecedorId, dataPedido, ehRetirada]);
 
   function escolherRegra(regraId) {
     setRegraEscolhidaId(regraId);
@@ -431,9 +723,18 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     );
   }
 
+  // Novo item entra no TOPO da lista (auditoria desta frente: pedidos
+  // grandes ficavam ruins de usar com o item novo sempre no final).
+  // `chavesItens.current` e `itens` são prependados JUNTOS, na mesma
+  // operação, então continuam perfeitamente alinhados por índice --
+  // nenhum campo de ordem é persistido em pedido_itens (não existe
+  // coluna de sequência), então isso não altera nem a ordem salva nem a
+  // de nenhum pedido já existente, só a UX desta sessão de edição.
   function adicionarItem() {
-    chavesItens.current.push(proximaChaveItem.current++);
-    setItens((atual) => [...atual, estadoInicialItem()]);
+    const novaChave = proximaChaveItem.current++;
+    chavesItens.current.unshift(novaChave);
+    setItens((atual) => [estadoInicialItem(), ...atual]);
+    setChaveRecemAdicionada(novaChave);
   }
 
   function removerItem(chave) {
@@ -447,12 +748,10 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     setItens((atual) => atual.filter((_, i) => i !== indice));
   }
 
-  // Um pedido pode legitimamente ter itens sem preço -- somar só os que
-  // têm e chamar isso de "total do pedido" seria enganoso (pareceria o
-  // total real quando na verdade está faltando parte). Só existe um
-  // total quando TODOS os itens têm preço informado; caso contrário
-  // mostra "—", com uma nota específica se for uma mistura (alguns com
-  // preço, outros sem) para não parecer um bug.
+  // Um pedido/retirada pode legitimamente ter itens sem preço (só em
+  // Entrega -- Retirada exige preço em todos) -- somar só os que têm e
+  // chamar isso de "total" seria enganoso. Só existe total quando TODOS
+  // os itens têm preço informado.
   function itemTemPrecoValido(item) {
     return item.valorUnitario !== '' && Number.isFinite(Number(item.valorUnitario));
   }
@@ -465,18 +764,17 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
       }, 0)
     : null;
 
-  // Salva as alterações de um pedido existente -- SEM RPC dedicada.
-  // Ordem deliberada: cabeçalho, depois itens NOVOS (insert), depois
-  // itens EXISTENTES (update), depois itens REMOVIDOS (delete, em UM
+  // ============================================================
+  // ENTREGA -- edição existente, SEM RPC dedicada (idêntico ao
+  // PedidoForm.js anterior). Ordem deliberada: cabeçalho, itens NOVOS
+  // (insert), itens EXISTENTES (update), itens REMOVIDOS (delete, em UM
   // único comando batelado por último) -- garante que a invariante
-  // "pedido nunca fica sem item" (trigger pedido_itens_impedir_pedido_vazio,
-  // migration 0022) só é avaliada contra o estado FINAL pretendido,
-  // nunca um estado intermediário artificial de remover-antes-de-inserir.
-  // LIMITAÇÃO CONHECIDA: sem RPC, estes passos não são atômicos entre si
-  // -- uma falha no meio deixa o que já foi salvo salvo. Mitigado com
-  // mensagens de erro específicas por etapa, orientando a recarregar e
-  // conferir antes de tentar de novo.
-  async function salvarEdicao() {
+  // "pedido nunca fica sem item" (trigger pedido_itens_impedir_pedido_vazio)
+  // só é avaliada contra o estado FINAL pretendido. LIMITAÇÃO CONHECIDA:
+  // sem RPC, estes passos não são atômicos entre si -- uma falha no meio
+  // deixa o que já foi salvo salvo. Mitigado com mensagens de erro
+  // específicas por etapa.
+  async function salvarEdicaoEntrega() {
     const supabase = createClient();
 
     const { error: erroCabecalho } = await supabase
@@ -499,7 +797,7 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     if (itensNovos.length > 0) {
       const { error: erroInsert } = await supabase
         .from('pedido_itens')
-        .insert(itensNovos.map((item) => montarPayloadItem(item, pedido.id)));
+        .insert(itensNovos.map((item) => montarPayloadItemEntrega(item, pedido.id)));
 
       if (erroInsert) {
         console.error('Erro ao adicionar itens do pedido:', erroInsert);
@@ -509,15 +807,9 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     }
 
     for (const item of itensExistentes) {
-      // .eq('pedido_id', pedido.id) além de .eq('id', item.id): reforço
-      // deliberado, mesmo o id já sendo uma PK globalmente única (não
-      // deveria colidir com item de outro pedido por natureza) -- fecha
-      // por completo qualquer cenário de um id vindo do estado do
-      // frontend estar errado/desatualizado, fazendo a query afetar 0
-      // linhas em vez de arriscar tocar em outro pedido.
       const { error: erroUpdate } = await supabase
         .from('pedido_itens')
-        .update(montarPayloadItem(item, pedido.id))
+        .update(montarPayloadItemEntrega(item, pedido.id))
         .eq('id', item.id)
         .eq('pedido_id', pedido.id);
 
@@ -529,11 +821,6 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     }
 
     if (idsRemovidosRef.current.length > 0) {
-      // Mesmo reforço do UPDATE acima: .eq('pedido_id', pedido.id) além
-      // de .in('id', ...) -- ids em idsRemovidosRef só podem vir de itens
-      // que já pertenciam a este pedido (carregados via itensIniciais),
-      // mas o filtro extra garante isso também no nível da própria
-      // query, não só na lógica que populou a lista.
       const { error: erroDelete } = await supabase
         .from('pedido_itens')
         .delete()
@@ -551,7 +838,17 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
   }
 
   async function salvar() {
-    const dados = { estaEditando, fornecedorId, dataPedido, previsaoEntrega, observacoes, itens };
+    const dados = {
+      fornecedorDataEditavel,
+      ehRetirada,
+      fornecedorId,
+      dataPedido,
+      previsaoEntrega,
+      dataDocumentoFiscal,
+      observacoes,
+      itens,
+      hoje,
+    };
     const mensagemValidacao = validar(dados);
     if (mensagemValidacao) {
       setErro(mensagemValidacao);
@@ -561,31 +858,87 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     setErro('');
     setSalvando(true);
 
-    if (estaEditando) {
-      const sucesso = await salvarEdicao();
+    const supabase = createClient();
+
+    // Edição de Entrega -- único caminho sem RPC, mantido intocado.
+    if (estaEditando && !ehRetirada) {
+      const sucesso = await salvarEdicaoEntrega();
       setSalvando(false);
       if (sucesso) onSalvo();
       return;
     }
 
-    const supabase = createClient();
-    const { error } = await supabase.rpc('criar_pedido', montarPayloadCriacao(dados));
+    // Edição de Retirada -- RPC dedicada (migration 0037), nunca
+    // reabrir_recebimento_pedido().
+    if (estaEditando && ehRetirada) {
+      const { error } = await supabase.rpc('editar_compra_presencial', {
+        p_pedido_id: pedido.id,
+        p_fornecedor_id: fornecedorId,
+        p_data_compra: dataPedido,
+        p_numero_nota_fiscal: numeroNotaFiscal.trim() || null,
+        p_data_documento_fiscal: dataDocumentoFiscal || null,
+        p_observacoes: observacoes.trim() || null,
+        p_itens: montarPayloadItensRetirada(itens, configsPorProduto),
+      });
+
+      setSalvando(false);
+
+      if (error) {
+        setErro(mensagemErroRetirada(error, true));
+        return;
+      }
+
+      onSalvo();
+      return;
+    }
+
+    // Criação -- Entrega usa criar_pedido(); Retirada usa
+    // registrar_compra_presencial(). O usuário não precisa saber que são
+    // RPCs diferentes -- só escolheu "Entrega"/"Retirada" no topo.
+    if (ehRetirada) {
+      const { error } = await supabase.rpc('registrar_compra_presencial', {
+        p_fornecedor_id: fornecedorId,
+        p_data_compra: dataPedido,
+        p_numero_nota_fiscal: numeroNotaFiscal.trim() || null,
+        p_data_documento_fiscal: dataDocumentoFiscal || null,
+        p_observacoes: observacoes.trim() || null,
+        p_itens: montarPayloadItensRetirada(itens, configsPorProduto),
+      });
+
+      setSalvando(false);
+
+      if (error) {
+        setErro(mensagemErroRetirada(error, false));
+        return;
+      }
+
+      onSalvo();
+      return;
+    }
+
+    const { error } = await supabase.rpc('criar_pedido', montarPayloadCriacaoEntrega(dados));
 
     setSalvando(false);
 
     if (error) {
       console.error('Erro ao criar pedido:', error);
-      setErro(mensagemErroCriacao(error));
+      setErro(mensagemErroCriacaoEntrega(error));
       return;
     }
 
     onSalvo();
   }
 
+  const tituloModal = estaEditando
+    ? ehRetirada
+      ? 'Editar retirada'
+      : 'Editar pedido'
+    : 'Novo pedido';
+
   return (
     <div style={overlayEstilo}>
       <div style={caixaEstilo}>
-        <h3 style={{ color: corPrimaria, marginTop: 0 }}>{estaEditando ? 'Editar pedido' : 'Novo pedido'}</h3>
+        <h3 style={{ color: corPrimaria, marginTop: 0 }}>{tituloModal}</h3>
 
         {carregandoDados ? (
           <p>Carregando fornecedores e produtos...</p>
@@ -593,12 +946,59 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
           <p style={{ color: '#f44336' }}>{erroCarregamento}</p>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-              <div>
-                <label style={rotuloEstilo}>Fornecedor {!estaEditando && '*'}</label>
-                {estaEditando ? (
-                  <p style={{ margin: 0, padding: '8px 0' }}>{pedido.fornecedorNome}</p>
+            {/* Retirada exige pedidos.inserir + pedidos.receber
+                (registrar_compra_presencial(), migration 0037) -- quem
+                só tem pedidos.inserir nem vê a opção, e Entrega continua
+                funcionando normalmente com o rádio único restante. */}
+            {!estaEditando && (
+              <div style={{ marginBottom: '15px' }}>
+                {podeReceber ? (
+                  <>
+                    <label style={rotuloEstilo}>Modalidade *</label>
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                        <input
+                          type="radio"
+                          name="modalidade"
+                          checked={!ehRetirada}
+                          onChange={() => setModalidade('pedido_com_entrega')}
+                        />
+                        Entrega
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                        <input
+                          type="radio"
+                          name="modalidade"
+                          checked={ehRetirada}
+                          onChange={() => setModalidade('compra_presencial')}
+                        />
+                        Retirada
+                      </label>
+                    </div>
+                  </>
                 ) : (
+                  <p style={{ fontSize: '13px', color: '#666', margin: 0 }}>Modalidade: <strong>Entrega</strong></p>
+                )}
+              </div>
+            )}
+
+            {estaEditando && (
+              <p style={{ fontSize: '13px', color: '#666', marginTop: '-4px', marginBottom: '15px' }}>
+                Modalidade: <strong>{ehRetirada ? 'Retirada' : 'Entrega'}</strong>
+              </p>
+            )}
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '15px',
+                marginBottom: '15px',
+              }}
+            >
+              <div>
+                <label style={rotuloEstilo}>Fornecedor {fornecedorDataEditavel && '*'}</label>
+                {fornecedorDataEditavel ? (
                   <>
                     <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} style={campoEstilo}>
                       <option value="">Selecione</option>
@@ -609,56 +1009,92 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
                       ))}
                     </select>
                     {fornecedores.length === 0 && (
-                      <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                        Nenhum fornecedor ativo com modalidade "pedido com entrega".
-                      </p>
+                      <p style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>Nenhum fornecedor ativo cadastrado.</p>
                     )}
+                    <p style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                      Todos os fornecedores ativos aparecem aqui, independente da modalidade cadastrada.
+                    </p>
                   </>
-                )}
-              </div>
-
-              <div>
-                <label style={rotuloEstilo}>Data do pedido {!estaEditando && '*'}</label>
-                {estaEditando ? (
-                  <p style={{ margin: 0, padding: '8px 0' }}>{dataPedido}</p>
                 ) : (
-                  <input type="date" value={dataPedido} onChange={(e) => setDataPedido(e.target.value)} style={campoEstilo} />
+                  <p style={{ margin: 0, padding: '8px 0' }}>{pedido.fornecedorNome}</p>
                 )}
               </div>
 
               <div>
-                <label style={rotuloEstilo}>Previsão de entrega</label>
-                <input
-                  type="date"
-                  min={dataPedido}
-                  value={previsaoEntrega}
-                  onChange={(e) => setPrevisaoEntrega(e.target.value)}
-                  style={campoEstilo}
-                />
+                <label style={rotuloEstilo}>{ehRetirada ? 'Data da compra' : 'Data do pedido'} {fornecedorDataEditavel && '*'}</label>
+                {fornecedorDataEditavel ? (
+                  <input
+                    type="date"
+                    max={ehRetirada ? hoje : undefined}
+                    value={dataPedido}
+                    onChange={(e) => setDataPedido(e.target.value)}
+                    style={campoEstilo}
+                  />
+                ) : (
+                  <p style={{ margin: 0, padding: '8px 0' }}>{dataPedido}</p>
+                )}
               </div>
+
+              {!ehRetirada && (
+                <div>
+                  <label style={rotuloEstilo}>Previsão de entrega</label>
+                  <input
+                    type="date"
+                    min={dataPedido}
+                    value={previsaoEntrega}
+                    onChange={(e) => setPrevisaoEntrega(e.target.value)}
+                    style={campoEstilo}
+                  />
+                </div>
+              )}
+
+              {ehRetirada && (
+                <>
+                  <div>
+                    <label style={rotuloEstilo}>Número da nota fiscal</label>
+                    <input
+                      type="text"
+                      value={numeroNotaFiscal}
+                      onChange={(e) => setNumeroNotaFiscal(e.target.value)}
+                      placeholder="Opcional"
+                      style={campoEstilo}
+                    />
+                  </div>
+                  <div>
+                    <label style={rotuloEstilo}>Data do documento fiscal</label>
+                    <input
+                      type="date"
+                      max={hoje}
+                      value={dataDocumentoFiscal}
+                      onChange={(e) => setDataDocumentoFiscal(e.target.value)}
+                      style={campoEstilo}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
-            {estaEditando && (
+            {estaEditando && !ehRetirada && (
               <p style={{ fontSize: '12px', color: '#999', marginTop: '-8px', marginBottom: '15px' }}>
                 Fornecedor e data do pedido não podem ser alterados após a criação.
               </p>
             )}
 
-            {!estaEditando && fornecedorId && regrasAplicaveis.length === 0 && (
+            {!estaEditando && !ehRetirada && fornecedorId && regrasAplicaveis.length === 0 && (
               <p style={{ fontSize: '13px', color: '#999', marginBottom: '15px' }}>
                 Nenhuma regra de pedido cadastrada para este fornecedor neste dia da semana — informe a previsão
                 manualmente.
               </p>
             )}
 
-            {!estaEditando && fornecedorId && regrasAplicaveis.length === 1 && (
+            {!estaEditando && !ehRetirada && fornecedorId && regrasAplicaveis.length === 1 && (
               <p style={{ fontSize: '13px', color: '#666', marginBottom: '15px' }}>
                 Previsão sugerida por regra cadastrada: {descreverRegra(regrasAplicaveis[0])}. Você pode ajustar a
                 data acima manualmente.
               </p>
             )}
 
-            {!estaEditando && fornecedorId && regrasAplicaveis.length > 1 && (
+            {!estaEditando && !ehRetirada && fornecedorId && regrasAplicaveis.length > 1 && (
               <div style={{ marginBottom: '15px', backgroundColor: '#fff8e1', padding: '10px 12px', borderRadius: '5px' }}>
                 <p style={{ fontSize: '13px', fontWeight: 'bold', margin: '0 0 8px 0', color: '#8a6d00' }}>
                   Mais de uma regra se aplica a este dia — escolha qual usar para sugerir a previsão:
@@ -689,7 +1125,7 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
 
             <div style={{ borderTop: '1px solid #eee', paddingTop: '15px', marginBottom: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <h4 style={{ margin: 0 }}>Itens do pedido</h4>
+                <h4 style={{ margin: 0 }}>{ehRetirada ? 'Itens da compra' : 'Itens do pedido'}</h4>
                 <button
                   type="button"
                   onClick={adicionarItem}
@@ -708,13 +1144,26 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
                 </button>
               </div>
               <p style={{ fontSize: '12px', color: '#999', marginTop: 0, marginBottom: '12px' }}>
-                Quantidade pedida e preço estimado desta fase — a quantidade e o preço efetivamente recebidos serão
-                registrados futuramente, na etapa de Recebimento.
+                {ehRetirada
+                  ? 'Quantidade, unidade e preço são os EFETIVAMENTE praticados nesta compra — não há etapa de recebimento separada.'
+                  : 'Quantidade pedida e preço estimado desta fase — a quantidade e o preço efetivamente recebidos serão registrados futuramente, na etapa de Recebimento.'}
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {itens.map((item, indice) => {
                   const chave = chavesItens.current[indice];
+                  const quantidadeNum = Number(item.quantidade);
+                  const valorNum = Number(item.valorUnitario);
+                  const totalItem =
+                    ehRetirada && item.quantidade !== '' && item.valorUnitario !== '' && Number.isFinite(quantidadeNum) && Number.isFinite(valorNum)
+                      ? quantidadeNum * valorNum
+                      : null;
+                  const configResolvida =
+                    ehRetirada && item.produtoId
+                      ? resolverConfigComercial(item, configsPorProduto)
+                      : { produtoFornecedorId: null, fatorConfig: null };
+                  const fatorForcado = configResolvida.fatorConfig != null;
+
                   return (
                     <div key={chave} style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '5px' }}>
                       <div style={{ marginBottom: '8px' }}>
@@ -723,36 +1172,124 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
                           item={item}
                           produtos={produtos}
                           corPrimaria={corPrimaria}
+                          ocultarUnidadeInline={ehRetirada}
+                          registrarInputRef={(el) => {
+                            if (el) inputsBuscaRef.current.set(chave, el);
+                            else inputsBuscaRef.current.delete(chave);
+                          }}
                           onAlterarItem={(alt) => atualizarItem(chave, alt)}
                         />
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '8px' }}>
-                        <div>
-                          <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Quantidade pedida *</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={item.quantidade}
-                            onChange={(e) => atualizarItem(chave, { quantidade: e.target.value })}
-                            style={{ ...campoEstilo, fontSize: '13px' }}
-                          />
-                        </div>
+                      {ehRetirada ? (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                            gap: '10px',
+                            marginBottom: '8px',
+                          }}
+                        >
+                          <div>
+                            <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Unidade *</label>
+                            <input
+                              type="text"
+                              value={item.unidade}
+                              onChange={(e) => atualizarItem(chave, { unidade: e.target.value })}
+                              placeholder="UN, KG, CX..."
+                              style={{ ...campoEstilo, fontSize: '13px' }}
+                            />
+                          </div>
 
-                        <div>
-                          <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Preço unitário estimado</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={item.valorUnitario}
-                            onChange={(e) => atualizarItem(chave, { valorUnitario: e.target.value })}
-                            placeholder="Opcional"
-                            style={{ ...campoEstilo, fontSize: '13px' }}
-                          />
+                          <div>
+                            <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Quantidade *</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.quantidade}
+                              onChange={(e) => atualizarItem(chave, { quantidade: e.target.value })}
+                              style={{ ...campoEstilo, fontSize: '13px' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Preço unitário pago *</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.valorUnitario}
+                              onChange={(e) => atualizarItem(chave, { valorUnitario: e.target.value })}
+                              style={{ ...campoEstilo, fontSize: '13px' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Total do item</label>
+                            <p style={{ margin: 0, padding: '8px 0', fontSize: '13px', fontWeight: 'bold' }}>
+                              {totalItem != null ? formatarMoeda(totalItem) : '—'}
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                            gap: '10px',
+                            marginBottom: '8px',
+                          }}
+                        >
+                          <div>
+                            <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Quantidade pedida *</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.quantidade}
+                              onChange={(e) => atualizarItem(chave, { quantidade: e.target.value })}
+                              style={{ ...campoEstilo, fontSize: '13px' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ ...rotuloEstilo, fontSize: '12px' }}>Preço unitário estimado</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.valorUnitario}
+                              onChange={(e) => atualizarItem(chave, { valorUnitario: e.target.value })}
+                              placeholder="Opcional"
+                              style={{ ...campoEstilo, fontSize: '13px' }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {ehRetirada && item.produtoId && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <label style={{ ...rotuloEstilo, fontSize: '12px' }}>
+                            Fator de conversão{fatorForcado ? '' : ' (opcional)'}
+                          </label>
+                          {fatorForcado ? (
+                            <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>
+                              {configResolvida.fatorConfig} — definido pela configuração comercial cadastrada para
+                              este fornecedor.
+                            </p>
+                          ) : (
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.fatorConversaoBase}
+                              onChange={(e) => atualizarItem(chave, { fatorConversaoBase: e.target.value })}
+                              style={{ ...campoEstilo, fontSize: '13px', maxWidth: '160px' }}
+                            />
+                          )}
+                        </div>
+                      )}
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <button
@@ -779,19 +1316,30 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
                 )}
               </div>
 
-              <p style={{ marginTop: '12px', fontSize: '14px', textAlign: 'right' }}>
-                Total estimado do pedido: <strong>{todosItensComPreco ? formatarMoeda(totalDerivado) : '—'}</strong>
-              </p>
-              {todosItensComPreco ? (
-                <p style={{ marginTop: '-8px', fontSize: '11px', color: '#999', textAlign: 'right' }}>
-                  Estimado a partir do preço informado — não é necessariamente o preço final da compra.
+              {ehRetirada ? (
+                <p style={{ marginTop: '12px', fontSize: '14px', textAlign: 'right' }}>
+                  Total geral da compra:{' '}
+                  <strong>
+                    {todosItensComPreco ? formatarMoeda(totalDerivado) : '—'}
+                  </strong>
                 </p>
               ) : (
-                algumItemComPreco && (
-                  <p style={{ marginTop: '-8px', fontSize: '11px', color: '#e65100', textAlign: 'right' }}>
-                    Total estimado incompleto — nem todos os itens têm preço informado.
+                <>
+                  <p style={{ marginTop: '12px', fontSize: '14px', textAlign: 'right' }}>
+                    Total estimado do pedido: <strong>{todosItensComPreco ? formatarMoeda(totalDerivado) : '—'}</strong>
                   </p>
-                )
+                  {todosItensComPreco ? (
+                    <p style={{ marginTop: '-8px', fontSize: '11px', color: '#999', textAlign: 'right' }}>
+                      Estimado a partir do preço informado — não é necessariamente o preço final da compra.
+                    </p>
+                  ) : (
+                    algumItemComPreco && (
+                      <p style={{ marginTop: '-8px', fontSize: '11px', color: '#e65100', textAlign: 'right' }}>
+                        Total estimado incompleto — nem todos os itens têm preço informado.
+                      </p>
+                    )
+                  )}
+                </>
               )}
             </div>
 
@@ -829,7 +1377,7 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
               fontWeight: 'bold',
             }}
           >
-            {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : 'Criar pedido'}
+            {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : ehRetirada ? 'Registrar retirada' : 'Criar pedido'}
           </button>
         </div>
       </div>

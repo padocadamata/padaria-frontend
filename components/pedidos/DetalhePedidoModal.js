@@ -1,8 +1,11 @@
 import { BotaoIconeAcao, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira, IconeReabrir } from '../producao/IconesAcoes';
 
+// Só o texto mudou nesta frente -- valor interno (pedidos.modalidade_compra)
+// preservado exatamente como já estava (migration 0037), nunca alterado
+// aqui: 'pedido_com_entrega' -> "Entrega", 'compra_presencial' -> "Retirada".
 const MODALIDADE_LABEL = {
-  pedido_com_entrega: 'Pedido com entrega',
-  compra_presencial: 'Compra Presencial',
+  pedido_com_entrega: 'Entrega',
+  compra_presencial: 'Retirada',
 };
 
 const STATUS_LABEL = {
@@ -320,7 +323,7 @@ export default function DetalhePedidoModal({
               pedido() (migration 0037 bloqueia essa RPC para esta
               modalidade). */}
           {pedido.status === 'recebido' && ehCompraPresencial && podeEditar && (
-            <BotaoIconeAcao rotulo="Editar compra presencial" icone={IconeLapis} cor={corPrimaria} onClick={onEditar} />
+            <BotaoIconeAcao rotulo="Editar retirada" icone={IconeLapis} cor={corPrimaria} onClick={onEditar} />
           )}
 
           {pedido.status === 'recebido' && !ehCompraPresencial && podeReabrirRecebimento && (

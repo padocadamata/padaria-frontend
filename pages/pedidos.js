@@ -4,7 +4,6 @@ import MenuOpcoes from '../components/MenuOpcoes';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
-import CompraPresencialForm from '../components/pedidos/CompraPresencialForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
 import ReceberPedidoModal from '../components/pedidos/ReceberPedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
@@ -94,32 +93,6 @@ function BadgeStatusPedido({ pedido, hoje }) {
   );
 }
 
-// Badge discreto -- só aparece para compra_presencial (migration 0037);
-// pedido_com_entrega (a grande maioria, e todo o histórico anterior a
-// esta frente) não ganha nenhum badge extra, para não redesenhar a
-// listagem existente.
-function BadgeModalidadeCompra({ modalidade }) {
-  if (modalidade !== 'compra_presencial') return null;
-
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: '10px',
-        fontSize: '11px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: '#795548',
-        whiteSpace: 'nowrap',
-        marginLeft: '6px',
-      }}
-    >
-      Compra Presencial
-    </span>
-  );
-}
-
 function PedidosConteudo() {
   const router = useRouter();
   const { permissoes } = useAuth();
@@ -135,15 +108,9 @@ function PedidosConteudo() {
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
 
-  // Compras Presenciais (migration 0037) -- mesmo componente
-  // (CompraPresencialForm) para criação (compraParaEditar=null) e edição
-  // (compraParaEditar preenchido) de uma compra já recebida, via
-  // registrar_compra_presencial()/editar_compra_presencial().
-  const [mostrarNovaCompraPresencial, setMostrarNovaCompraPresencial] = useState(false);
-  const [compraParaEditar, setCompraParaEditar] = useState(null);
-
   const [filtroFornecedor, setFiltroFornecedor] = useState('todos');
   const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [filtroModalidade, setFiltroModalidade] = useState('todas');
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
   const [filtroPeriodoFim, setFiltroPeriodoFim] = useState('');
 
@@ -340,58 +307,36 @@ function PedidosConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
-  function abrirNovaCompraPresencial() {
-    setCompraParaEditar(null);
-    setMostrarNovaCompraPresencial(true);
-  }
-
-  // Edição reaproveita CompraPresencialForm (mesmo componente da
-  // criação, `compra` preenchido) -- ao contrário de PedidoForm, aqui
-  // TODOS os campos do cabeçalho continuam editáveis (decisão funcional
-  // desta frente).
-  function abrirEdicaoCompraPresencial(pedido) {
-    fecharDetalhe();
-    setCompraParaEditar(pedido);
-    setMostrarNovaCompraPresencial(true);
-  }
-
-  function fecharCompraPresencial() {
-    setMostrarNovaCompraPresencial(false);
-    setCompraParaEditar(null);
-  }
-
-  function aoSalvarCompraPresencial() {
-    const estaEditando = compraParaEditar != null;
-    fecharCompraPresencial();
-    setMensagemSucesso(estaEditando ? 'Compra presencial atualizada com sucesso.' : 'Compra presencial registrada com sucesso.');
-    setRecarregarTick((tick) => tick + 1);
-  }
-
   function abrirDetalhe(pedido) {
     setPedidoDetalhe(pedido);
   }
 
-  // Edição reaproveita PedidoForm (mesmo componente da criação, `pedido`
-  // preenchido) -- enriquece com fornecedorNome aqui, já resolvido pelo
-  // mapa carregado para a listagem, sem query extra.
+  // Edição reaproveita PedidoForm (mesmo componente da criação e das
+  // duas modalidades, `pedido` preenchido) -- a modalidade em si
+  // (Entrega/Retirada) vem de pedido.modalidade_compra e é decidida
+  // inteiramente dentro do componente; enriquece com fornecedorNome
+  // aqui, já resolvido pelo mapa carregado para a listagem, sem query
+  // extra.
   function abrirEdicao(pedido) {
     fecharDetalhe();
     setPedidoParaEditar({ ...pedido, fornecedorNome: fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id });
   }
 
   // Recarrega SEMPRE ao fechar, mesmo em "Cancelar" -- cobre o caso de
-  // uma edição ter falhado parcialmente (cabeçalho/alguns itens já
-  // salvos antes do erro, ver comentário em PedidoForm.salvarEdicao):
-  // fechar sem recarregar deixaria a listagem mostrando o estado
-  // anterior à edição, mesmo que parte dela já tenha sido persistida.
+  // uma edição de Entrega ter falhado parcialmente (cabeçalho/alguns
+  // itens já salvos antes do erro, ver comentário em
+  // PedidoForm.salvarEdicaoEntrega): fechar sem recarregar deixaria a
+  // listagem mostrando o estado anterior à edição, mesmo que parte dela
+  // já tenha sido persistida.
   function fecharEdicao() {
     setPedidoParaEditar(null);
     setRecarregarTick((tick) => tick + 1);
   }
 
   function aoSalvarEdicao() {
+    const ehRetirada = pedidoParaEditar?.modalidade_compra === 'compra_presencial';
     fecharEdicao();
-    setMensagemSucesso('Pedido atualizado com sucesso.');
+    setMensagemSucesso(ehRetirada ? 'Retirada atualizada com sucesso.' : 'Pedido atualizado com sucesso.');
   }
 
   function abrirConfirmarExclusao(pedido) {
@@ -552,6 +497,7 @@ function PedidosConteudo() {
 
   const pedidosFiltrados = pedidos.filter((pedido) => {
     if (filtroFornecedor !== 'todos' && pedido.fornecedor_id !== filtroFornecedor) return false;
+    if (filtroModalidade !== 'todas' && pedido.modalidade_compra !== filtroModalidade) return false;
     if (filtroPeriodoInicio && pedido.data_pedido < filtroPeriodoInicio) return false;
     if (filtroPeriodoFim && pedido.data_pedido > filtroPeriodoFim) return false;
 
@@ -595,44 +541,28 @@ function PedidosConteudo() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Pedidos a Fornecedores</h2>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {podeInserir && (
-              <button
-                onClick={abrirNovoPedido}
-                style={{
-                  padding: '10px 18px',
-                  backgroundColor: aparencia.corPrimaria,
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                }}
-              >
-                + Novo pedido
-              </button>
-            )}
-
-            {/* registrar_compra_presencial() exige pedidos.inserir E
-                pedidos.receber (a operação cria e já recebe na mesma
-                chamada, migration 0037) -- o botão só aparece com as duas. */}
-            {podeInserir && podeReceber && (
-              <button
-                onClick={abrirNovaCompraPresencial}
-                style={{
-                  padding: '10px 18px',
-                  backgroundColor: 'white',
-                  color: aparencia.corPrimaria,
-                  border: `1px solid ${aparencia.corPrimaria}`,
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                }}
-              >
-                + Nova Compra Presencial
-              </button>
-            )}
-          </div>
+          {/* Botão único -- a escolha entre Entrega/Retirada agora
+              acontece DENTRO do formulário (PedidoForm.js). Retirada
+              exige pedidos.inserir + pedidos.receber (migration 0037);
+              se o usuário só tiver pedidos.inserir, o botão continua
+              aparecendo (Entrega funciona normalmente) e é o próprio
+              PedidoForm que oculta a opção Retirada nesse caso. */}
+          {podeInserir && (
+            <button
+              onClick={abrirNovoPedido}
+              style={{
+                padding: '10px 18px',
+                backgroundColor: aparencia.corPrimaria,
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              + Novo pedido
+            </button>
+          )}
         </div>
 
         {mensagemSucesso && (
@@ -679,6 +609,19 @@ function PedidosConteudo() {
                 <option value="atrasado">Atrasado</option>
                 <option value="recebido">Recebido</option>
                 <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Modalidade</label>
+              <select
+                value={filtroModalidade}
+                onChange={(e) => setFiltroModalidade(e.target.value)}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
+              >
+                <option value="todas">Todas</option>
+                <option value="pedido_com_entrega">Entrega</option>
+                <option value="compra_presencial">Retirada</option>
               </select>
             </div>
 
@@ -751,7 +694,6 @@ function PedidosConteudo() {
                     <tr key={pedido.id} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: '12px' }}>
                         {fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}
-                        <BadgeModalidadeCompra modalidade={pedido.modalidade_compra} />
                         {pedido.observacoes && (
                           <div
                             title={pedido.observacoes}
@@ -807,7 +749,12 @@ function PedidosConteudo() {
       </div>
 
       {mostrarNovoPedido && (
-        <PedidoForm corPrimaria={aparencia.corPrimaria} onSalvo={aoCriarPedido} onCancelar={fecharNovoPedido} />
+        <PedidoForm
+          corPrimaria={aparencia.corPrimaria}
+          podeReceber={podeReceber}
+          onSalvo={aoCriarPedido}
+          onCancelar={fecharNovoPedido}
+        />
       )}
 
       {pedidoParaEditar && (
@@ -818,25 +765,9 @@ function PedidosConteudo() {
             produtoNome: item.produto_id ? produtoNomePorId[item.produto_id] || item.descricao : item.descricao,
           }))}
           corPrimaria={aparencia.corPrimaria}
+          podeReceber={podeReceber}
           onSalvo={aoSalvarEdicao}
           onCancelar={fecharEdicao}
-        />
-      )}
-
-      {mostrarNovaCompraPresencial && (
-        <CompraPresencialForm
-          compra={compraParaEditar}
-          itensIniciais={
-            compraParaEditar
-              ? (itensPorPedido[compraParaEditar.id] || []).map((item) => ({
-                  ...item,
-                  produtoNome: item.produto_id ? produtoNomePorId[item.produto_id] || item.descricao : item.descricao,
-                }))
-              : undefined
-          }
-          corPrimaria={aparencia.corPrimaria}
-          onSalvo={aoSalvarCompraPresencial}
-          onCancelar={fecharCompraPresencial}
         />
       )}
 
@@ -853,11 +784,7 @@ function PedidosConteudo() {
           podeCancelar={podeCancelar}
           podeExcluir={podeExcluir}
           podeReabrirRecebimento={podeReabrirRecebimento}
-          onEditar={() =>
-            pedidoDetalhe.modalidade_compra === 'compra_presencial'
-              ? abrirEdicaoCompraPresencial(pedidoDetalhe)
-              : abrirEdicao(pedidoDetalhe)
-          }
+          onEditar={() => abrirEdicao(pedidoDetalhe)}
           onReceber={() => abrirRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
           onExcluir={() => abrirConfirmarExclusao(pedidoDetalhe)}
