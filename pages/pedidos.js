@@ -87,6 +87,23 @@ function mensagemErroReaberturaRecebimento(error) {
   if (msg.includes('somente pedidos recebidos podem ter o recebimento reaberto')) {
     return 'Este pedido não está mais com status Recebido. Recarregue a página.';
   }
+  // Bloqueio de regra de negócio (migrations 0051/0052) -- NÃO é falha
+  // do sistema, é o comportamento correto: parte dos sacos recebidos
+  // neste pedido já foi consumida (aberta) depois do recebimento, e
+  // desfazer a entrada automática deixaria o saldo de Sacos Fechados
+  // negativo. Distinto do fallback genérico de propósito -- o operador
+  // precisa saber que a ação certa é regularizar Sacos Fechados, não
+  // "tentar de novo".
+  if (msg.includes('o saldo resultante seria negativo')) {
+    return 'Não é possível reabrir este recebimento porque parte dos sacos recebidos já foi movimentada. Regularize as movimentações em Produção > Sacos Fechados antes de reabrir o pedido.';
+  }
+  // Inconsistência estrutural real entre Sacos e Estoque (migration
+  // 0052) -- não é algo que o operador resolve sozinho tentando de novo,
+  // mas também não deve ser confundido com uma falha genérica do
+  // sistema: é um dado que precisa de correção administrativa.
+  if (msg.includes('movimentacao de estoque vinculada encontrada')) {
+    return 'Não foi possível reabrir este recebimento por uma inconsistência nos dados de estoque vinculados a Sacos Fechados. Avise um administrador.';
+  }
   return 'Não foi possível reabrir o recebimento deste pedido. Tente novamente ou avise um administrador.';
 }
 
