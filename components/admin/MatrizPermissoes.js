@@ -1,4 +1,4 @@
-import { ACAO_LABEL, CODIGOS_ADMINISTRATIVOS, MODULOS_MATRIZ, estaExpirado } from '../../lib/auth/matrizPermissoes';
+import { ACAO_LABEL, CODIGOS_ADMINISTRATIVOS, MODULOS_MATRIZ, GRUPO_LABEL, codigosDoGrupo, estaExpirado } from '../../lib/auth/matrizPermissoes';
 
 // Grade de permissões da tela Admin → Usuários e Acessos. Componente
 // controlado: não fala com o Supabase diretamente — só apresenta
@@ -109,33 +109,100 @@ function Cabecalho({ corPrimaria }) {
   );
 }
 
+// Checkbox "Acesso total a <grupo>" (ex.: Produção) -- reaproveita
+// EXATAMENTE os mesmos códigos já listados nos módulos daquele grupo em
+// MODULOS_MATRIZ (via codigosDoGrupo) -- nunca uma permissão nova no
+// banco, só um atalho de UX que marca "Permitir" em todas de uma vez, ou
+// devolve todas para "Herdar do perfil" (controle individual) quando
+// desmarcado. Marcado só quando TODAS já estão como "Permitir" no estado
+// local (evita indicar "total" quando só parte foi concedida).
+function AcessoTotalGrupo({ grupo, corPrimaria, estado, onAlterarLinha }) {
+  const codigos = codigosDoGrupo(grupo);
+  const todasPermitir = codigos.length > 0 && codigos.every((codigo) => obterEstadoLinha(estado, codigo).estado === 'permitir');
+
+  function alternar() {
+    const novoEstado = todasPermitir ? 'herdar' : 'permitir';
+    for (const codigo of codigos) {
+      onAlterarLinha(codigo, { estado: novoEstado, expiraEm: '' });
+    }
+  }
+
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: corPrimaria, cursor: 'pointer', fontSize: '14px' }}>
+      <input type="checkbox" checked={todasPermitir} onChange={alternar} style={{ width: '16px', height: '16px' }} />
+      Acesso total à {GRUPO_LABEL[grupo] || grupo}
+    </label>
+  );
+}
+
+function TabelaModulo({ modulo, corPrimaria, permissoesHerdadas, overridesOriginais, estado, onAlterarLinha }) {
+  return (
+    <div style={{ marginBottom: '25px' }}>
+      <h4 style={{ color: corPrimaria, marginBottom: '8px' }}>{modulo.label}</h4>
+      <div style={{ overflowX: 'auto', border: '1px solid #eee', borderRadius: '5px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <Cabecalho corPrimaria={corPrimaria} />
+          </thead>
+          <tbody>
+            {modulo.itens.map(({ codigo, acao }) => (
+              <LinhaPermissao
+                key={codigo}
+                codigo={codigo}
+                acaoLabel={ACAO_LABEL[acao] || acao}
+                corPrimaria={corPrimaria}
+                herdado={permissoesHerdadas.has(codigo)}
+                overrideOriginal={overridesOriginais.get(codigo)}
+                linhaEstado={obterEstadoLinha(estado, codigo)}
+                onAlterar={onAlterarLinha}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function MatrizPermissoes({ corPrimaria, permissoesHerdadas, overridesOriginais, estado, onAlterarLinha }) {
+  // Módulos sem `grupo` renderizam individualmente, exatamente como antes
+  // (Dashboard/Fornecedores). Módulos COM `grupo` (hoje só 'producao')
+  // ganham um cabeçalho de seção com o checkbox "Acesso total" acima de
+  // todas as suas tabelas -- nenhuma lista adicional para manter: um
+  // módulo novo só precisa marcar `grupo: 'producao'` em
+  // lib/auth/matrizPermissoes.js para entrar automaticamente aqui.
+  const modulosSemGrupo = MODULOS_MATRIZ.filter((modulo) => !modulo.grupo);
+  const gruposUnicos = [...new Set(MODULOS_MATRIZ.filter((modulo) => modulo.grupo).map((modulo) => modulo.grupo))];
+
+  const propsComuns = { corPrimaria, permissoesHerdadas, overridesOriginais, estado, onAlterarLinha };
+
   return (
     <div>
-      {MODULOS_MATRIZ.map((modulo) => (
-        <div key={modulo.chave} style={{ marginBottom: '25px' }}>
-          <h4 style={{ color: corPrimaria, marginBottom: '8px' }}>{modulo.label}</h4>
-          <div style={{ overflowX: 'auto', border: '1px solid #eee', borderRadius: '5px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <Cabecalho corPrimaria={corPrimaria} />
-              </thead>
-              <tbody>
-                {modulo.itens.map(({ codigo, acao }) => (
-                  <LinhaPermissao
-                    key={codigo}
-                    codigo={codigo}
-                    acaoLabel={ACAO_LABEL[acao] || acao}
-                    corPrimaria={corPrimaria}
-                    herdado={permissoesHerdadas.has(codigo)}
-                    overrideOriginal={overridesOriginais.get(codigo)}
-                    linhaEstado={obterEstadoLinha(estado, codigo)}
-                    onAlterar={onAlterarLinha}
-                  />
-                ))}
-              </tbody>
-            </table>
+      {modulosSemGrupo.map((modulo) => (
+        <TabelaModulo key={modulo.chave} modulo={modulo} {...propsComuns} />
+      ))}
+
+      {gruposUnicos.map((grupo) => (
+        <div key={grupo} style={{ marginBottom: '10px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
+              marginBottom: '15px',
+              paddingBottom: '10px',
+              borderBottom: `2px solid ${corPrimaria}`,
+            }}
+          >
+            <h3 style={{ color: corPrimaria, margin: 0 }}>{GRUPO_LABEL[grupo] || grupo}</h3>
+            <AcessoTotalGrupo grupo={grupo} corPrimaria={corPrimaria} estado={estado} onAlterarLinha={onAlterarLinha} />
           </div>
+
+          {MODULOS_MATRIZ.filter((modulo) => modulo.grupo === grupo).map((modulo) => (
+            <TabelaModulo key={modulo.chave} modulo={modulo} {...propsComuns} />
+          ))}
         </div>
       ))}
 
