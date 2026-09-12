@@ -40,6 +40,7 @@ export default function AgendaFiltros({ categorias, filtro, onMudarFiltro }) {
           <option value="todos">Todos</option>
           <option value="evento">Evento</option>
           <option value="tarefa">Tarefa</option>
+          <option value="aniversario">Aniversário</option>
         </select>
       </div>
 

@@ -9,10 +9,12 @@ import AgendaItemForm from '../components/agenda/AgendaItemForm';
 import AgendaItemDetalheModal from '../components/agenda/AgendaItemDetalheModal';
 import GerenciarCategoriasAgendaModal from '../components/agenda/GerenciarCategoriasAgendaModal';
 import ConcluirTarefaModal from '../components/agenda/ConcluirTarefaModal';
+import AniversarioOcorrenciaModal from '../components/agenda/AniversarioOcorrenciaModal';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
+import { itemAgendaAniversario } from '../lib/funcionarios/aniversarios';
 
 // FullCalendar manipula o DOM diretamente -- client-only, sem SSR
 // (mesmo padrão recomendado pela própria lib para Next.js).
@@ -29,6 +31,15 @@ function AgendaConteudo() {
   const podeInserir = hasPermissao(permissoes, PERMISSOES.AGENDA_INSERIR);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.AGENDA_EDITAR);
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.AGENDA_EXCLUIR);
+  // Aniversário de funcionário é uma integração ADITIVA (ver
+  // lib/funcionarios/aniversarios.js:itemAgendaAniversario) -- só busca
+  // dados de funcionários quando o usuário atual também tem
+  // funcionarios.visualizar, além de já precisar de agenda.visualizar
+  // para estar nesta tela. Quem não tem a permissão nunca dispara a
+  // consulta e nunca recebe nome/data de nascimento de funcionário por
+  // aqui (RLS de public.funcionarios bloquearia de qualquer forma, mas
+  // o gate aqui evita até tentar e mostrar um estado de erro confuso).
+  const podeVerFuncionarios = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_VISUALIZAR);
 
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
@@ -65,6 +76,8 @@ function AgendaConteudo() {
   const [ocorrenciaParaReabrir, setOcorrenciaParaReabrir] = useState(null);
   const [processandoReabertura, setProcessandoReabertura] = useState(false);
   const [erroReabertura, setErroReabertura] = useState('');
+  const [funcionariosNascimento, setFuncionariosNascimento] = useState([]);
+  const [aniversarioDetalhe, setAniversarioDetalhe] = useState(null);
 
   useEffect(() => {
     let ativo = true;
@@ -86,6 +99,45 @@ function AgendaConteudo() {
       ativo = false;
     };
   }, [recarregarTick]);
+
+  // Fonte de verdade continua sendo funcionarios.data_nascimento -- nada
+  // é gravado em agenda_itens. Busca só id/nome/data_nascimento (nunca
+  // CPF/telefone/endereço) de funcionários ATIVOS; um funcionário
+  // inativado some daqui na consulta seguinte, sem nenhuma limpeza
+  // manual. Não depende de `janela`: a lista completa de aniversários
+  // ativos é pequena (mesmo volume da tabela de funcionários), e
+  // lib/agenda/expandirRecorrencia.js já resolve, em memória, quais
+  // datas caem dentro da janela visível a cada troca de mês/semana.
+  useEffect(() => {
+    if (!podeVerFuncionarios) {
+      setFuncionariosNascimento([]);
+      return undefined;
+    }
+    let ativo = true;
+    async function carregarNascimentos() {
+      const supabase = createClient();
+      const { data, error: erroNascimentos } = await supabase
+        .from('funcionarios')
+        .select('id, nome, data_nascimento')
+        .eq('ativo', true)
+        .not('data_nascimento', 'is', null);
+      if (!ativo) return;
+      if (erroNascimentos) {
+        console.error('Erro ao carregar aniversários de funcionários para a Agenda:', erroNascimentos);
+        return;
+      }
+      setFuncionariosNascimento(data || []);
+    }
+    carregarNascimentos();
+    return () => {
+      ativo = false;
+    };
+  }, [podeVerFuncionarios]);
+
+  const itensAniversario = useMemo(
+    () => funcionariosNascimento.map(itemAgendaAniversario),
+    [funcionariosNascimento]
+  );
 
   // Consulta por janela (seção 22/6 da arquitetura aprovada): nunca
   // busca "todas as ocorrências futuras" nem superbusca avulsos antigos
@@ -176,7 +228,16 @@ function AgendaConteudo() {
 
   const ocorrencias = useMemo(() => {
     if (!janela) return [];
-    const todas = expandirRecorrencia({ itens, excecoes, inicioJanela: janela.inicio, fimJanela: janela.fim });
+    // itensAniversario são só expandidos aqui (nunca lidos de volta do
+    // banco) -- reaproveita exatamente a mesma expansão de recorrência
+    // anual já usada por qualquer evento/tarefa recorrente real, sem
+    // nenhuma lógica de data duplicada.
+    const todas = expandirRecorrencia({
+      itens: [...itens, ...itensAniversario],
+      excecoes,
+      inicioJanela: janela.inicio,
+      fimJanela: janela.fim,
+    });
     return todas.filter((oc) => {
       if (filtro.categoria !== 'todas' && oc.item.categoria !== filtro.categoria) return false;
       if (filtro.tipo !== 'todos' && oc.item.tipo !== filtro.tipo) return false;
@@ -184,7 +245,7 @@ function AgendaConteudo() {
       if (filtro.status === 'concluida' && !oc.concluida) return false;
       return true;
     });
-  }, [itens, excecoes, janela, filtro]);
+  }, [itens, itensAniversario, excecoes, janela, filtro]);
 
   const onMudarJanela = useCallback((inicio, fim) => {
     setJanela((atual) => (atual && atual.inicio === inicio && atual.fim === fim ? atual : { inicio, fim }));
@@ -300,7 +361,7 @@ function AgendaConteudo() {
             visao={visao}
             ocorrencias={ocorrencias}
             onMudarJanela={onMudarJanela}
-            onClicarOcorrencia={(oc) => setOcorrenciaDetalhe(oc)}
+            onClicarOcorrencia={(oc) => (oc.item.tipo === 'aniversario' ? setAniversarioDetalhe(oc) : setOcorrenciaDetalhe(oc))}
             onClicarData={(data) => {
               if (podeInserir) setModalForm({ modo: 'criar', dataInicialSugerida: data });
             }}
@@ -348,6 +409,10 @@ function AgendaConteudo() {
             setOcorrenciaParaReabrir(oc);
           }}
         />
+      )}
+
+      {aniversarioDetalhe && (
+        <AniversarioOcorrenciaModal ocorrencia={aniversarioDetalhe} onFechar={() => setAniversarioDetalhe(null)} />
       )}
 
       {ocorrenciaParaConcluir && (

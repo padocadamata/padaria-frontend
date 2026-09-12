@@ -15,6 +15,11 @@ const CORES_CATEGORIA = {
   FINANCEIRO: '#4CAF50',
   MANUTENÇÃO: '#FF9800',
   OUTROS: '#9E9E9E',
+  // Categoria sintética usada só por ocorrências de aniversário de
+  // funcionário (lib/funcionarios/aniversarios.js:itemAgendaAniversario)
+  // -- nunca existe em agenda_categorias, é só para colorir/identificar
+  // visualmente estes cards na grade.
+  ANIVERSARIO: '#E91E63',
 };
 
 function somarUmDia(dataYYYYMMDD) {

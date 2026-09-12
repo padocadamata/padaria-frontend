@@ -6,6 +6,7 @@ import LembretesRapidos from '../components/dashboard/LembretesRapidos';
 import AtencaoProducao from '../components/dashboard/AtencaoProducao';
 import RecebimentosPrevistos from '../components/dashboard/RecebimentosPrevistos';
 import ProximosPedidos from '../components/dashboard/ProximosPedidos';
+import AniversariantesFuncionarios from '../components/dashboard/AniversariantesFuncionarios';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { useAuth } from '../hooks/useAuth';
 import { dataLocalHoje, diaDaSemanaExibicao } from '../lib/data/dataLocal';
@@ -25,6 +26,7 @@ function DashboardConteudo() {
   const podeVerProducao = hasPermissao(permissoes, PERMISSOES.PRODUCAO_VISUALIZAR);
   const podeVerFornecedores = hasPermissao(permissoes, PERMISSOES.FORNECEDORES_VISUALIZAR);
   const podeVerPedidos = hasPermissao(permissoes, PERMISSOES.PEDIDOS_VISUALIZAR);
+  const podeVerFuncionarios = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_VISUALIZAR);
   const [aparencia, setAparencia] = useState({
     corPrimaria: '#8B4513',
     corFundo: '#f5f5f5',
@@ -84,6 +86,8 @@ function DashboardConteudo() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {podeVerProducao && <AtencaoProducao corPrimaria={aparencia.corPrimaria} />}
+
+          {podeVerFuncionarios && <AniversariantesFuncionarios corPrimaria={aparencia.corPrimaria} />}
 
           <LembretesRapidos corPrimaria={aparencia.corPrimaria} />
 

@@ -26,6 +26,14 @@ const ROTULOS = {
   pedidos: 'Pedidos',
   catalogo: 'Catálogo',
   agenda: 'Agenda',
+  // Rótulo desta barra é o nome da ÁREA ("Folha de Pagamento"), igual ao
+  // já usado em MODULOS.funcionarios.label (menu Opções) -- só sem o
+  // emoji, para combinar com o texto puro dos demais botões desta barra
+  // (Dashboard/Fornecedores/Produção/...). Rota continua /funcionarios
+  // (único módulo funcional desta fase); Escala/Pagamentos/FOPAG/Cartão
+  // Ponto crescem como sub-rotas de /funcionarios/*, sem precisar de
+  // nova entrada aqui.
+  funcionarios: 'Folha de Pagamento',
 };
 
 export default function NavegacaoPrincipal({ corPrimaria }) {
