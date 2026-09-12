@@ -15,7 +15,6 @@ const ROTAS_PROTEGIDAS = [
   '/fornecedores',
   '/producao',
   '/perfil',
-  '/admin-aparencia',
   '/admin',
 ];
 

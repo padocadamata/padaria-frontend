@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import DadosFuncionarioForm from '../../components/funcionarios/DadosFuncionarioForm';
 import { PERMISSOES } from '../../lib/auth/permissoes';
 import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 // Cria SOMENTE o funcionario (public.funcionarios) -- dependentes e
 // beneficios só podem ser cadastrados depois que funcionario.id existe,
@@ -15,18 +15,7 @@ import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
 // prontas.
 function NovoFuncionarioConteudo() {
   const router = useRouter();
-  const [aparencia, setAparencia] = useState({ corPrimaria: '#8B4513', corFundo: '#f5f5f5', nomeEmpresa: 'Padaria Sistema' });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   function aoCriar(novoId) {
     registrarAuditoria({ entidade: 'funcionario', registroId: novoId, acao: 'criou' });
@@ -35,12 +24,7 @@ function NovoFuncionarioConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Folha de Pagamento</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Folha de Pagamento" />
 
       <div style={{ maxWidth: '900px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

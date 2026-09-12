@@ -1,51 +1,16 @@
-import { useState, useEffect } from 'react';
-import MenuOpcoes from '../components/MenuOpcoes';
+import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import { useAuth } from '../hooks/useAuth';
 import { PERMISSOES } from '../lib/auth/permissoes';
+import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 function PerfilConteudo() {
   const { usuarioAuth, perfilUsuario } = useAuth();
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-    logoBase64: null,
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-
-    const handleAparenciaAlterada = () => {
-      const config = localStorage.getItem('aparenciaConfig');
-      if (config) {
-        try {
-          setAparencia(JSON.parse(config));
-        } catch (e) {
-          console.error('Erro ao carregar aparência:', e);
-        }
-      }
-    };
-
-    window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
-    return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Meu Perfil</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Perfil" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>

@@ -1,31 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import { PERMISSOES } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 function UsuariosConteudo() {
   const router = useRouter();
   const [usuarios, setUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-  });
+  const aparencia = APARENCIA_FIXA;
 
   useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-
     async function carregar() {
       const supabase = createClient();
       // RLS (migration 0005) já garante que só admin consegue ver todas as
@@ -49,12 +37,7 @@ function UsuariosConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Usuários</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Usuários" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>

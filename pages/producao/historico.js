@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
@@ -24,6 +24,7 @@ import {
 import { PERMISSOES, hasPermissao, isAdmin } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 
@@ -139,39 +140,7 @@ function HistoricoConteudo() {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [filtroDiaSemana, setFiltroDiaSemana] = useState('todos');
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-    logoBase64: null,
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-
-    const handleAparenciaAlterada = () => {
-      const novaConfig = localStorage.getItem('aparenciaConfig');
-
-      if (novaConfig) {
-        try {
-          setAparencia(JSON.parse(novaConfig));
-        } catch (e) {
-          console.error('Erro ao carregar aparência:', e);
-        }
-      }
-    };
-
-    window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
-    return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   // Carga única (mesmo raciocínio de volume pequeno já usado em
   // pages/producao/produtos.js — hoje 107 registros). Se o volume crescer
@@ -360,30 +329,7 @@ function HistoricoConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div
-          style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {aparencia.logoBase64 && (
-              <img
-                src={aparencia.logoBase64}
-                style={{ height: '50px', maxWidth: '150px', borderRadius: '5px' }}
-                alt="Logo"
-              />
-            )}
-            <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
-          </div>
-
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Produção" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

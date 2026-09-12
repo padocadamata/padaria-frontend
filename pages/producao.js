@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import MenuOpcoes from '../components/MenuOpcoes';
+import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import CardTurno from '../components/producao/CardTurno';
@@ -10,6 +10,7 @@ import { PERMISSOES } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { dataLocalHoje, dataLocalExibicao } from '../lib/data/dataLocal';
+import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 const TURNOS = [
   { chave: 'manha', label: 'Manhã' },
@@ -25,12 +26,7 @@ function capitalizarPrimeiraLetra(texto) {
 function ProducaoConteudo() {
   const { permissoes, perfilUsuario } = useAuth();
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-    logoBase64: null,
-  });
+  const aparencia = APARENCIA_FIXA;
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -42,31 +38,6 @@ function ProducaoConteudo() {
   // Não é persistido em lugar nenhum — ao recarregar a página, só volta a
   // aparecer se já existir registro de hoje para aquele produto.
   const [produtosExtras, setProdutosExtras] = useState([]);
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-
-    const handleAparenciaAlterada = () => {
-      const novaConfig = localStorage.getItem('aparenciaConfig');
-      if (novaConfig) {
-        try {
-          setAparencia(JSON.parse(novaConfig));
-        } catch (e) {
-          console.error('Erro ao carregar aparência:', e);
-        }
-      }
-    };
-
-    window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
-    return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
-  }, []);
 
   const carregarDados = useCallback(async () => {
     setCarregando(true);
@@ -182,17 +153,7 @@ function ProducaoConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {aparencia.logoBase64 && (
-              <img src={aparencia.logoBase64} style={{ height: '50px', maxWidth: '150px', borderRadius: '5px' }} alt="Logo" />
-            )}
-            <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
-          </div>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Produção" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

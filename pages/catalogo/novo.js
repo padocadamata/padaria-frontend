@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import DadosProdutoForm from '../../components/catalogo/DadosProdutoForm';
 import { PERMISSOES } from '../../lib/auth/permissoes';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 // Cria SOMENTE o produto (public.produtos) -- fornecedores e histórico de
 // compras só podem ser cadastrados depois que produto.id existe, então
@@ -13,23 +13,7 @@ import { PERMISSOES } from '../../lib/auth/permissoes';
 // receber a primeira configuração/lançamento.
 function NovoProdutoConteudo() {
   const router = useRouter();
-
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   function aoCriar(novoId) {
     router.push(`/catalogo/${novoId}`);
@@ -37,12 +21,7 @@ function NovoProdutoConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Catálogo de Produtos</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Catálogo" />
 
       <div style={{ maxWidth: '800px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

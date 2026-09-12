@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import DadosProdutoForm from '../../components/catalogo/DadosProdutoForm';
@@ -10,6 +10,7 @@ import ResumoPrecos from '../../components/catalogo/ResumoPrecos';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 // Mesmo critério de nome de exibição já usado em pages/fornecedores.js
 // (nome_fantasia como principal, nome legado como fallback).
@@ -41,22 +42,7 @@ function ProdutoDetalheConteudo() {
   const [erroCarga, setErroCarga] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   useEffect(() => {
     if (!id) return undefined;
@@ -149,12 +135,7 @@ function ProdutoDetalheConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Catálogo de Produtos</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Catálogo" />
 
       <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

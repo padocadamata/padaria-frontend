@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../components/MenuOpcoes';
+import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
@@ -13,6 +13,7 @@ import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../lib/data/dataLocal';
+import { APARENCIA_FIXA } from '../lib/branding/tema';
 import { JANELA_RECEBIDOS_DIAS } from '../lib/pedidos/resumoConfig';
 
 // A URL (?filtro=<chave>) é a ÚNICA fonte persistente do filtro de
@@ -192,12 +193,7 @@ function PedidosConteudo() {
   const [reabrindoRecebimento, setReabrindoRecebimento] = useState(false);
   const [erroReaberturaRecebimento, setErroReaberturaRecebimento] = useState('');
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-    logoBase64: null,
-  });
+  const aparencia = APARENCIA_FIXA;
 
   const podeInserir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_INSERIR);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EDITAR);
@@ -206,31 +202,6 @@ function PedidosConteudo() {
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
   const podeReabrirRecebimento = hasPermissao(permissoes, PERMISSOES.PEDIDOS_REABRIR_RECEBIMENTO);
   const hoje = dataLocalHoje();
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-
-    const handleAparenciaAlterada = () => {
-      const novaConfig = localStorage.getItem('aparenciaConfig');
-      if (novaConfig) {
-        try {
-          setAparencia(JSON.parse(novaConfig));
-        } catch (e) {
-          console.error('Erro ao carregar aparência:', e);
-        }
-      }
-    };
-
-    window.addEventListener('aparenciaAlterada', handleAparenciaAlterada);
-    return () => window.removeEventListener('aparenciaAlterada', handleAparenciaAlterada);
-  }, []);
 
   // Carga única (mesmo raciocínio de volume pequeno já usado em
   // pages/producao/produtos.js e historico.js) — join manual via mapa em
@@ -594,30 +565,7 @@ function PedidosConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div
-          style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {aparencia.logoBase64 && (
-              <img
-                src={aparencia.logoBase64}
-                style={{ height: '50px', maxWidth: '150px', borderRadius: '5px' }}
-                alt="Logo"
-              />
-            )}
-            <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
-          </div>
-
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Pedidos" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

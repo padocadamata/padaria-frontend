@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
@@ -12,6 +12,7 @@ import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { mensagemErroLoteExpositor } from '../../lib/producao/mensagensExpositor';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 // Controle de Expositores (migration 0030). "Situação" NUNCA é lida do
 // banco (não existe coluna para isso) -- é sempre derivada aqui,
@@ -109,22 +110,7 @@ function ExpositoresConteudo() {
   const podeEditarConcluido = hasPermissao(permissoes, PERMISSOES.PRODUCAO_EXPOSITORES_EDITAR);
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.PRODUCAO_EXPOSITORES_EXCLUIR);
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   const hoje = dataLocalHoje();
   const amanha = somarDias(hoje, 1);
@@ -454,12 +440,7 @@ function ExpositoresConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Produção</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Produção" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

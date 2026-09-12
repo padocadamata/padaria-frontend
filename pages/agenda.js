@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import MenuOpcoes from '../components/MenuOpcoes';
+import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import NavegacaoAgenda from '../components/agenda/NavegacaoAgenda';
@@ -15,6 +15,7 @@ import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
 import { itemAgendaAniversario } from '../lib/funcionarios/aniversarios';
+import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 // FullCalendar manipula o DOM diretamente -- client-only, sem SSR
 // (mesmo padrão recomendado pela própria lib para Next.js).
@@ -41,23 +42,7 @@ function AgendaConteudo() {
   // o gate aqui evita até tentar e mostrar um estado de erro confuso).
   const podeVerFuncionarios = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_VISUALIZAR);
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513',
-    corFundo: '#f5f5f5',
-    nomeEmpresa: 'Padaria Sistema',
-    logoBase64: null,
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   const [visao, setVisao] = useState('dayGridMonth');
   const [janela, setJanela] = useState(null); // { inicio, fim }
@@ -312,17 +297,7 @@ function AgendaConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {aparencia.logoBase64 && (
-              <img src={aparencia.logoBase64} style={{ height: '50px', maxWidth: '150px', borderRadius: '5px' }} alt="Logo" />
-            )}
-            <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
-          </div>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Agenda" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

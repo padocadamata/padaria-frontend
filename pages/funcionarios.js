@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../components/MenuOpcoes';
+import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import GerenciarCargosModal from '../components/funcionarios/GerenciarCargosModal';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
+import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 function FuncionariosConteudo() {
   const router = useRouter();
@@ -14,7 +15,7 @@ function FuncionariosConteudo() {
   const podeInserir = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_INSERIR);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_EDITAR);
 
-  const [aparencia, setAparencia] = useState({ corPrimaria: '#8B4513', corFundo: '#f5f5f5', nomeEmpresa: 'Padaria Sistema' });
+  const aparencia = APARENCIA_FIXA;
   const [funcionarios, setFuncionarios] = useState([]);
   const [cargos, setCargos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -22,17 +23,6 @@ function FuncionariosConteudo() {
   const [filtroStatus, setFiltroStatus] = useState('ativos');
   const [busca, setBusca] = useState('');
   const [modalCargosAberto, setModalCargosAberto] = useState(false);
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
 
   async function carregar() {
     setCarregando(true);
@@ -73,12 +63,7 @@ function FuncionariosConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0 }}>Folha de Pagamento</h1>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Folha de Pagamento" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />

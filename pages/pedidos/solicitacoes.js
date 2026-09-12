@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import MenuOpcoes from '../../components/MenuOpcoes';
+import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import NavegacaoPedidos from '../../components/pedidos/NavegacaoPedidos';
@@ -11,6 +11,7 @@ import ConfirmarAcaoModal from '../../components/admin/ConfirmarAcaoModal';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
+import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 // Extrai defensivamente o `id` do pedido recém-criado a partir do que
 // supabase.rpc() devolve em `data` -- criar_pedido/registrar_compra_
@@ -61,20 +62,7 @@ function SolicitacoesConteudo() {
   const podeReabrirPedido = hasPermissao(permissoes, PERMISSOES.PEDIDOS_REABRIR_RECEBIMENTO);
   const podeExcluirPedido = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
 
-  const [aparencia, setAparencia] = useState({
-    corPrimaria: '#8B4513', corFundo: '#f5f5f5', nomeEmpresa: 'Padaria Sistema', logoBase64: null,
-  });
-
-  useEffect(() => {
-    const config = localStorage.getItem('aparenciaConfig');
-    if (config) {
-      try {
-        setAparencia(JSON.parse(config));
-      } catch (e) {
-        console.error('Erro ao carregar aparência:', e);
-      }
-    }
-  }, []);
+  const aparencia = APARENCIA_FIXA;
 
   const [solicitacoes, setSolicitacoes] = useState([]);
   const [nomePorId, setNomePorId] = useState({});
@@ -457,17 +445,7 @@ function SolicitacoesConteudo() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <div style={{ backgroundColor: aparencia.corPrimaria, color: 'white', padding: '20px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {aparencia.logoBase64 && (
-              <img src={aparencia.logoBase64} style={{ height: '50px', maxWidth: '150px', borderRadius: '5px' }} alt="Logo" />
-            )}
-            <h1 style={{ margin: 0 }}>{aparencia.nomeEmpresa || 'Padaria Sistema'}</h1>
-          </div>
-          <MenuOpcoes corPrimaria={aparencia.corPrimaria} />
-        </div>
-      </div>
+      <CabecalhoPrincipal modulo="Pedidos" />
 
       <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
         <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
