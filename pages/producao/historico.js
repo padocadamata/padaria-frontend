@@ -25,12 +25,21 @@ import { PERMISSOES, hasPermissao, isAdmin } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import { somarDias } from '../../lib/data/dataLocal';
+import Paginacao from '../../components/Paginacao';
+import BotaoLimparFiltros, { campoFiltroEstilo } from '../../components/BotaoLimparFiltros';
 
 const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 
-// Ordem explícita de exibição dentro do mesmo dia — não depende de
-// 'manha' < 'tarde' ser alfabeticamente verdade, é uma regra própria.
-const TURNO_ORDEM = { manha: 0, tarde: 1 };
+// Paginação NA CONSULTA (Supabase .range() + count exact): o histórico só
+// cresce, então nada de carregar tudo no navegador (além de crescer sem
+// limite, o PostgREST corta silenciosamente em 1000 linhas por resposta).
+const TAMANHO_PAGINA = 20;
+const TAMANHO_BLOCO_LEITURA = 1000;
+
+// Teto de datas enviadas em .in('data', [...]) para o filtro de dia da
+// semana (~10 anos de um mesmo dia da semana; ~6 KB de URL).
+const MAX_DATAS_DIA_SEMANA = 520;
 
 // Opções do filtro de dia da semana, na ordem operacional (segunda a
 // domingo) — value é o índice real de Date.getDay() (0=domingo), não a
@@ -71,13 +80,21 @@ function formatarPercentualVenda(quantidadeVendida, quantidadeProduzida) {
   return `${percentual.toFixed(1)}%`;
 }
 
-function ordenarRegistros(registros) {
-  return [...registros].sort((a, b) => {
-    if (a.data !== b.data) {
-      return a.data < b.data ? 1 : -1; // data decrescente
-    }
-    return TURNO_ORDEM[a.turno] - TURNO_ORDEM[b.turno]; // manhã antes de tarde
-  });
+// Dia da semana não é coluna de producao_registros (derivado de `data`),
+// então o filtro vira uma lista de datas de calendário -- todas as datas
+// do dia da semana escolhido entre inicio e fim (YYYY-MM-DD, aritmética
+// de calendário puro) -- aplicada com .in('data', ...) na consulta.
+// Devolve null se passar do teto (período longo demais para a URL).
+function datasDoDiaDaSemana(inicio, fim, diaSemana) {
+  const deslocamento = (Number(diaSemana) - indiceDiaSemana(inicio) + 7) % 7;
+  const datas = [];
+  let atual = somarDias(inicio, deslocamento);
+  while (atual <= fim) {
+    if (datas.length >= MAX_DATAS_DIA_SEMANA) return null;
+    datas.push(atual);
+    atual = somarDias(atual, 7);
+  }
+  return datas;
 }
 
 function BadgeStatus({ status }) {
@@ -122,10 +139,16 @@ function HistoricoConteudo() {
   const { permissoes, perfilUsuario } = useAuth();
 
   const [registros, setRegistros] = useState([]);
+  const [totalRegistros, setTotalRegistros] = useState(0);
   const [receitaNomePorId, setReceitaNomePorId] = useState({});
+  const [receitaIdsComRegistro, setReceitaIdsComRegistro] = useState([]);
   const [produtosAtivos, setProdutosAtivos] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [carregandoBase, setCarregandoBase] = useState(true);
+  const [baseCarregada, setBaseCarregada] = useState(false);
+  const [carregandoRegistros, setCarregandoRegistros] = useState(true);
   const [erro, setErro] = useState('');
+  const [erroRegistros, setErroRegistros] = useState('');
+  const [pagina, setPagina] = useState(1);
 
   const [registroVisualizado, setRegistroVisualizado] = useState(null);
   // tipo: 'reabrir' | 'fechar' | 'sobras' | 'completar_retroativo' | 'editar_producao' | 'excluir'
@@ -142,24 +165,38 @@ function HistoricoConteudo() {
 
   const aparencia = APARENCIA_FIXA;
 
-  // Carga única (mesmo raciocínio de volume pequeno já usado em
-  // pages/producao/produtos.js — hoje 107 registros). Se o volume crescer
-  // muito com o tempo, isso deve migrar para filtro de período server-side.
+  // Carga "base" (não depende de filtro/página): nomes das receitas, lista
+  // de produtos ativos (seletor de "Lançar produção passada") e quais
+  // receitas têm ao menos um registro (opções do filtro Produto -- antes
+  // derivadas dos registros carregados, que agora vêm só de 20 em 20).
+  // Os registros em si vêm da consulta paginada mais abaixo.
   useEffect(() => {
     let efeitoAtivo = true;
 
     async function carregarHistorico() {
-      setCarregando(true);
+      setCarregandoBase(true);
       setErro('');
 
       const supabase = createClient();
 
-      const [registrosResp, receitasResp, produtosAtivosResp] = await Promise.all([
-        supabase
-          .from('producao_registros')
-          .select(
-            'id, data, turno, receita_id, origem, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, observacoes, houve_falta, criado_em, atualizado_em'
-          ),
+      // Leitura leve (só receita_id) em blocos de 1000 -- o PostgREST
+      // limita cada resposta, e um único select cortaria em silêncio.
+      async function lerReceitaIdsComRegistro() {
+        const ids = new Set();
+        for (let inicio = 0; ; inicio += TAMANHO_BLOCO_LEITURA) {
+          const { data, error } = await supabase
+            .from('producao_registros')
+            .select('receita_id')
+            .order('id')
+            .range(inicio, inicio + TAMANHO_BLOCO_LEITURA - 1);
+          if (error) return { data: null, error };
+          for (const linha of data || []) ids.add(linha.receita_id);
+          if ((data || []).length < TAMANHO_BLOCO_LEITURA) return { data: Array.from(ids), error: null };
+        }
+      }
+
+      const [idsComRegistroResp, receitasResp, produtosAtivosResp] = await Promise.all([
+        lerReceitaIdsComRegistro(),
         // CONTEXTO HISTÓRICO: LEFT embed (produtos, sem !inner) -- nunca
         // pode esconder um registro/receita histórica por causa de um
         // vínculo ausente ou de um produto desativado depois. Fallback
@@ -184,14 +221,14 @@ function HistoricoConteudo() {
         return;
       }
 
-      const primeiroErro = registrosResp.error || receitasResp.error || produtosAtivosResp.error;
+      const primeiroErro = idsComRegistroResp.error || receitasResp.error || produtosAtivosResp.error;
       if (primeiroErro) {
         console.error('Erro ao carregar histórico de produção:', primeiroErro);
         setErro('Não foi possível carregar o histórico de produção.');
-        setRegistros([]);
+        setReceitaIdsComRegistro([]);
         setReceitaNomePorId({});
         setProdutosAtivos([]);
-        setCarregando(false);
+        setCarregandoBase(false);
         return;
       }
 
@@ -206,10 +243,11 @@ function HistoricoConteudo() {
         .map((p) => ({ id: p.id, nome: p.produtos?.nome || '' }))
         .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
 
-      setRegistros(ordenarRegistros(registrosResp.data || []));
+      setReceitaIdsComRegistro(idsComRegistroResp.data || []);
       setReceitaNomePorId(mapa);
       setProdutosAtivos(produtosAtivosAchatados);
-      setCarregando(false);
+      setBaseCarregada(true);
+      setCarregandoBase(false);
     }
 
     carregarHistorico();
@@ -218,6 +256,160 @@ function HistoricoConteudo() {
       efeitoAtivo = false;
     };
   }, [recarregarTick]);
+
+  // Consulta paginada de registros (filtros + página). Ordem: data mais
+  // recente primeiro, manhã antes de tarde, e id como desempate final
+  // para a paginação ser estável entre páginas.
+  useEffect(() => {
+    if (!baseCarregada) return undefined;
+    let efeitoAtivo = true;
+
+    function vazio() {
+      setRegistros([]);
+      setTotalRegistros(0);
+      setCarregandoRegistros(false);
+    }
+
+    async function carregarRegistros() {
+      setCarregandoRegistros(true);
+      setErroRegistros('');
+
+      const supabase = createClient();
+
+      // Dia da semana -> lista de datas (ver datasDoDiaDaSemana). Sem
+      // período completo, as pontas vêm da menor/maior data existente.
+      let datasDiaSemana = null;
+      if (filtroDiaSemana !== 'todos') {
+        let inicio = filtroPeriodoInicio;
+        let fim = filtroPeriodoFim;
+
+        if (!inicio || !fim) {
+          const [menorResp, maiorResp] = await Promise.all([
+            supabase.from('producao_registros').select('data').order('data', { ascending: true }).limit(1),
+            supabase.from('producao_registros').select('data').order('data', { ascending: false }).limit(1),
+          ]);
+          if (!efeitoAtivo) return;
+
+          const erroLimites = menorResp.error || maiorResp.error;
+          if (erroLimites) {
+            console.error('Erro ao carregar histórico de produção:', erroLimites);
+            setErroRegistros('Não foi possível carregar o histórico de produção.');
+            setCarregandoRegistros(false);
+            return;
+          }
+
+          const menor = menorResp.data?.[0]?.data;
+          const maior = maiorResp.data?.[0]?.data;
+          if (!menor || !maior) {
+            vazio();
+            return;
+          }
+          inicio = inicio || menor;
+          fim = fim || maior;
+        }
+
+        datasDiaSemana = datasDoDiaDaSemana(inicio, fim, filtroDiaSemana);
+        if (datasDiaSemana === null) {
+          setErroRegistros(
+            'Período muito longo para filtrar por dia da semana. Informe um período inicial e final mais curto.'
+          );
+          vazio();
+          return;
+        }
+        if (datasDiaSemana.length === 0) {
+          vazio();
+          return;
+        }
+      }
+
+      let consulta = supabase
+        .from('producao_registros')
+        .select(
+          'id, data, turno, receita_id, origem, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, observacoes, houve_falta, criado_em, atualizado_em',
+          { count: 'exact' }
+        );
+
+      if (filtroPeriodoInicio) consulta = consulta.gte('data', filtroPeriodoInicio);
+      if (filtroPeriodoFim) consulta = consulta.lte('data', filtroPeriodoFim);
+      if (filtroProduto !== 'todos') consulta = consulta.eq('receita_id', filtroProduto);
+      if (filtroTurno !== 'todos') consulta = consulta.eq('turno', filtroTurno);
+      if (filtroStatus !== 'todos') consulta = consulta.eq('status', filtroStatus);
+      if (datasDiaSemana) consulta = consulta.in('data', datasDiaSemana);
+
+      const inicioLinha = (pagina - 1) * TAMANHO_PAGINA;
+      const { data, count, error } = await consulta
+        .order('data', { ascending: false })
+        .order('turno', { ascending: true })
+        .order('id', { ascending: true })
+        .range(inicioLinha, inicioLinha + TAMANHO_PAGINA - 1);
+
+      if (!efeitoAtivo) return;
+
+      if (error) {
+        console.error('Erro ao carregar histórico de produção:', error);
+        setErroRegistros('Não foi possível carregar o histórico de produção.');
+        setCarregandoRegistros(false);
+        return;
+      }
+
+      // Página fora do intervalo (ex.: excluiu o único registro da última
+      // página): volta para a última página válida -- o efeito roda de
+      // novo com a página corrigida.
+      const total = count ?? 0;
+      if ((data || []).length === 0 && total > 0 && pagina > 1) {
+        setPagina(Math.ceil(total / TAMANHO_PAGINA));
+        return;
+      }
+
+      setRegistros(data || []);
+      setTotalRegistros(total);
+      setCarregandoRegistros(false);
+    }
+
+    carregarRegistros();
+
+    return () => {
+      efeitoAtivo = false;
+    };
+  }, [
+    baseCarregada,
+    recarregarTick,
+    pagina,
+    filtroPeriodoInicio,
+    filtroPeriodoFim,
+    filtroProduto,
+    filtroTurno,
+    filtroStatus,
+    filtroDiaSemana,
+  ]);
+
+  // Qualquer mudança de filtro volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
+
+  const filtrosAtivos =
+    filtroPeriodoInicio !== '' ||
+    filtroPeriodoFim !== '' ||
+    filtroProduto !== 'todos' ||
+    filtroTurno !== 'todos' ||
+    filtroStatus !== 'todos' ||
+    filtroDiaSemana !== 'todos';
+
+  function limparFiltros() {
+    setFiltroPeriodoInicio('');
+    setFiltroPeriodoFim('');
+    setFiltroProduto('todos');
+    setFiltroTurno('todos');
+    setFiltroStatus('todos');
+    setFiltroDiaSemana('todos');
+    setPagina(1);
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(totalRegistros / TAMANHO_PAGINA));
 
   function abrirVisualizar(registro) {
     setRegistroVisualizado(registro);
@@ -253,9 +445,7 @@ function HistoricoConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
-  const produtosDisponiveis = Array.from(
-    new Set(registros.map((r) => r.receita_id))
-  )
+  const produtosDisponiveis = receitaIdsComRegistro
     .map((id) => ({ id, nome: receitaNomePorId[id] || id }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
@@ -317,15 +507,9 @@ function HistoricoConteudo() {
   // da RPC excluir_producao_registro; este gate aqui é só UI.
   const podeExcluir = isAdmin(perfilUsuario);
 
-  const registrosFiltrados = registros.filter((registro) => {
-    if (filtroPeriodoInicio && registro.data < filtroPeriodoInicio) return false;
-    if (filtroPeriodoFim && registro.data > filtroPeriodoFim) return false;
-    if (filtroProduto !== 'todos' && registro.receita_id !== filtroProduto) return false;
-    if (filtroTurno !== 'todos' && registro.turno !== filtroTurno) return false;
-    if (filtroStatus !== 'todos' && registro.status !== filtroStatus) return false;
-    if (filtroDiaSemana !== 'todos' && String(indiceDiaSemana(registro.data)) !== filtroDiaSemana) return false;
-    return true;
-  });
+  // Tela cheia de "Carregando" só na carga base ou na primeira consulta; nas
+  // trocas de filtro/página a tabela anterior fica visível, esmaecida.
+  const carregando = carregandoBase || (carregandoRegistros && registros.length === 0 && !erroRegistros);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
@@ -373,6 +557,7 @@ function HistoricoConteudo() {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
               gap: '15px',
+              alignItems: 'end',
             }}
           >
             <div>
@@ -382,14 +567,8 @@ function HistoricoConteudo() {
               <input
                 type="date"
                 value={filtroPeriodoInicio}
-                onChange={(e) => setFiltroPeriodoInicio(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
+                onChange={(e) => alterarFiltro(setFiltroPeriodoInicio)(e.target.value)}
+                style={campoFiltroEstilo}
               />
             </div>
 
@@ -400,14 +579,8 @@ function HistoricoConteudo() {
               <input
                 type="date"
                 value={filtroPeriodoFim}
-                onChange={(e) => setFiltroPeriodoFim(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
+                onChange={(e) => alterarFiltro(setFiltroPeriodoFim)(e.target.value)}
+                style={campoFiltroEstilo}
               />
             </div>
 
@@ -417,14 +590,8 @@ function HistoricoConteudo() {
               </label>
               <select
                 value={filtroProduto}
-                onChange={(e) => setFiltroProduto(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
+                onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 {produtosDisponiveis.map((produto) => (
@@ -441,14 +608,8 @@ function HistoricoConteudo() {
               </label>
               <select
                 value={filtroTurno}
-                onChange={(e) => setFiltroTurno(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
+                onChange={(e) => alterarFiltro(setFiltroTurno)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 <option value="manha">Manhã</option>
@@ -462,14 +623,8 @@ function HistoricoConteudo() {
               </label>
               <select
                 value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
+                onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 <option value="aberto">Aberto</option>
@@ -484,14 +639,8 @@ function HistoricoConteudo() {
               </label>
               <select
                 value={filtroDiaSemana}
-                onChange={(e) => setFiltroDiaSemana(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
+                onChange={(e) => alterarFiltro(setFiltroDiaSemana)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 {DIA_SEMANA_OPCOES.map((opcao) => (
@@ -501,15 +650,25 @@ function HistoricoConteudo() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <BotaoLimparFiltros
+                filtrosAtivos={filtrosAtivos}
+                onClick={limparFiltros}
+                corPrimaria={aparencia.corPrimaria}
+              />
+            </div>
           </div>
         </div>
 
+        {erroRegistros && <p style={{ color: '#f44336', marginTop: '10px' }}>{erroRegistros}</p>}
+
         {carregando ? (
           <p>Carregando histórico...</p>
-        ) : registros.length === 0 ? (
-          <p>Nenhum registro encontrado.</p>
-        ) : registrosFiltrados.length === 0 ? (
-          <p>Nenhum resultado para esta busca/filtro.</p>
+        ) : totalRegistros === 0 ? (
+          erroRegistros ? null : (
+            <p>{filtrosAtivos ? 'Nenhum resultado para esta busca/filtro.' : 'Nenhum registro encontrado.'}</p>
+          )
         ) : (
           <div
             style={{
@@ -517,9 +676,9 @@ function HistoricoConteudo() {
               padding: '20px',
               borderRadius: '5px',
               boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-              overflowX: 'auto',
             }}
           >
+            <div style={{ overflowX: 'auto', opacity: carregandoRegistros ? 0.55 : 1, transition: 'opacity 0.15s' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #ddd' }}>
@@ -552,7 +711,7 @@ function HistoricoConteudo() {
               </thead>
 
               <tbody>
-                {registrosFiltrados.map((registro) => {
+                {registros.map((registro) => {
                   const pendente = registro.status !== 'fechado';
                   const temObservacao = !!(registro.observacoes && registro.observacoes.trim());
 
@@ -697,10 +856,20 @@ function HistoricoConteudo() {
                 })}
               </tbody>
             </table>
+            </div>
 
-            <p style={{ marginTop: '15px', color: '#666', fontSize: '14px' }}>
-              Total de registros: <strong>{registrosFiltrados.length}</strong>
+            <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
+              Mostrando {(pagina - 1) * TAMANHO_PAGINA + 1}–{(pagina - 1) * TAMANHO_PAGINA + registros.length} de{' '}
+              {totalRegistros} {totalRegistros === 1 ? 'registro' : 'registros'}
+              {totalPaginas > 1 ? ` — página ${pagina} de ${totalPaginas}` : ''}
             </p>
+            <Paginacao
+              paginaAtual={pagina}
+              totalPaginas={totalPaginas}
+              onMudarPagina={setPagina}
+              desabilitado={carregandoRegistros}
+              corPrimaria={aparencia.corPrimaria}
+            />
           </div>
         )}
       </div>

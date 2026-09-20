@@ -13,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { mensagemErroLoteExpositor } from '../../lib/producao/mensagensExpositor';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import Paginacao, { paginarLista } from '../../components/Paginacao';
 
 // Controle de Expositores (migration 0030). "Situação" NUNCA é lida do
 // banco (não existe coluna para isso) -- é sempre derivada aqui,
@@ -317,6 +318,31 @@ function ExpositoresConteudo() {
         .sort((a, b) => b.data_entrada.localeCompare(a.data_entrada)),
     [lotesNoPeriodoEProduto, filtroSituacao]
   );
+
+  // Paginação VISUAL (client-side, 20 lotes por página) SÓ da lista
+  // "Produtos nos Expositores". O conjunto completo de lotes precisa
+  // continuar em memória: alimenta painel "Retirar hoje", indicadores,
+  // "disponível" para novo lote (soma enviada) e o relatório; e a Situação
+  // é calculada no cliente (não é coluna do banco). Estados de edição
+  // inline (quantidadeRetiradaPorLote etc.) ficam por lote_id, fora da
+  // linha renderizada -- trocar de página não os perde.
+  const [pagina, setPagina] = useState(1);
+  const paginacao = paginarLista(lotesListaHistorico, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Qualquer mudança de filtro volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
+
+  // Total encolheu (filtro, lote concluído/excluído, recarga): corrige a
+  // página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   // Relatório de desempenho -- SOMENTE lotes concluídos (venda estimada só
   // existe para eles): agrupado por produto, tudo derivado do mesmo
@@ -640,15 +666,15 @@ function ExpositoresConteudo() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Entrada -- de</label>
-                  <input type="date" value={filtroInicio} onChange={(e) => setFiltroInicio(e.target.value)} style={campoEstilo} />
+                  <input type="date" value={filtroInicio} onChange={(e) => alterarFiltro(setFiltroInicio)(e.target.value)} style={campoEstilo} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Entrada -- até</label>
-                  <input type="date" value={filtroFim} onChange={(e) => setFiltroFim(e.target.value)} style={campoEstilo} />
+                  <input type="date" value={filtroFim} onChange={(e) => alterarFiltro(setFiltroFim)(e.target.value)} style={campoEstilo} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Produto</label>
-                  <select value={filtroProdutoId} onChange={(e) => setFiltroProdutoId(e.target.value)} style={campoEstilo}>
+                  <select value={filtroProdutoId} onChange={(e) => alterarFiltro(setFiltroProdutoId)(e.target.value)} style={campoEstilo}>
                     <option value="todos">Todos</option>
                     {produtosControlados.map((p) => (
                       <option key={p.id} value={p.id}>{p.nome}</option>
@@ -657,7 +683,7 @@ function ExpositoresConteudo() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Situação</label>
-                  <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)} style={campoEstilo}>
+                  <select value={filtroSituacao} onChange={(e) => alterarFiltro(setFiltroSituacao)(e.target.value)} style={campoEstilo}>
                     <option value="todos">Todas</option>
                     <option value="atrasado">Atrasado</option>
                     <option value="retirar_hoje">Retirar hoje</option>
@@ -671,112 +697,126 @@ function ExpositoresConteudo() {
               {lotesListaHistorico.length === 0 ? (
                 <p style={{ color: '#666' }}>Nenhum lote encontrado para os filtros selecionados.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #ddd' }}>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Data produção</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Data entrada</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Retirada prevista</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Produzido</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Enviado</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Retirado</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Venda estimada</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Situação</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lotesListaHistorico.map((lote) => (
-                        <tr key={lote.lote_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                          <td style={{ padding: '10px' }}>
-                            {lote.produto_nome}
-                            <IndicadorObservacao texto={lote.observacao} />
-                          </td>
-                          <td style={{ padding: '10px' }}>{formatarData(lote.data_producao)}</td>
-                          <td style={{ padding: '10px' }}>{formatarData(lote.data_entrada)}</td>
-                          <td style={{ padding: '10px' }}>{formatarData(lote.data_prevista_retirada)}</td>
-                          <td style={{ padding: '10px' }}>{lote.quantidade_produzida}</td>
-                          <td style={{ padding: '10px' }}>{lote.quantidade_enviada}</td>
-                          <td style={{ padding: '10px' }}>{lote.quantidade_retirada ?? '—'}</td>
-                          <td style={{ padding: '10px', color: lote.concluido_em ? undefined : '#999' }}>
-                            {/* venda_estimada só existe (não-null) para lote concluído -- a view
-                                producao_expositor_detalhado já garante isso (CASE WHEN concluido_em
-                                IS NOT NULL). "Pendente" aqui reforça visualmente que a quantidade
-                                enviada de um lote ainda no expositor NUNCA deve ser lida como venda
-                                estimada -- a retirada final ainda não é conhecida. */}
-                            {lote.concluido_em ? lote.venda_estimada : 'Pendente'}
-                          </td>
-                          <td style={{ padding: '10px' }}><BadgeSituacao situacao={lote.situacao} /></td>
-                          <td style={{ padding: '10px' }}>
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                              {/* Retirada rápida também aqui, não só no painel "Retirar hoje" --
-                                  um produto pode esgotar no expositor ANTES da data prevista (ex.:
-                                  pão do dia vende tudo de manhã, mas o prazo só vence à noite), e o
-                                  operador precisa conseguir concluir o lote na hora, sem esperar a
-                                  situação virar "Atrasado"/"Retirar hoje". Mesmo handler
-                                  (confirmarRetirada) e mesmo estado (quantidadeRetiradaPorLote) do
-                                  painel urgente -- nenhuma lógica nova. */}
-                              {!lote.concluido_em && podeOperar && (
-                                <>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max={lote.quantidade_enviada}
-                                    value={quantidadeRetiradaPorLote[lote.lote_id] ?? ''}
-                                    onChange={(e) =>
-                                      setQuantidadeRetiradaPorLote((atual) => ({ ...atual, [lote.lote_id]: e.target.value }))
-                                    }
-                                    placeholder="Qtd."
-                                    title="Quantidade retirada -- use também se o produto esgotou antes do prazo previsto."
-                                    style={{ ...campoInlineEstilo, width: '55px' }}
-                                  />
-                                  <BotaoIconeAcao
-                                    rotulo="Retirado (esgotou ou encerrou antes do prazo previsto)"
-                                    icone={IconeCheck}
-                                    cor="#4CAF50"
-                                    disabled={concluindoLoteId === lote.lote_id}
-                                    onClick={() => confirmarRetirada(lote)}
-                                  />
-                                </>
-                              )}
-                              {!lote.concluido_em && podeOperar && (
-                                <BotaoIconeAcao
-                                  rotulo="Editar"
-                                  icone={IconeLapis}
-                                  cor={aparencia.corPrimaria}
-                                  onClick={() => setLoteParaEditar(lote)}
-                                />
-                              )}
-                              {!!lote.concluido_em && podeEditarConcluido && (
-                                <BotaoIconeAcao
-                                  rotulo="Corrigir"
-                                  icone={IconeLapis}
-                                  cor={aparencia.corPrimaria}
-                                  onClick={() => setLoteParaCorrigir(lote)}
-                                />
-                              )}
-                              {podeExcluir && (
-                                <BotaoIconeAcao
-                                  rotulo="Excluir"
-                                  icone={IconeLixeira}
-                                  destrutivo
-                                  onClick={() => setLoteParaExcluir(lote)}
-                                />
-                              )}
-                            </div>
-                            {erroRetiradaPorLote[lote.lote_id] && (
-                              <div style={{ color: '#f44336', fontSize: '11px', marginTop: '4px' }}>
-                                {erroRetiradaPorLote[lote.lote_id]}
-                              </div>
-                            )}
-                          </td>
+                <>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid #ddd' }}>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Data produção</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Data entrada</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Retirada prevista</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Produzido</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Enviado</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Retirado</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Venda estimada</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Situação</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Ações</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {paginacao.itens.map((lote) => (
+                          <tr key={lote.lote_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                            <td style={{ padding: '10px' }}>
+                              {lote.produto_nome}
+                              <IndicadorObservacao texto={lote.observacao} />
+                            </td>
+                            <td style={{ padding: '10px' }}>{formatarData(lote.data_producao)}</td>
+                            <td style={{ padding: '10px' }}>{formatarData(lote.data_entrada)}</td>
+                            <td style={{ padding: '10px' }}>{formatarData(lote.data_prevista_retirada)}</td>
+                            <td style={{ padding: '10px' }}>{lote.quantidade_produzida}</td>
+                            <td style={{ padding: '10px' }}>{lote.quantidade_enviada}</td>
+                            <td style={{ padding: '10px' }}>{lote.quantidade_retirada ?? '—'}</td>
+                            <td style={{ padding: '10px', color: lote.concluido_em ? undefined : '#999' }}>
+                              {/* venda_estimada só existe (não-null) para lote concluído -- a view
+                                  producao_expositor_detalhado já garante isso (CASE WHEN concluido_em
+                                  IS NOT NULL). "Pendente" aqui reforça visualmente que a quantidade
+                                  enviada de um lote ainda no expositor NUNCA deve ser lida como venda
+                                  estimada -- a retirada final ainda não é conhecida. */}
+                              {lote.concluido_em ? lote.venda_estimada : 'Pendente'}
+                            </td>
+                            <td style={{ padding: '10px' }}><BadgeSituacao situacao={lote.situacao} /></td>
+                            <td style={{ padding: '10px' }}>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                {/* Retirada rápida também aqui, não só no painel "Retirar hoje" --
+                                    um produto pode esgotar no expositor ANTES da data prevista (ex.:
+                                    pão do dia vende tudo de manhã, mas o prazo só vence à noite), e o
+                                    operador precisa conseguir concluir o lote na hora, sem esperar a
+                                    situação virar "Atrasado"/"Retirar hoje". Mesmo handler
+                                    (confirmarRetirada) e mesmo estado (quantidadeRetiradaPorLote) do
+                                    painel urgente -- nenhuma lógica nova. */}
+                                {!lote.concluido_em && podeOperar && (
+                                  <>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={lote.quantidade_enviada}
+                                      value={quantidadeRetiradaPorLote[lote.lote_id] ?? ''}
+                                      onChange={(e) =>
+                                        setQuantidadeRetiradaPorLote((atual) => ({ ...atual, [lote.lote_id]: e.target.value }))
+                                      }
+                                      placeholder="Qtd."
+                                      title="Quantidade retirada -- use também se o produto esgotou antes do prazo previsto."
+                                      style={{ ...campoInlineEstilo, width: '55px' }}
+                                    />
+                                    <BotaoIconeAcao
+                                      rotulo="Retirado (esgotou ou encerrou antes do prazo previsto)"
+                                      icone={IconeCheck}
+                                      cor="#4CAF50"
+                                      disabled={concluindoLoteId === lote.lote_id}
+                                      onClick={() => confirmarRetirada(lote)}
+                                    />
+                                  </>
+                                )}
+                                {!lote.concluido_em && podeOperar && (
+                                  <BotaoIconeAcao
+                                    rotulo="Editar"
+                                    icone={IconeLapis}
+                                    cor={aparencia.corPrimaria}
+                                    onClick={() => setLoteParaEditar(lote)}
+                                  />
+                                )}
+                                {!!lote.concluido_em && podeEditarConcluido && (
+                                  <BotaoIconeAcao
+                                    rotulo="Corrigir"
+                                    icone={IconeLapis}
+                                    cor={aparencia.corPrimaria}
+                                    onClick={() => setLoteParaCorrigir(lote)}
+                                  />
+                                )}
+                                {podeExcluir && (
+                                  <BotaoIconeAcao
+                                    rotulo="Excluir"
+                                    icone={IconeLixeira}
+                                    destrutivo
+                                    onClick={() => setLoteParaExcluir(lote)}
+                                  />
+                                )}
+                              </div>
+                              {erroRetiradaPorLote[lote.lote_id] && (
+                                <div style={{ color: '#f44336', fontSize: '11px', marginTop: '4px' }}>
+                                  {erroRetiradaPorLote[lote.lote_id]}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
+                    Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+                    {paginacao.total === 1 ? 'lote' : 'lotes'}
+                    {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+                  </p>
+                  <Paginacao
+                    paginaAtual={paginaAtual}
+                    totalPaginas={paginacao.totalPaginas}
+                    onMudarPagina={setPagina}
+                    corPrimaria={aparencia.corPrimaria}
+                  />
+                </>
               )}
             </div>
 

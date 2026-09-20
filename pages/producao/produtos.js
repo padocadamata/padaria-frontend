@@ -10,6 +10,7 @@ import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import Paginacao, { paginarLista } from '../../components/Paginacao';
 
 function formatarRendimento(quantidade, unidade) {
   if (quantidade == null || !unidade) {
@@ -72,6 +73,7 @@ function ProdutosProducaoConteudo() {
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [busca, setBusca] = useState('');
+  const [pagina, setPagina] = useState(1);
 
   const [modalAberto, setModalAberto] = useState(false);
   const [receitaEmEdicao, setReceitaEmEdicao] = useState(null);
@@ -255,6 +257,28 @@ function ProdutosProducaoConteudo() {
     return true;
   });
 
+  // Paginação VISUAL (client-side, 20 por página): a lista completa já
+  // precisa estar em memória -- as opções de Tipo/Grupo saem de TODAS as
+  // receitas (inclusive inativas) e o filtro de status usa produtos.ativo
+  // (embed), então uma consulta paginada quebraria os filtros. O volume é
+  // limitado ao subconjunto do Catálogo marcado como Produto de Produção.
+  const paginacao = paginarLista(receitasFiltradas, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Qualquer mudança de filtro/busca volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
+
+  // Total encolheu (filtro, edição que inativa o produto, recarga):
+  // corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
       <CabecalhoPrincipal modulo="Produção" />
@@ -347,7 +371,7 @@ function ProdutosProducaoConteudo() {
               </label>
               <select
                 value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value)}
+                onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px',
@@ -368,7 +392,7 @@ function ProdutosProducaoConteudo() {
               </label>
               <select
                 value={filtroTelaHoje}
-                onChange={(e) => setFiltroTelaHoje(e.target.value)}
+                onChange={(e) => alterarFiltro(setFiltroTelaHoje)(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px',
@@ -389,7 +413,7 @@ function ProdutosProducaoConteudo() {
               </label>
               <select
                 value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value)}
+                onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px',
@@ -413,7 +437,7 @@ function ProdutosProducaoConteudo() {
               </label>
               <select
                 value={filtroGrupo}
-                onChange={(e) => setFiltroGrupo(e.target.value)}
+                onChange={(e) => alterarFiltro(setFiltroGrupo)(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '8px',
@@ -438,7 +462,7 @@ function ProdutosProducaoConteudo() {
               <input
                 type="text"
                 value={busca}
-                onChange={(e) => setBusca(e.target.value)}
+                onChange={(e) => alterarFiltro(setBusca)(e.target.value)}
                 placeholder="Nome do produto..."
                 style={{
                   width: '100%',
@@ -465,84 +489,93 @@ function ProdutosProducaoConteudo() {
               padding: '20px',
               borderRadius: '5px',
               boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-              overflowX: 'auto',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Nome
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Código G3
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Tipo
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Grupo
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Ativo
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Tela Hoje
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Rendimento
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                    Ações
-                  </th>
-                </tr>
-              </thead>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ddd' }}>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Nome
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Código G3
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Tipo
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Grupo
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Ativo
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Tela Hoje
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Rendimento
+                    </th>
+                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
 
-              <tbody>
-                {receitasFiltradas.map((receita) => {
-                  const ativoProducao = !!receita.ativo && !!receita.produtos?.ativo;
-                  return (
-                    <tr key={receita.id} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: '12px' }}>{receita.produtos?.nome || '—'}</td>
-                      <td style={{ padding: '12px' }}>{receita.produtos?.codigo_g3 || '—'}</td>
-                      <td style={{ padding: '12px' }}>{receita.tipo || '—'}</td>
-                      <td style={{ padding: '12px' }}>{receita.grupo || '—'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <BadgeAtivo ativo={ativoProducao} />
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <BadgeTelaHoje naTelaHoje={receita.controlado_producao} />
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {formatarRendimento(receita.rendimento_quantidade, receita.unidade_medida_saida)}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {podeEscrever && (
-                          <button
-                            onClick={() => abrirEdicao(receita)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#2196F3',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '3px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            Editar
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                <tbody>
+                  {paginacao.itens.map((receita) => {
+                    const ativoProducao = !!receita.ativo && !!receita.produtos?.ativo;
+                    return (
+                      <tr key={receita.id} style={{ borderBottom: '1px solid #ddd' }}>
+                        <td style={{ padding: '12px' }}>{receita.produtos?.nome || '—'}</td>
+                        <td style={{ padding: '12px' }}>{receita.produtos?.codigo_g3 || '—'}</td>
+                        <td style={{ padding: '12px' }}>{receita.tipo || '—'}</td>
+                        <td style={{ padding: '12px' }}>{receita.grupo || '—'}</td>
+                        <td style={{ padding: '12px' }}>
+                          <BadgeAtivo ativo={ativoProducao} />
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <BadgeTelaHoje naTelaHoje={receita.controlado_producao} />
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {formatarRendimento(receita.rendimento_quantidade, receita.unidade_medida_saida)}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {podeEscrever && (
+                            <button
+                              onClick={() => abrirEdicao(receita)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#2196F3',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                              }}
+                            >
+                              Editar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-            <p style={{ marginTop: '15px', color: '#666', fontSize: '14px' }}>
-              Total de produtos: <strong>{receitasFiltradas.length}</strong>
+            <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
+              Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+              {paginacao.total === 1 ? 'produto' : 'produtos'}
+              {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
             </p>
+            <Paginacao
+              paginaAtual={paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={setPagina}
+              corPrimaria={aparencia.corPrimaria}
+            />
           </div>
         )}
       </div>

@@ -9,6 +9,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, diaDaSemanaExibicao } from '../../lib/data/dataLocal';
 import { calcularSugestaoProducao } from '../../lib/producao/sugestaoProducao';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import BotaoLimparFiltros, { campoFiltroEstilo } from '../../components/BotaoLimparFiltros';
+import Paginacao, { paginarLista } from '../../components/Paginacao';
 
 const TURNOS = [
   { chave: 'manha', label: 'Manhã' },
@@ -202,6 +204,7 @@ function PlanejamentoConteudo() {
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [filtroProduto, setFiltroProduto] = useState('todos');
   const [filtroTurno, setFiltroTurno] = useState('todos');
+  const [pagina, setPagina] = useState(1);
 
   const aparencia = APARENCIA_FIXA;
 
@@ -279,6 +282,36 @@ function PlanejamentoConteudo() {
 
     carregarBase();
   }, []);
+
+  // "Limpar filtros" restaura os padrões da tela (hoje até o domingo da
+  // semana corrente, demais em "todos") -- não zera as datas: sem período
+  // a tela não mostra nada. Só mexe nos filtros; edições ainda não salvas
+  // e o restante do estado não são tocados.
+  const dataInicialPadrao = hoje;
+  const dataFinalPadrao = domingoDaSemana(hoje);
+  const filtrosAtivos =
+    filtroDataInicial !== dataInicialPadrao ||
+    filtroDataFinal !== dataFinalPadrao ||
+    filtroGrupo !== 'todos' ||
+    filtroProduto !== 'todos' ||
+    filtroTurno !== 'todos';
+
+  function limparFiltros() {
+    setFiltroDataInicial(dataInicialPadrao);
+    setFiltroDataFinal(dataFinalPadrao);
+    setFiltroGrupo('todos');
+    setFiltroProduto('todos');
+    setFiltroTurno('todos');
+    setPagina(1);
+  }
+
+  // Qualquer mudança de filtro volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
 
   const periodoValido =
     filtroDataInicial !== '' && filtroDataFinal !== '' && filtroDataFinal >= filtroDataInicial;
@@ -492,6 +525,20 @@ function PlanejamentoConteudo() {
     }
   }
 
+  // Paginação VISUAL (client-side, 20 linhas por página): `slots` são
+  // linhas calculadas (data x turno x produto), não registros do banco, e
+  // as edições não salvas vivem em `edicoes` (chave do slot), fora da
+  // linha renderizada -- trocar de página só muda quais linhas aparecem;
+  // nada é recalculado, perdido nem salvo. Sugestões continuam sendo
+  // calculadas sobre o histórico inteiro em memória.
+  const paginacao = paginarLista(slots, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Total encolheu (filtro/período/recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
   const carregando = carregandoBase || carregandoPeriodo;
 
   return (
@@ -528,6 +575,7 @@ function PlanejamentoConteudo() {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
               gap: '15px',
+              alignItems: 'end',
             }}
           >
             <div>
@@ -535,8 +583,8 @@ function PlanejamentoConteudo() {
               <input
                 type="date"
                 value={filtroDataInicial}
-                onChange={(e) => setFiltroDataInicial(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
+                onChange={(e) => alterarFiltro(setFiltroDataInicial)(e.target.value)}
+                style={campoFiltroEstilo}
               />
             </div>
 
@@ -545,8 +593,8 @@ function PlanejamentoConteudo() {
               <input
                 type="date"
                 value={filtroDataFinal}
-                onChange={(e) => setFiltroDataFinal(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
+                onChange={(e) => alterarFiltro(setFiltroDataFinal)(e.target.value)}
+                style={campoFiltroEstilo}
               />
             </div>
 
@@ -554,8 +602,8 @@ function PlanejamentoConteudo() {
               <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Grupo</label>
               <select
                 value={filtroGrupo}
-                onChange={(e) => setFiltroGrupo(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
+                onChange={(e) => alterarFiltro(setFiltroGrupo)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 {gruposDisponiveis.map((g) => (
@@ -570,8 +618,8 @@ function PlanejamentoConteudo() {
               <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Produto</label>
               <select
                 value={filtroProduto}
-                onChange={(e) => setFiltroProduto(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
+                onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 {produtos.map((p) => (
@@ -586,13 +634,21 @@ function PlanejamentoConteudo() {
               <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Turno</label>
               <select
                 value={filtroTurno}
-                onChange={(e) => setFiltroTurno(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
+                onChange={(e) => alterarFiltro(setFiltroTurno)(e.target.value)}
+                style={campoFiltroEstilo}
               >
                 <option value="todos">Todos</option>
                 <option value="manha">Manhã</option>
                 <option value="tarde">Tarde</option>
               </select>
+            </div>
+
+            <div>
+              <BotaoLimparFiltros
+                filtrosAtivos={filtrosAtivos}
+                onClick={limparFiltros}
+                corPrimaria={aparencia.corPrimaria}
+              />
             </div>
           </div>
 
@@ -614,175 +670,192 @@ function PlanejamentoConteudo() {
               padding: '20px',
               borderRadius: '5px',
               boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-              overflowX: 'auto',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  {['Data', 'Dia da semana', 'Grupo', 'Produto', 'Turno', 'Sugestão', 'Quantidade planejada', 'Observação', 'Ações'].map(
-                    (coluna) => (
-                      <th
-                        key={coluna}
-                        style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}
-                      >
-                        {coluna}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ddd' }}>
+                    {['Data', 'Dia da semana', 'Grupo', 'Produto', 'Turno', 'Sugestão', 'Quantidade planejada', 'Observação', 'Ações'].map(
+                      (coluna) => (
+                        <th
+                          key={coluna}
+                          style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                        >
+                          {coluna}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
 
-              <tbody>
-                {slots.map((slot) => {
-                  const chave = chaveSlot(slot.data, slot.turno, slot.receitaId);
-                  const edicao = edicoes[chave] || { id: null, quantidade: '', observacao: '' };
-                  const fechado = diasFechados.has(slot.data);
-                  const feriado = feriados[slot.data];
+                <tbody>
+                  {paginacao.itens.map((slot) => {
+                    const chave = chaveSlot(slot.data, slot.turno, slot.receitaId);
+                    const edicao = edicoes[chave] || { id: null, quantidade: '', observacao: '' };
+                    const fechado = diasFechados.has(slot.data);
+                    const feriado = feriados[slot.data];
 
-                  let resultado = null;
-                  if (!fechado) {
-                    resultado = calcularSugestaoProducao({
-                      registros: registrosPorReceita[slot.receitaId] || [],
-                      dataAlvo: slot.data,
-                      turno: slot.turno,
-                      diasFechados,
-                    });
-                  }
+                    let resultado = null;
+                    if (!fechado) {
+                      resultado = calcularSugestaoProducao({
+                        registros: registrosPorReceita[slot.receitaId] || [],
+                        dataAlvo: slot.data,
+                        turno: slot.turno,
+                        diasFechados,
+                      });
+                    }
 
-                  const desabilitado = fechado || !podeEditar;
-                  const resumo = resultado ? resumoCompacto(resultado) : null;
+                    const desabilitado = fechado || !podeEditar;
+                    const resumo = resultado ? resumoCompacto(resultado) : null;
 
-                  return (
-                    <tr key={chave} style={{ borderBottom: '1px solid #ddd', backgroundColor: fechado ? '#f5f5f5' : 'transparent' }}>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                        {formatarDataExibicao(slot.data)}
-                        {feriado && (
-                          <span title={`Feriado: ${feriado}`} style={{ marginLeft: '6px' }}>
-                            🎉
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{capitalizar(diaDaSemanaExibicao(slot.data))}</td>
-                      <td style={{ padding: '12px' }}>{slot.grupo || '—'}</td>
-                      <td style={{ padding: '12px' }}>{slot.produtoNome}</td>
-                      <td style={{ padding: '12px' }}>{slot.turnoLabel}</td>
-                      <td style={{ padding: '12px', minWidth: '220px' }}>
-                        {fechado ? (
-                          <span style={{ color: '#999', fontStyle: 'italic', fontSize: '13px' }}>
-                            Dia fechado — sem sugestão operacional.
-                          </span>
-                        ) : (
-                          <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', flexWrap: 'wrap' }}>
-                              {resultado.quantidadeSugerida != null ? (
-                                <strong>{resultado.quantidadeSugerida} un</strong>
-                              ) : (
-                                <span style={{ color: '#999', fontSize: '13px' }}>Sem sugestão</span>
+                    return (
+                      <tr key={chave} style={{ borderBottom: '1px solid #ddd', backgroundColor: fechado ? '#f5f5f5' : 'transparent' }}>
+                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
+                          {formatarDataExibicao(slot.data)}
+                          {feriado && (
+                            <span title={`Feriado: ${feriado}`} style={{ marginLeft: '6px' }}>
+                              🎉
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{capitalizar(diaDaSemanaExibicao(slot.data))}</td>
+                        <td style={{ padding: '12px' }}>{slot.grupo || '—'}</td>
+                        <td style={{ padding: '12px' }}>{slot.produtoNome}</td>
+                        <td style={{ padding: '12px' }}>{slot.turnoLabel}</td>
+                        <td style={{ padding: '12px', minWidth: '220px' }}>
+                          {fechado ? (
+                            <span style={{ color: '#999', fontStyle: 'italic', fontSize: '13px' }}>
+                              Dia fechado — sem sugestão operacional.
+                            </span>
+                          ) : (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', flexWrap: 'wrap' }}>
+                                {resultado.quantidadeSugerida != null ? (
+                                  <strong>{resultado.quantidadeSugerida} un</strong>
+                                ) : (
+                                  <span style={{ color: '#999', fontSize: '13px' }}>Sem sugestão</span>
+                                )}
+                                <BadgeConfianca confianca={resultado.confianca} />
+                                <button
+                                  type="button"
+                                  onClick={() => setDetalheAberto({ slot, resultado })}
+                                  title="Ver justificativa completa"
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: aparencia.corPrimaria,
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    padding: 0,
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  ⓘ Detalhes
+                                </button>
+                              </div>
+                              {resumo && <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>{resumo}</p>}
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            value={edicao.quantidade}
+                            disabled={desabilitado}
+                            onChange={(e) => atualizarEdicao(chave, 'quantidade', e.target.value)}
+                            style={{
+                              width: '90px',
+                              padding: '6px',
+                              border: '1px solid #ddd',
+                              borderRadius: '5px',
+                              boxSizing: 'border-box',
+                              backgroundColor: desabilitado ? '#f0f0f0' : 'white',
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <input
+                            type="text"
+                            value={edicao.observacao}
+                            disabled={desabilitado}
+                            onChange={(e) => atualizarEdicao(chave, 'observacao', e.target.value)}
+                            style={{
+                              width: '140px',
+                              padding: '6px',
+                              border: '1px solid #ddd',
+                              borderRadius: '5px',
+                              boxSizing: 'border-box',
+                              backgroundColor: desabilitado ? '#f0f0f0' : 'white',
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {!fechado && podeEditar && resultado.quantidadeSugerida != null && (
+                                <button
+                                  onClick={() => aceitarSugestao(chave, resultado.quantidadeSugerida)}
+                                  style={{
+                                    padding: '6px 10px',
+                                    backgroundColor: '#2196F3',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                  }}
+                                >
+                                  Aceitar sugestão
+                                </button>
                               )}
-                              <BadgeConfianca confianca={resultado.confianca} />
-                              <button
-                                type="button"
-                                onClick={() => setDetalheAberto({ slot, resultado })}
-                                title="Ver justificativa completa"
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: aparencia.corPrimaria,
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                  padding: 0,
-                                  textDecoration: 'underline',
-                                }}
-                              >
-                                ⓘ Detalhes
-                              </button>
+                              {!fechado && podeEditar && (
+                                <button
+                                  onClick={() => salvarSlot(slot)}
+                                  disabled={salvandoChave === chave}
+                                  style={{
+                                    padding: '6px 10px',
+                                    backgroundColor: aparencia.corPrimaria,
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    cursor: salvandoChave === chave ? 'not-allowed' : 'pointer',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold',
+                                  }}
+                                >
+                                  {salvandoChave === chave ? 'Salvando...' : 'Salvar'}
+                                </button>
+                              )}
                             </div>
-                            {resumo && <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>{resumo}</p>}
-                          </>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          value={edicao.quantidade}
-                          disabled={desabilitado}
-                          onChange={(e) => atualizarEdicao(chave, 'quantidade', e.target.value)}
-                          style={{
-                            width: '90px',
-                            padding: '6px',
-                            border: '1px solid #ddd',
-                            borderRadius: '5px',
-                            boxSizing: 'border-box',
-                            backgroundColor: desabilitado ? '#f0f0f0' : 'white',
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          type="text"
-                          value={edicao.observacao}
-                          disabled={desabilitado}
-                          onChange={(e) => atualizarEdicao(chave, 'observacao', e.target.value)}
-                          style={{
-                            width: '140px',
-                            padding: '6px',
-                            border: '1px solid #ddd',
-                            borderRadius: '5px',
-                            boxSizing: 'border-box',
-                            backgroundColor: desabilitado ? '#f0f0f0' : 'white',
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                            {!fechado && podeEditar && resultado.quantidadeSugerida != null && (
-                              <button
-                                onClick={() => aceitarSugestao(chave, resultado.quantidadeSugerida)}
-                                style={{
-                                  padding: '6px 10px',
-                                  backgroundColor: '#2196F3',
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '3px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                }}
-                              >
-                                Aceitar sugestão
-                              </button>
-                            )}
-                            {!fechado && podeEditar && (
-                              <button
-                                onClick={() => salvarSlot(slot)}
-                                disabled={salvandoChave === chave}
-                                style={{
-                                  padding: '6px 10px',
-                                  backgroundColor: aparencia.corPrimaria,
-                                  color: 'white',
-                                  border: 'none',
-                                  borderRadius: '3px',
-                                  cursor: salvandoChave === chave ? 'not-allowed' : 'pointer',
-                                  fontSize: '12px',
-                                  fontWeight: 'bold',
-                                }}
-                              >
-                                {salvandoChave === chave ? 'Salvando...' : 'Salvar'}
-                              </button>
+                            {erroLinha[chave] && (
+                              <span style={{ color: '#f44336', fontSize: '11px' }}>{erroLinha[chave]}</span>
                             )}
                           </div>
-                          {erroLinha[chave] && (
-                            <span style={{ color: '#f44336', fontSize: '11px' }}>{erroLinha[chave]}</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {paginacao.total > 0 && (
+              <>
+                <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
+                  Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+                  {paginacao.total === 1 ? 'linha' : 'linhas'}
+                  {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+                </p>
+                <Paginacao
+                  paginaAtual={paginaAtual}
+                  totalPaginas={paginacao.totalPaginas}
+                  onMudarPagina={setPagina}
+                  corPrimaria={aparencia.corPrimaria}
+                />
+              </>
+            )}
           </div>
         )}
       </div>
