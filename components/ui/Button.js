@@ -3,7 +3,8 @@ import Icon from './Icon';
 import { cx } from '../../lib/design/cx';
 import styles from './Button.module.css';
 
-// Botão do Design System. Variantes: primary | secondary | danger | ghost.
+// Botão do Design System. Variantes: primary | secondary | danger | dangerOutline | ghost.
+// dangerOutline = ação destrutiva secundária (ex.: remover uma linha).
 // Tamanhos: md (padrão) | sm. Com `href` renderiza um link (<a>) com a
 // mesma aparência -- navegação é link, ação é botão.
 //

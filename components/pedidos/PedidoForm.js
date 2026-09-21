@@ -3,6 +3,8 @@ import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { diaSemanaISO, calcularDataEntrega } from '../../lib/fornecedores/regrasPedido';
 import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
+import Modal from '../ui/Modal';
+import Button from '../ui/Button';
 
 // Formulário ÚNICO de pedido a fornecedor -- absorve o que antes era
 // components/pedidos/CompraPresencialForm.js (removido nesta migração de
@@ -333,31 +335,6 @@ function mensagemErroRetirada(error, estaEditando) {
 function formatarMoeda(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '820px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
 
@@ -957,8 +934,7 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     : 'Novo pedido';
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="xl" fecharComEsc={false} legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>{tituloModal}</h3>
 
         {carregandoDados ? (
@@ -1313,20 +1289,9 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
                       )}
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
-                          onClick={() => removerItem(chave)}
-                          style={{
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#f44336',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                          }}
-                        >
+                        <Button variante="dangerOutline" tamanho="sm" icone="trash" onClick={() => removerItem(chave)}>
                           Remover item
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   );
@@ -1401,7 +1366,6 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
             {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : ehRetirada ? 'Registrar retirada' : 'Criar pedido'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

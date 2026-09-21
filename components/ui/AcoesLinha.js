@@ -16,7 +16,10 @@ import styles from './AcoesLinha.module.css';
 // principal (marcada `primaria`, ou a primeira) fica visível com texto e o
 // resto vai para "Mais ações" -- uma folha (bottom sheet) com itens
 // nomeados, em vez de vários botões minúsculos lado a lado.
-export default function AcoesLinha({ acoes, cartao = false }) {
+// menuUnico (só no modo cartão): todas as ações vão para "Mais ações", sem botão
+// principal visível -- usado quando as ações de uso frequente já aparecem
+// como botões próprios ao lado.
+export default function AcoesLinha({ acoes, cartao = false, menuUnico = false }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const lista = (acoes || []).filter(Boolean);
   if (lista.length === 0) return null;
@@ -52,16 +55,16 @@ export default function AcoesLinha({ acoes, cartao = false }) {
     </Button>
   );
 
-  if (lista.length <= 2) {
+  if (lista.length <= 2 && !menuUnico) {
     return <div className={styles.cartao}>{lista.map((a) => botao(a, a.primaria ? 'primary' : 'secondary'))}</div>;
   }
 
-  const principal = lista.find((a) => a.primaria) || lista.find((a) => !a.destrutivo) || lista[0];
+  const principal = menuUnico ? null : lista.find((a) => a.primaria) || lista.find((a) => !a.destrutivo) || lista[0];
   const demais = lista.filter((a) => a !== principal);
 
   return (
     <div className={styles.cartao}>
-      {botao(principal, 'primary')}
+      {principal && botao(principal, 'primary')}
       <Button
         tamanho="sm"
         variante="secondary"

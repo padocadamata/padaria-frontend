@@ -12,6 +12,10 @@ const LARGURAS = { sm: '380px', md: '520px', lg: '720px', xl: '920px' };
 // último fecha.
 let modaisAbertos = 0;
 let overflowAnterior = '';
+// Pilha de modais abertos (o último é o do topo): Esc e a prisão de foco valem
+// só para o modal do topo -- uma confirmação aberta sobre outro modal fecha
+// sozinha, sem fechar o de baixo junto.
+const pilhaModais = [];
 
 // Quadro padrão dos modais.
 //
@@ -26,7 +30,8 @@ let overflowAnterior = '';
 // modal, Esc chama onFechar e o foco volta ao elemento que abriu o modal.
 //
 // Não fecha ao clicar no fundo por padrão (evita perder um formulário
-// preenchido por engano); habilite com fecharAoClicarFora.
+// preenchido por engano); habilite com fecharAoClicarFora. Formulários longos
+// podem desligar o Esc com fecharComEsc={false} pelo mesmo motivo.
 //
 // legado: aplica uma camada de compatibilidade (só dentro deste quadro) que
 // normaliza fonte, altura e raio dos campos/botões dos modais que ainda têm
@@ -36,6 +41,7 @@ export default function Modal({
   onFechar,
   largura = 'md',
   fecharAoClicarFora = false,
+  fecharComEsc = true,
   legado = false,
   rotulo,
   children,
@@ -44,6 +50,8 @@ export default function Modal({
   const idTitulo = useId();
   const onFecharRef = useRef(onFechar);
   onFecharRef.current = onFechar;
+  const escRef = useRef(fecharComEsc);
+  escRef.current = fecharComEsc;
 
   useEffect(() => {
     const caixa = caixaRef.current;
@@ -54,6 +62,8 @@ export default function Modal({
       document.body.style.overflow = 'hidden';
     }
     modaisAbertos += 1;
+    const meuToken = {};
+    pilhaModais.push(meuToken);
 
     // Nome acessível do modal legado: primeiro título do conteúdo.
     if (!titulo && !rotulo && caixa) {
@@ -74,9 +84,10 @@ export default function Modal({
     }
 
     function aoTeclar(evento) {
+      if (pilhaModais[pilhaModais.length - 1] !== meuToken) return;
       if (evento.key === 'Escape') {
         evento.stopPropagation();
-        if (onFecharRef.current) onFecharRef.current();
+        if (escRef.current && onFecharRef.current) onFecharRef.current();
         return;
       }
       if (evento.key !== 'Tab' || !caixa) return;
@@ -101,6 +112,8 @@ export default function Modal({
     return () => {
       document.removeEventListener('keydown', aoTeclar);
       modaisAbertos -= 1;
+      const posicao = pilhaModais.indexOf(meuToken);
+      if (posicao >= 0) pilhaModais.splice(posicao, 1);
       if (modaisAbertos === 0) document.body.style.overflow = overflowAnterior;
       if (anterior && typeof anterior.focus === 'function' && document.contains(anterior)) anterior.focus();
     };

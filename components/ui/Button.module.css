@@ -53,6 +53,16 @@
   background-color: var(--ds-danger-hover);
 }
 
+/* Destrutivo SECUNDÁRIO: contorno vermelho, sem competir com a ação principal. */
+.dangerOutline {
+  background-color: var(--ds-surface);
+  border-color: var(--ds-danger);
+  color: var(--ds-danger);
+}
+.dangerOutline:hover {
+  background-color: var(--ds-danger-soft);
+}
+
 .ghost {
   background-color: transparent;
   color: var(--ds-primary);

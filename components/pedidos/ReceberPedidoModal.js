@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import Modal from '../ui/Modal';
 
 function normalizar(texto) {
   return (texto || '').trim().toLowerCase();
@@ -279,31 +280,6 @@ function mensagemErroRecebimento(error) {
   return 'Não foi possível confirmar o recebimento. Tente novamente ou avise um administrador.';
 }
 
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '820px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
-
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '12px' };
 
 const campoEstilo = {
@@ -430,8 +406,7 @@ export default function ReceberPedidoModal({ pedido, itens, fornecedorNome, prod
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="xl" fecharComEsc={false} legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>Receber pedido</h3>
         <p style={{ fontSize: '13px', color: '#666', marginTop: '-8px', marginBottom: '15px' }}>
           {fornecedorNome} — pedido de {formatarDataExibicao(pedido.data_pedido)}
@@ -655,7 +630,6 @@ export default function ReceberPedidoModal({ pedido, itens, fornecedorNome, prod
             {confirmando ? 'Confirmando...' : 'Confirmar recebimento'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

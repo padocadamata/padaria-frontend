@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
-import NavegacaoPedidos from '../../components/pedidos/NavegacaoPedidos';
+import PaginaPedidos from '../../components/pedidos/PaginaPedidos';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import DataTable from '../../components/ui/DataTable';
+import EmptyState from '../../components/ui/EmptyState';
+import SectionHeader from '../../components/ui/SectionHeader';
+import { cx } from '../../lib/design/cx';
+import estilos from '../../components/pedidos/pedidos.module.css';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { JANELA_RECEBIDOS_DIAS } from '../../lib/pedidos/resumoConfig';
-import { APARENCIA_FIXA } from '../../lib/branding/tema';
 
 // Resumo operacional de Pedidos (auditoria aprovada, seções 3-6): "o que
 // precisa de atenção", sem gráficos -- cards de contagem + 1 tabela
@@ -47,37 +52,18 @@ function formatarDataExibicao(dataYYYYMMDD) {
   return `${dia}/${mes}/${ano}`;
 }
 
-const caixaCardEstilo = {
-  backgroundColor: 'white', borderRadius: '8px', padding: '16px 20px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)', minWidth: '150px', flex: '1 1 150px',
-};
-
-// `aoClicar` é opcional -- quando presente, o card navega para /pedidos
-// com o filtro correspondente já aplicado (mesmo `filtroStatus` de
-// pages/pedidos.js). Acessível por teclado (role="button" + Enter/Espaço),
-// igual a qualquer outro controle clicável novo do projeto.
-function Card({ titulo, valor, cor, aoClicar }) {
-  const clicavel = typeof aoClicar === 'function';
+// Indicador clicável: leva para /pedidos com o filtro correspondente já
+// aplicado (mesmo `filtroStatus` de pages/pedidos.js) ou para as
+// Solicitações. É um <button> de verdade (teclado e leitor de tela); a cor
+// lateral acompanha o significado (atenção / alerta / ok).
+function Indicador({ titulo, valor, tom = 'neutro', aoClicar, rodape }) {
+  const tons = { neutro: estilos.tomNeutro, danger: estilos.tomDanger, warning: estilos.tomWarning, success: estilos.tomSuccess, info: estilos.tomInfo };
   return (
-    <div
-      style={{ ...caixaCardEstilo, ...(clicavel ? { cursor: 'pointer', border: '1px solid #eee' } : {}) }}
-      onClick={aoClicar}
-      role={clicavel ? 'button' : undefined}
-      tabIndex={clicavel ? 0 : undefined}
-      onKeyDown={
-        clicavel
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                aoClicar();
-              }
-            }
-          : undefined
-      }
-    >
-      <p style={{ margin: 0, fontSize: '12px', color: '#999', fontWeight: 'bold', textTransform: 'uppercase' }}>{titulo}</p>
-      <p style={{ margin: '6px 0 0', fontSize: '28px', fontWeight: 'bold', color: cor || '#333' }}>{valor}</p>
-    </div>
+    <button type="button" className={cx(estilos.indicador, tons[tom])} onClick={aoClicar}>
+      <span className={estilos.indicadorRotulo}>{titulo}</span>
+      <strong className={estilos.indicadorValor}>{valor}</strong>
+      {rodape && <span className={estilos.indicadorLink}>{rodape}</span>}
+    </button>
   );
 }
 
@@ -96,8 +82,6 @@ function ResumoConteudo() {
 
   const podeVerPedidos = hasPermissao(permissoes, PERMISSOES.PEDIDOS_VISUALIZAR);
   const podeVerSolicitacoes = hasPermissao(permissoes, PERMISSOES.PEDIDOS_SOLICITACOES_VISUALIZAR);
-
-  const aparencia = APARENCIA_FIXA;
 
   const [pedidos, setPedidos] = useState([]);
   const [fornecedorNomePorId, setFornecedorNomePorId] = useState({});
@@ -206,134 +190,110 @@ function ResumoConteudo() {
     router.push(`/pedidos?id=${pedidoId}`);
   }
 
+  const colunas = [
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 0, render: (p) => fornecedorNomePorId[p.fornecedor_id] || p.fornecedor_id },
+    { chave: 'data', rotulo: 'Pedido/Data', semQuebra: true, render: (p) => formatarDataExibicao(p.data_pedido) },
+    { chave: 'modalidade', rotulo: 'Modalidade', render: (p) => MODALIDADE_LABEL[p.modalidade_compra] || p.modalidade_compra },
+    { chave: 'previsao', rotulo: 'Previsão', semQuebra: true, render: (p) => formatarDataExibicao(p.previsao_entrega) },
+    {
+      chave: 'status',
+      rotulo: 'Status',
+      mobile: 'titulo',
+      cartaoOrdem: 1,
+      render: (p) => {
+        const atrasado = idsAtrasados.has(p.id);
+        const previstoHoje = idsPrevistos.has(p.id);
+        const rotuloStatus = atrasado ? 'Atrasado' : previstoHoje ? 'Previsto hoje' : 'Aguardando';
+        const tom = atrasado ? 'danger' : previstoHoje ? 'warning' : 'neutral';
+        return <Badge tom={tom}>{rotuloStatus}</Badge>;
+      },
+    },
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Pedidos" />
+    <PaginaPedidos ativo="resumo" titulo="Resumo">
+      {podeVerPedidos && (
+        <>
+          {erroPedidos && <Alert tom="danger" className={estilos.mensagem}>{erroPedidos}</Alert>}
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-        <NavegacaoPedidos abaAtiva="resumo" corPrimaria={aparencia.corPrimaria} />
-
-        <h2 style={{ color: aparencia.corPrimaria, margin: '0 0 15px' }}>Resumo</h2>
-
-        {podeVerPedidos && (
-          <>
-            {erroPedidos && <p style={{ color: '#f44336' }}>{erroPedidos}</p>}
-
-            {carregandoPedidos ? (
-              <p>Carregando resumo de pedidos...</p>
-            ) : (
-              <>
-                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '25px' }}>
-                  <Card
-                    titulo="Aguardando entrega"
-                    valor={aguardando.length}
-                    aoClicar={() => router.push('/pedidos?filtro=aguardando')}
+          {carregandoPedidos ? (
+            <p role="status">Carregando resumo de pedidos...</p>
+          ) : (
+            <>
+              <div className={estilos.indicadores}>
+                <Indicador
+                  titulo="Aguardando entrega"
+                  valor={aguardando.length}
+                  aoClicar={() => router.push('/pedidos?filtro=aguardando')}
+                />
+                <Indicador
+                  titulo="Atrasados"
+                  valor={atrasados.length}
+                  tom={atrasados.length > 0 ? 'danger' : 'neutro'}
+                  aoClicar={() => router.push('/pedidos?filtro=atrasados')}
+                />
+                <Indicador
+                  titulo="Previstos para hoje"
+                  valor={previstosHoje.length}
+                  tom={previstosHoje.length > 0 ? 'warning' : 'neutro'}
+                  aoClicar={() => router.push('/pedidos?filtro=previstos_hoje')}
+                />
+                <Indicador
+                  titulo={`Recebidos (últimos ${JANELA_RECEBIDOS_DIAS} dias)`}
+                  valor={recebidosRecentes.length}
+                  tom="success"
+                  aoClicar={() => router.push('/pedidos?filtro=recebidos_recentemente')}
+                />
+                {podeVerSolicitacoes && (
+                  <Indicador
+                    titulo="Solicitações pendentes"
+                    valor={carregandoSolicitacoes ? '…' : totalSolicitacoesPendentes ?? '—'}
+                    tom="info"
+                    aoClicar={() => router.push('/pedidos/solicitacoes')}
                   />
-                  <Card
-                    titulo="Atrasados"
-                    valor={atrasados.length}
-                    cor={atrasados.length > 0 ? '#f44336' : '#333'}
-                    aoClicar={() => router.push('/pedidos?filtro=atrasados')}
-                  />
-                  <Card
-                    titulo="Previstos para hoje"
-                    valor={previstosHoje.length}
-                    cor={previstosHoje.length > 0 ? '#FF9800' : '#333'}
-                    aoClicar={() => router.push('/pedidos?filtro=previstos_hoje')}
-                  />
-                  <Card
-                    titulo={`Recebidos (últimos ${JANELA_RECEBIDOS_DIAS} dias)`}
-                    valor={recebidosRecentes.length}
-                    cor="#4CAF50"
-                    aoClicar={() => router.push('/pedidos?filtro=recebidos_recentemente')}
-                  />
-                  {podeVerSolicitacoes && (
-                    <div
-                      onClick={() => router.push('/pedidos/solicitacoes')}
-                      style={{ ...caixaCardEstilo, cursor: 'pointer', border: '1px solid #eee' }}
-                    >
-                      <p style={{ margin: 0, fontSize: '12px', color: '#999', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        Solicitações pendentes
-                      </p>
-                      <p style={{ margin: '6px 0 0', fontSize: '28px', fontWeight: 'bold', color: '#2196F3' }}>
-                        {carregandoSolicitacoes ? '…' : totalSolicitacoesPendentes ?? '—'}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                )}
+              </div>
 
-                <h3 style={{ color: aparencia.corPrimaria, marginBottom: '10px' }}>
-                  Pedidos que precisam de atenção
-                </h3>
+              <section className={estilos.secao} aria-label="Pedidos que precisam de atenção">
+                <SectionHeader titulo="Pedidos que precisam de atenção" />
 
                 {tabelaOperacional.length === 0 ? (
-                  <p style={{ color: '#999' }}>Nenhum pedido aguardando entrega no momento.</p>
+                  <EmptyState>Nenhum pedido aguardando entrega no momento.</EmptyState>
                 ) : (
-                  <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid #ddd' }}>
-                          {['Fornecedor', 'Pedido/Data', 'Modalidade', 'Previsão', 'Status', 'Ação'].map((coluna) => (
-                            <th key={coluna} style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                              {coluna}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tabelaOperacional.map((p) => {
-                          const atrasado = idsAtrasados.has(p.id);
-                          const previstoHoje = idsPrevistos.has(p.id);
-                          const rotuloStatus = atrasado ? 'Atrasado' : previstoHoje ? 'Previsto hoje' : 'Aguardando';
-                          const corStatus = atrasado ? '#f44336' : previstoHoje ? '#FF9800' : '#607D8B';
-                          return (
-                            <tr key={p.id} style={{ borderBottom: '1px solid #ddd' }}>
-                              <td style={{ padding: '12px' }}>{fornecedorNomePorId[p.fornecedor_id] || p.fornecedor_id}</td>
-                              <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(p.data_pedido)}</td>
-                              <td style={{ padding: '12px' }}>{MODALIDADE_LABEL[p.modalidade_compra] || p.modalidade_compra}</td>
-                              <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(p.previsao_entrega)}</td>
-                              <td style={{ padding: '12px' }}>
-                                <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', color: 'white', backgroundColor: corStatus, whiteSpace: 'nowrap' }}>
-                                  {rotuloStatus}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px' }}>
-                                <button
-                                  onClick={() => abrirPedido(p.id)}
-                                  style={{ padding: '5px 10px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
-                                >
-                                  Ver pedido
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className={estilos.superficie}>
+                    <DataTable
+                      rotulo="Pedidos que precisam de atenção"
+                      colunas={colunas}
+                      linhas={tabelaOperacional}
+                      chaveLinha={(p) => p.id}
+                      tituloAcoes="Ação"
+                      destaque={(p) => (idsAtrasados.has(p.id) ? 'aviso' : null)}
+                      renderAcoes={(p) => (
+                        <Button variante="secondary" tamanho="sm" icone="eye" onClick={() => abrirPedido(p.id)}>
+                          Ver pedido
+                        </Button>
+                      )}
+                    />
                   </div>
                 )}
-              </>
-            )}
-          </>
-        )}
+              </section>
+            </>
+          )}
+        </>
+      )}
 
-        {!podeVerPedidos && podeVerSolicitacoes && (
-          <div
-            onClick={() => router.push('/pedidos/solicitacoes')}
-            style={{ ...caixaCardEstilo, cursor: 'pointer', maxWidth: '260px' }}
-          >
-            <p style={{ margin: 0, fontSize: '12px', color: '#999', fontWeight: 'bold', textTransform: 'uppercase' }}>
-              Solicitações pendentes
-            </p>
-            <p style={{ margin: '6px 0 0', fontSize: '28px', fontWeight: 'bold', color: '#2196F3' }}>
-              {carregandoSolicitacoes ? '…' : totalSolicitacoesPendentes ?? '—'}
-            </p>
-            <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#2196F3' }}>Ver solicitações →</p>
-          </div>
-        )}
-      </div>
-    </div>
+      {!podeVerPedidos && podeVerSolicitacoes && (
+        <div className={estilos.unico}>
+          <Indicador
+            titulo="Solicitações pendentes"
+            valor={carregandoSolicitacoes ? '…' : totalSolicitacoesPendentes ?? '—'}
+            tom="info"
+            rodape="Ver solicitações →"
+            aoClicar={() => router.push('/pedidos/solicitacoes')}
+          />
+        </div>
+      )}
+    </PaginaPedidos>
   );
 }
 

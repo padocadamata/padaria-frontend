@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
+import Modal from '../ui/Modal';
 
 // Form único de criação E edição de uma solicitação interna de compra
 // (`solicitacao` null = criação; preenchida = edição, só permitida
@@ -46,16 +47,6 @@ function mensagemErro(error) {
   return 'Não foi possível salvar a solicitação. Tente novamente ou avise um administrador.';
 }
 
-const overlayEstilo = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-  justifyContent: 'center', zIndex: 1000, padding: '20px',
-};
-const caixaEstilo = {
-  backgroundColor: 'white', padding: '25px', borderRadius: '10px',
-  maxWidth: '480px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
 const campoEstilo = {
   width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box',
@@ -173,8 +164,7 @@ export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', 
   const resultadosBusca = buscarProdutosPorRelevancia(produtos, buscaProduto);
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="md" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>{estaEditando ? 'Editar solicitação' : 'Nova solicitação'}</h3>
 
         <div style={{ marginBottom: '15px' }}>
@@ -301,7 +291,6 @@ export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', 
             {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : 'Criar solicitação'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

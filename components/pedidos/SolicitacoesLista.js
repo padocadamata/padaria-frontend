@@ -1,23 +1,23 @@
-import {
-  BotaoIconeAcao,
-  IconeLapis,
-  IconeLixeira,
-  IconeCaixa,
-  IconeCheck,
-  IconeOlho,
-  IconeReabrir,
-} from '../producao/IconesAcoes';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import DataTable from '../ui/DataTable';
+import EmptyState from '../ui/EmptyState';
+import AcoesLinha from '../ui/AcoesLinha';
+import estilos from './pedidos.module.css';
 
-// Tabela de solicitações internas de compra. Ordenação já vem pronta de
+// Lista de solicitações internas de compra. Ordenação já vem pronta de
 // quem chama (pages/pedidos/solicitacoes.js: data_solicitacao ASC, depois
 // criado_em ASC -- mais antigas pendentes primeiro, seção 17 da auditoria
 // aprovada) -- este componente só renderiza, não decide ordem/filtro.
 //
-// Ações em botões de ícone (BotaoIconeAcao, components/producao/
-// IconesAcoes.js) -- mesmo componente já usado em pages/pedidos.js, sem
-// nenhuma biblioteca de ícones nova. Cada botão já vem com aria-label e
-// tooltip próprios (via `rotulo`); confirmação de ações destrutivas
-// acontece em quem chama (ConfirmarAcaoModal), nunca aqui.
+// UMA definição de colunas e UMA lista de ações por solicitação alimentam a
+// tabela (desktop) e os cartões (mobile) -- os handlers são exatamente os
+// recebidos de quem chama; confirmação de ações destrutivas acontece lá
+// (ConfirmarAcaoModal), nunca aqui.
+//   Desktop: ações em ícones com rótulo acessível (como antes).
+//   Mobile: as ações de uso frequente (Criar pedido / Marcar como realizada /
+//   Abrir pedido) ficam VISÍVEIS com texto; as secundárias (Editar, Excluir,
+//   Reabrir/Excluir pedido) ficam agrupadas em "Mais ações".
 //
 // Reabrir/Excluir pedido só aparecem para uma solicitação realizada COM
 // pedido_id, são gated pelas permissões de PEDIDOS (podeReabrirPedido/
@@ -27,10 +27,7 @@ import {
 //   Reabrir exige status='recebido' E modalidade_compra<>'compra_presencial'
 //   -- reabrir_recebimento_pedido (migration 0037) rejeita explicitamente
 //   compra presencial (nunca passa por aguardando_entrega; sua correção é
-//   via editar_compra_presencial(), fora desta frente). Sem checar
-//   modalidade aqui, o ícone aparecia para uma Retirada recebida e a RPC
-//   sempre falhava -- bug de frontend corrigido nesta rodada (confirmado
-//   por diagnóstico real: Assaí_34/compra_presencial).
+//   via editar_compra_presencial(), fora desta frente).
 //   Excluir exige status='aguardando_entrega' (mesma exigência de
 //   excluir_pedido, migration 0025, reaproveitada por
 //   excluir_pedido_com_solicitacoes, migration 0045) -- uma Retirada
@@ -46,7 +43,6 @@ function formatarDataExibicao(dataYYYYMMDD) {
 export default function SolicitacoesLista({
   solicitacoes,
   nomePorId,
-  corPrimaria,
   podeEditar,
   podeExcluir,
   podeRealizar,
@@ -63,99 +59,114 @@ export default function SolicitacoesLista({
   onExcluirPedido,
 }) {
   if (solicitacoes.length === 0) {
-    return <p style={{ color: '#999' }}>Nenhuma solicitação encontrada.</p>;
+    return <EmptyState>Nenhuma solicitação encontrada.</EmptyState>;
   }
 
+  // Ações de uma solicitação (mesmas condições de antes). `frequente`:
+  // usada no dia a dia -> fica visível no cartão mobile.
+  function acoesDe(s) {
+    const pendente = s.status === 'pendente';
+    const infoPedidoVinculado = s.pedido_id ? infoPedidoPorId[s.pedido_id] : null;
+    const statusPedidoVinculado = infoPedidoVinculado?.status;
+    const modalidadePedidoVinculado = infoPedidoVinculado?.modalidade_compra;
+
+    return [
+      pendente && podeEditar && { chave: 'editar', rotulo: 'Editar solicitação', icone: 'pencil', onClick: () => onEditar(s) },
+      pendente && podeExcluir && { chave: 'excluir', rotulo: 'Excluir solicitação', icone: 'trash', destrutivo: true, onClick: () => onExcluir(s) },
+      pendente && podeCriarPedido && {
+        chave: 'criar-pedido',
+        rotulo: s.produto_id ? 'Criar pedido' : 'Criar pedido (produto não cadastrado no Catálogo)',
+        rotuloCurto: 'Criar pedido',
+        icone: 'package',
+        frequente: true,
+        primaria: true,
+        onClick: () => onCriarPedido(s),
+      },
+      pendente && podeRealizar && { chave: 'realizada', rotulo: 'Marcar como realizada', icone: 'check', frequente: true, onClick: () => onMarcarRealizada(s) },
+      !pendente && s.pedido_id && { chave: 'abrir-pedido', rotulo: 'Abrir pedido', icone: 'eye', frequente: true, primaria: true, onClick: () => onAbrirPedido(s.pedido_id) },
+      !pendente && s.pedido_id && podeReabrirPedido && statusPedidoVinculado === 'recebido' && modalidadePedidoVinculado !== 'compra_presencial' && {
+        chave: 'reabrir-pedido',
+        rotulo: 'Reabrir pedido',
+        icone: 'undo',
+        onClick: () => onReabrirPedido(s.pedido_id),
+      },
+      !pendente && s.pedido_id && podeExcluirPedido && statusPedidoVinculado === 'aguardando_entrega' && {
+        chave: 'excluir-pedido',
+        rotulo: 'Excluir pedido',
+        icone: 'trash',
+        destrutivo: true,
+        onClick: () => onExcluirPedido(s.pedido_id),
+      },
+    ].filter(Boolean);
+  }
+
+  const colunas = [
+    {
+      chave: 'descricao',
+      rotulo: 'Produto/Descrição',
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      render: (s) => (
+        <>
+          {s.descricao}
+          {s.unidade && <span className={estilos.nota}> ({s.unidade})</span>}
+          {!s.produto_id && (
+            <span className={estilos.marcaNaoCadastrado}>
+              <Badge tom="warning">não cadastrado</Badge>
+            </span>
+          )}
+        </>
+      ),
+    },
+    { chave: 'data', rotulo: 'Solicitado em', semQuebra: true, mobile: 'titulo', cartaoOrdem: 2, render: (s) => formatarDataExibicao(s.data_solicitacao) },
+    { chave: 'quantidade', rotulo: 'Quantidade', alinhar: 'direita', render: (s) => s.quantidade },
+    { chave: 'solicitante', rotulo: 'Solicitante', render: (s) => nomePorId[s.criado_por] || '—' },
+    {
+      chave: 'observacao',
+      rotulo: 'Observação',
+      render: (s) => (
+        <span className={estilos.observacaoCelula} title={s.observacao || ''}>
+          {s.observacao || '—'}
+        </span>
+      ),
+    },
+    {
+      chave: 'status',
+      rotulo: 'Status',
+      mobile: 'titulo',
+      cartaoOrdem: 1,
+      render: (s) => <Badge tom={s.status === 'pendente' ? 'warning' : 'success'}>{s.status === 'pendente' ? 'Pendente' : 'Realizada'}</Badge>,
+    },
+  ];
+
+  // Ordem das colunas na tabela (como antes): Solicitado em primeiro.
+  const colunasTabela = [colunas[1], colunas[0], colunas[2], colunas[3], colunas[4], colunas[5]];
+
   return (
-    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #ddd' }}>
-            {['Solicitado em', 'Produto/Descrição', 'Quantidade', 'Solicitante', 'Observação', 'Status', 'Ações'].map((coluna) => (
-              <th key={coluna} style={{ padding: '12px', textAlign: 'left', color: corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                {coluna}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {solicitacoes.map((s) => {
-            const pendente = s.status === 'pendente';
-            const infoPedidoVinculado = s.pedido_id ? infoPedidoPorId[s.pedido_id] : null;
-            const statusPedidoVinculado = infoPedidoVinculado?.status;
-            const modalidadePedidoVinculado = infoPedidoVinculado?.modalidade_compra;
-            return (
-              <tr key={s.id} style={{ borderBottom: '1px solid #ddd' }}>
-                <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(s.data_solicitacao)}</td>
-                <td style={{ padding: '12px' }}>
-                  {s.descricao}
-                  {s.unidade && <span style={{ color: '#999', fontSize: '12px' }}> ({s.unidade})</span>}
-                  {!s.produto_id && (
-                    <span style={{ marginLeft: '6px', fontSize: '11px', color: '#FF9800', fontWeight: 'bold' }}>não cadastrado</span>
-                  )}
-                </td>
-                <td style={{ padding: '12px' }}>{s.quantidade}</td>
-                <td style={{ padding: '12px' }}>{nomePorId[s.criado_por] || '—'}</td>
-                <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.observacao || ''}>
-                  {s.observacao || '—'}
-                </td>
-                <td style={{ padding: '12px' }}>
-                  <span
-                    style={{
-                      padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', color: 'white',
-                      backgroundColor: pendente ? '#FF9800' : '#4CAF50', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {pendente ? 'Pendente' : 'Realizada'}
-                  </span>
-                </td>
-                <td style={{ padding: '12px' }}>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {pendente && podeEditar && (
-                      <BotaoIconeAcao rotulo="Editar solicitação" icone={IconeLapis} cor="#607D8B" onClick={() => onEditar(s)} />
-                    )}
-                    {pendente && podeExcluir && (
-                      <BotaoIconeAcao rotulo="Excluir solicitação" icone={IconeLixeira} destrutivo onClick={() => onExcluir(s)} />
-                    )}
-                    {pendente && podeCriarPedido && (
-                      <BotaoIconeAcao
-                        rotulo={s.produto_id ? 'Criar pedido' : 'Criar pedido (produto não cadastrado no Catálogo)'}
-                        icone={IconeCaixa}
-                        cor={corPrimaria}
-                        onClick={() => onCriarPedido(s)}
-                      />
-                    )}
-                    {pendente && podeRealizar && (
-                      <BotaoIconeAcao rotulo="Marcar como realizada" icone={IconeCheck} cor="#4CAF50" onClick={() => onMarcarRealizada(s)} />
-                    )}
-                    {!pendente && s.pedido_id && (
-                      <>
-                        <BotaoIconeAcao rotulo="Abrir pedido" icone={IconeOlho} cor={corPrimaria} onClick={() => onAbrirPedido(s.pedido_id)} />
-                        {podeReabrirPedido && statusPedidoVinculado === 'recebido' && modalidadePedidoVinculado !== 'compra_presencial' && (
-                          <BotaoIconeAcao
-                            rotulo="Reabrir pedido"
-                            icone={IconeReabrir}
-                            cor="#FF9800"
-                            onClick={() => onReabrirPedido(s.pedido_id)}
-                          />
-                        )}
-                        {podeExcluirPedido && statusPedidoVinculado === 'aguardando_entrega' && (
-                          <BotaoIconeAcao
-                            rotulo="Excluir pedido"
-                            icone={IconeLixeira}
-                            destrutivo
-                            onClick={() => onExcluirPedido(s.pedido_id)}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className={estilos.superficie}>
+      <DataTable
+        rotulo="Solicitações de compra"
+        colunas={colunasTabela}
+        linhas={solicitacoes}
+        chaveLinha={(s) => s.id}
+        cartoesAte={1270}
+        renderAcoes={(s, { cartao }) => {
+          const acoes = acoesDe(s);
+          if (!cartao) return <AcoesLinha acoes={acoes} />;
+          const visiveis = acoes.filter((a) => a.frequente);
+          const demais = acoes.filter((a) => !a.frequente);
+          return (
+            <div className={estilos.acoesLinha}>
+              {visiveis.map((a) => (
+                <Button key={a.chave} tamanho="sm" variante={a.primaria ? 'primary' : 'secondary'} icone={a.icone} onClick={a.onClick}>
+                  {a.rotuloCurto || a.rotulo}
+                </Button>
+              ))}
+              <AcoesLinha acoes={demais} cartao menuUnico />
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }

@@ -3,6 +3,12 @@
 // etc.) — mesmo padrão visual dos modais de produção (ver
 // components/producao/ReaberturaModal.js), sem RPC própria: quem chama
 // decide o que acontece em onConfirmar.
+//
+// `modalDS` (opcional, padrão false): usa a moldura do Design System
+// (components/ui/Modal) em vez da moldura antiga -- conteúdo e handlers são
+// os mesmos. Só as telas já migradas ligam; as demais continuam idênticas.
+import Modal from '../ui/Modal';
+
 const overlayEstilo = {
   position: 'fixed',
   top: 0,
@@ -35,12 +41,12 @@ export default function ConfirmarAcaoModal({
   perigo = false,
   confirmando = false,
   erro = '',
+  modalDS = false,
   onConfirmar,
   onCancelar,
 }) {
-  return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+  const conteudo = (
+    <>
         <h3 style={{ color: perigo ? '#f44336' : corPrimaria, marginTop: 0 }}>{titulo}</h3>
 
         <div style={{ color: '#444', fontSize: '14px', lineHeight: '1.6' }}>{mensagem}</div>
@@ -80,7 +86,20 @@ export default function ConfirmarAcaoModal({
             {confirmando ? 'Aguarde...' : textoConfirmar}
           </button>
         </div>
-      </div>
+    </>
+  );
+
+  if (modalDS) {
+    return (
+      <Modal onFechar={confirmando ? undefined : onCancelar} largura="sm" legado>
+        {conteudo}
+      </Modal>
+    );
+  }
+
+  return (
+    <div style={overlayEstilo}>
+      <div style={caixaEstilo}>{conteudo}</div>
     </div>
   );
 }

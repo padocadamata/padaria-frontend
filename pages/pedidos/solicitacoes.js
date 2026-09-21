@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
-import NavegacaoPedidos from '../../components/pedidos/NavegacaoPedidos';
+import PaginaPedidos from '../../components/pedidos/PaginaPedidos';
+import Alert from '../../components/ui/Alert';
+import Button from '../../components/ui/Button';
+import Checkbox from '../../components/ui/Checkbox';
+import estilos from '../../components/pedidos/pedidos.module.css';
 import SolicitacaoForm from '../../components/pedidos/SolicitacaoForm';
 import SolicitacoesLista from '../../components/pedidos/SolicitacoesLista';
 import PedidoForm from '../../components/pedidos/PedidoForm';
@@ -444,83 +446,68 @@ function SolicitacoesConteudo() {
     : null;
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Pedidos" />
+    <PaginaPedidos
+      ativo="solicitacoes"
+      titulo="Solicitações internas de compra"
+      acoes={
+        podeInserir && (
+          <Button icone="plus" onClick={() => setModalForm({ modo: 'criar' })}>
+            Nova solicitação
+          </Button>
+        )
+      }
+    >
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-        <NavegacaoPedidos abaAtiva="solicitacoes" corPrimaria={aparencia.corPrimaria} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Solicitações internas de compra</h2>
-          {podeInserir && (
-            <button
-              onClick={() => setModalForm({ modo: 'criar' })}
-              style={{ padding: '10px 18px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              + Nova solicitação
-            </button>
-          )}
-        </div>
-
-        {mensagemSucesso && <p style={{ color: '#4CAF50', fontWeight: 'bold' }}>{mensagemSucesso}</p>}
-        {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
-
-        {erroVinculo && (
-          <div style={{ backgroundColor: '#fff3e0', border: '1px solid #FF9800', borderRadius: '5px', padding: '15px', marginBottom: '15px' }}>
-            <p style={{ margin: '0 0 8px 0', color: '#e65100', fontWeight: 'bold' }}>{erroVinculo}</p>
-            <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#666' }}>
-              O pedido já foi criado normalmente — nenhum pedido duplicado será gerado. Você pode tentar concluir a
-              solicitação de novo, sem criar outro pedido.
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={tentarVincularNovamente}
-                disabled={vinculando}
-                style={{ padding: '8px 14px', backgroundColor: '#FF9800', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                {vinculando ? 'Tentando...' : 'Tentar vincular novamente'}
-              </button>
-              <button
-                onClick={fecharAvisoVinculoPendente}
-                disabled={vinculando}
-                style={{ padding: '8px 14px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-              >
-                Fechar (a solicitação continua pendente)
-              </button>
-            </div>
+      {erroVinculo && (
+        <Alert tom="warning" className={estilos.avisoVinculo}>
+          <p>
+            <strong>{erroVinculo}</strong>
+          </p>
+          <p>
+            O pedido já foi criado normalmente — nenhum pedido duplicado será gerado. Você pode tentar concluir a
+            solicitação de novo, sem criar outro pedido.
+          </p>
+          <div className={estilos.botoesAviso}>
+            <Button tamanho="sm" onClick={tentarVincularNovamente} disabled={vinculando}>
+              {vinculando ? 'Tentando...' : 'Tentar vincular novamente'}
+            </Button>
+            <Button tamanho="sm" variante="secondary" onClick={fecharAvisoVinculoPendente} disabled={vinculando}>
+              Fechar (a solicitação continua pendente)
+            </Button>
           </div>
-        )}
+        </Alert>
+      )}
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', marginBottom: '15px' }}>
-          <input type="checkbox" checked={mostrarRealizadas} onChange={(e) => setMostrarRealizadas(e.target.checked)} />
-          Mostrar realizadas
-        </label>
+      <Checkbox
+        rotulo="Mostrar realizadas"
+        checked={mostrarRealizadas}
+        onChange={(e) => setMostrarRealizadas(e.target.checked)}
+      />
 
-        {carregando ? (
-          <p>Carregando solicitações...</p>
-        ) : (
-          <SolicitacoesLista
-            solicitacoes={solicitacoesVisiveis}
-            nomePorId={nomePorId}
-            corPrimaria={aparencia.corPrimaria}
-            podeEditar={podeEditar}
-            podeExcluir={podeExcluir}
-            podeRealizar={podeRealizar}
-            podeCriarPedido={podeCriarPedido}
-            podeReabrirPedido={podeReabrirPedido}
-            podeExcluirPedido={podeExcluirPedido}
-            infoPedidoPorId={infoPedidoPorId}
-            onEditar={(s) => setModalForm({ modo: 'editar', solicitacao: s })}
-            onExcluir={abrirConfirmarExclusao}
-            onCriarPedido={abrirCriarPedido}
-            onMarcarRealizada={abrirConfirmarRealizacao}
-            onAbrirPedido={abrirPedido}
-            onReabrirPedido={abrirConfirmarReabrirPedido}
-            onExcluirPedido={abrirConfirmarExcluirPedido}
-          />
-        )}
-      </div>
+      {carregando ? (
+        <p role="status">Carregando solicitações...</p>
+      ) : (
+        <SolicitacoesLista
+          solicitacoes={solicitacoesVisiveis}
+          nomePorId={nomePorId}
+          podeEditar={podeEditar}
+          podeExcluir={podeExcluir}
+          podeRealizar={podeRealizar}
+          podeCriarPedido={podeCriarPedido}
+          podeReabrirPedido={podeReabrirPedido}
+          podeExcluirPedido={podeExcluirPedido}
+          infoPedidoPorId={infoPedidoPorId}
+          onEditar={(s) => setModalForm({ modo: 'editar', solicitacao: s })}
+          onExcluir={abrirConfirmarExclusao}
+          onCriarPedido={abrirCriarPedido}
+          onMarcarRealizada={abrirConfirmarRealizacao}
+          onAbrirPedido={abrirPedido}
+          onReabrirPedido={abrirConfirmarReabrirPedido}
+          onExcluirPedido={abrirConfirmarExcluirPedido}
+        />
+      )}
 
       {modalForm && (
         <SolicitacaoForm
@@ -533,6 +520,7 @@ function SolicitacoesConteudo() {
 
       {confirmarExclusao && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Excluir solicitação"
           corPrimaria={aparencia.corPrimaria}
           perigo
@@ -553,6 +541,7 @@ function SolicitacoesConteudo() {
 
       {confirmarRealizacao && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Marcar como realizada"
           corPrimaria={aparencia.corPrimaria}
           confirmando={realizando}
@@ -582,6 +571,7 @@ function SolicitacoesConteudo() {
 
       {pedidoParaReabrir && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Reabrir recebimento do pedido"
           corPrimaria={aparencia.corPrimaria}
           perigo
@@ -602,6 +592,7 @@ function SolicitacoesConteudo() {
 
       {pedidoParaExcluirDaSolicitacao && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Excluir pedido definitivamente"
           corPrimaria={aparencia.corPrimaria}
           perigo
@@ -630,6 +621,7 @@ function SolicitacoesConteudo() {
 
       {avisoProdutoNaoCadastrado && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Produto não cadastrado"
           corPrimaria={aparencia.corPrimaria}
           textoConfirmar="Continuar"
@@ -655,7 +647,7 @@ function SolicitacoesConteudo() {
           onCancelar={fecharCriarPedido}
         />
       )}
-    </div>
+    </PaginaPedidos>
   );
 }
 

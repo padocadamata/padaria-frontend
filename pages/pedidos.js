@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
 import ReceberPedidoModal from '../components/pedidos/ReceberPedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
-import NavegacaoPedidos from '../components/pedidos/NavegacaoPedidos';
-import { BotaoIconeAcao, IconeOlho } from '../components/producao/IconesAcoes';
+import PaginaPedidos from '../components/pedidos/PaginaPedidos';
+import Alert from '../components/ui/Alert';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import DataTable from '../components/ui/DataTable';
+import EmptyState from '../components/ui/EmptyState';
+import Field from '../components/ui/Field';
+import FilterBar from '../components/ui/FilterBar';
+import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
+import Paginacao, { paginarLista } from '../components/Paginacao';
+import estilos from '../components/pedidos/pedidos.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -111,30 +119,16 @@ function mensagemErroReaberturaRecebimento(error) {
 function BadgeStatusPedido({ pedido, hoje }) {
   const atrasado = estaAtrasado(pedido, hoje);
 
-  const cores = {
-    aguardando_entrega: '#FF9800',
-    recebido: '#4CAF50',
-    cancelado: '#9e9e9e',
+  const tons = {
+    aguardando_entrega: 'warning',
+    recebido: 'success',
+    cancelado: 'neutral',
   };
 
-  const cor = atrasado ? '#f44336' : cores[pedido.status] || '#9e9e9e';
+  const tom = atrasado ? 'danger' : tons[pedido.status] || 'neutral';
   const rotulo = atrasado ? 'Atrasado' : STATUS_LABEL[pedido.status] || pedido.status;
 
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: cor,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {rotulo}
-    </span>
-  );
+  return <Badge tom={tom}>{rotulo}</Badge>;
 }
 
 function PedidosConteudo() {
@@ -156,6 +150,9 @@ function PedidosConteudo() {
   const [filtroModalidade, setFiltroModalidade] = useState('todas');
   const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
   const [filtroPeriodoFim, setFiltroPeriodoFim] = useState('');
+  // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS dos
+  // filtros -- ver `paginacao` abaixo).
+  const [pagina, setPagina] = useState(1);
 
   // "Ver pedido" (somente leitura).
   const [pedidoDetalhe, setPedidoDetalhe] = useState(null);
@@ -322,6 +319,7 @@ function PedidosConteudo() {
   // escolha de filtro como uma parada de histórico própria, e preserva
   // todo o resto de router.query (?id=, se presente) via o spread.
   function aoMudarFiltroStatus(novoStatus) {
+    setPagina(1);
     const novaQuery = { ...router.query };
     const chaveUrl = FILTRO_STATUS_PARA_URL[novoStatus];
     if (chaveUrl) {
@@ -563,225 +561,189 @@ function PedidosConteudo() {
     return true;
   });
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Pedidos" />
+  // Paginação VISUAL (client-side, 20 por página) -- só APÓS os filtros: a
+  // lista completa continua em memória e os filtros continuam no navegador;
+  // aqui só se fatia o resultado já filtrado e ordenado. Tabela (desktop) e
+  // cartões (mobile) recebem exatamente este mesmo subconjunto.
+  const paginacao = paginarLista(pedidosFiltrados, pagina);
+  const paginaAtual = paginacao.paginaAtual;
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-        <NavegacaoPedidos abaAtiva="pedidos" corPrimaria={aparencia.corPrimaria} />
+  // Qualquer mudança de filtro volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Pedidos a Fornecedores</h2>
+  // O resultado encolheu (filtro, exclusão, recarga) ou o ?filtro= mudou por
+  // fora (voltar/avançar do navegador): corrige a página guardada / volta à 1.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
-          {/* Botão único -- a escolha entre Entrega/Retirada agora
-              acontece DENTRO do formulário (PedidoForm.js). Retirada
-              exige pedidos.inserir + pedidos.receber (migration 0037);
-              se o usuário só tiver pedidos.inserir, o botão continua
-              aparecendo (Entrega funciona normalmente) e é o próprio
-              PedidoForm que oculta a opção Retirada nesse caso. */}
-          {podeInserir && (
-            <button
-              onClick={abrirNovoPedido}
-              style={{
-                padding: '10px 18px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              + Novo pedido
-            </button>
+  useEffect(() => {
+    setPagina(1);
+  }, [filtroStatus]);
+
+  const quantidadeFiltrosAtivos = [
+    filtroFornecedor !== 'todos',
+    filtroStatus !== 'todos',
+    filtroModalidade !== 'todas',
+    filtroPeriodoInicio !== '',
+    filtroPeriodoFim !== '',
+  ].filter(Boolean).length;
+
+  // Volta cada filtro ao valor inicial pelos MESMOS caminhos de sempre
+  // (estado local; o Status limpa o ?filtro= da URL via aoMudarFiltroStatus).
+  function limparFiltros() {
+    setFiltroFornecedor('todos');
+    setFiltroModalidade('todas');
+    setFiltroPeriodoInicio('');
+    setFiltroPeriodoFim('');
+    setPagina(1);
+    if (filtroStatus !== 'todos') aoMudarFiltroStatus('todos');
+  }
+
+  // UMA definição de colunas para a tabela (desktop) e os cartões (mobile).
+  const colunas = [
+    {
+      chave: 'fornecedor',
+      rotulo: 'Fornecedor',
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      render: (pedido) => (
+        <>
+          {fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}
+          {pedido.observacoes && (
+            <div title={pedido.observacoes} className={estilos.observacaoLinha}>
+              {pedido.observacoes}
+            </div>
           )}
+        </>
+      ),
+    },
+    { chave: 'data', rotulo: 'Data do pedido', semQuebra: true, mobile: 'titulo', cartaoOrdem: 1, render: (pedido) => formatarDataExibicao(pedido.data_pedido) },
+    { chave: 'previsao', rotulo: 'Previsão de entrega', semQuebra: true, render: (pedido) => formatarDataExibicao(pedido.previsao_entrega) },
+    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 2, render: (pedido) => <BadgeStatusPedido pedido={pedido} hoje={hoje} /> },
+    {
+      chave: 'itens',
+      rotulo: 'Itens',
+      render: (pedido) => {
+        const quantidade = (itensPorPedido[pedido.id] || []).length;
+        return `${quantidade} ${quantidade === 1 ? 'item' : 'itens'}`;
+      },
+    },
+    {
+      chave: 'total',
+      rotulo: 'Total estimado',
+      alinhar: 'direita',
+      render: (pedido) => {
+        const itensDoPedido = itensPorPedido[pedido.id] || [];
+        // Mesma regra de DetalhePedidoModal/PedidoForm: só existe um total
+        // quando TODOS os itens têm preço -- somar só os precificados e
+        // chamar isso de "total" seria enganoso (pareceria completo sem
+        // estar).
+        const todosComValor = itensDoPedido.length > 0 && itensDoPedido.every((item) => item.valor_unitario != null);
+        const algumComValor = itensDoPedido.some((item) => item.valor_unitario != null);
+        if (todosComValor) {
+          return formatarMoeda(itensDoPedido.reduce((soma, item) => soma + item.quantidade_pedida * item.valor_unitario, 0));
+        }
+        return <span title={algumComValor ? 'Nem todos os itens têm preço informado.' : undefined}>—</span>;
+      },
+    },
+  ];
+
+  return (
+    <PaginaPedidos
+      ativo="pedidos"
+      titulo="Pedidos a Fornecedores"
+      acoes={
+        /* Botão único -- a escolha entre Entrega/Retirada agora acontece
+           DENTRO do formulário (PedidoForm.js). Retirada exige
+           pedidos.inserir + pedidos.receber (migration 0037); se o usuário
+           só tiver pedidos.inserir, o botão continua aparecendo (Entrega
+           funciona normalmente) e é o próprio PedidoForm que oculta a opção
+           Retirada nesse caso. */
+        podeInserir && (
+          <Button icone="plus" onClick={abrirNovoPedido}>
+            Novo pedido
+          </Button>
+        )
+      }
+    >
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+        <Field label="Fornecedor">
+          <Select value={filtroFornecedor} onChange={(e) => alterarFiltro(setFiltroFornecedor)(e.target.value)}>
+            <option value="todos">Todos</option>
+            {fornecedoresDisponiveis.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Status">
+          <Select value={filtroStatus} onChange={(e) => aoMudarFiltroStatus(e.target.value)}>
+            <option value="todos">Todos</option>
+            <option value="aguardando_entrega">Aguardando entrega</option>
+            <option value="atrasado">Atrasado</option>
+            <option value="previsto_hoje">Previsto para hoje</option>
+            <option value="recebido">Recebido</option>
+            <option value="recebidos_recente">Recebidos recentemente</option>
+            <option value="cancelado">Cancelado</option>
+          </Select>
+        </Field>
+        <Field label="Modalidade">
+          <Select value={filtroModalidade} onChange={(e) => alterarFiltro(setFiltroModalidade)(e.target.value)}>
+            <option value="todas">Todas</option>
+            <option value="pedido_com_entrega">Entrega</option>
+            <option value="compra_presencial">Retirada</option>
+          </Select>
+        </Field>
+        <Field label="Período inicial">
+          <Input type="date" value={filtroPeriodoInicio} onChange={(e) => alterarFiltro(setFiltroPeriodoInicio)(e.target.value)} />
+        </Field>
+        <Field label="Período final">
+          <Input type="date" value={filtroPeriodoFim} onChange={(e) => alterarFiltro(setFiltroPeriodoFim)(e.target.value)} />
+        </Field>
+      </FilterBar>
+
+      {carregando ? (
+        <p role="status">Carregando pedidos...</p>
+      ) : pedidos.length === 0 ? (
+        <EmptyState>Nenhum pedido cadastrado ainda.</EmptyState>
+      ) : pedidosFiltrados.length === 0 ? (
+        <EmptyState>Nenhum resultado para esta busca/filtro.</EmptyState>
+      ) : (
+        <div className={estilos.superficie}>
+          <DataTable
+            rotulo="Pedidos a fornecedores"
+            colunas={colunas}
+            linhas={paginacao.itens}
+            chaveLinha={(pedido) => pedido.id}
+            destaque={(pedido) => (estaAtrasado(pedido, hoje) ? 'aviso' : null)}
+            cartoesAte={1270}
+            renderAcoes={(pedido) => (
+              <Button variante="secondary" tamanho="sm" icone="eye" onClick={() => abrirDetalhe(pedido)}>
+                Ver pedido
+              </Button>
+            )}
+          />
+
+          <p className={estilos.resumo}>
+            Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+            {paginacao.total === 1 ? 'pedido' : 'pedidos'}
+            {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+          </p>
+          <Paginacao paginaAtual={paginaAtual} totalPaginas={paginacao.totalPaginas} onMudarPagina={setPagina} />
         </div>
+      )}
 
-        {mensagemSucesso && (
-          <p style={{ color: '#4CAF50', fontWeight: 'bold', marginTop: '10px' }}>{mensagemSucesso}</p>
-        )}
-
-        {erro && <p style={{ color: '#f44336', marginTop: '10px' }}>{erro}</p>}
-
-        <div
-          style={{
-            backgroundColor: '#f9f9f9',
-            padding: '15px',
-            borderRadius: '5px',
-            marginBottom: '20px',
-            marginTop: '15px',
-          }}
-        >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px' }}>
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Fornecedor</label>
-              <select
-                value={filtroFornecedor}
-                onChange={(e) => setFiltroFornecedor(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-              >
-                <option value="todos">Todos</option>
-                {fornecedoresDisponiveis.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Status</label>
-              <select
-                value={filtroStatus}
-                onChange={(e) => aoMudarFiltroStatus(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-              >
-                <option value="todos">Todos</option>
-                <option value="aguardando_entrega">Aguardando entrega</option>
-                <option value="atrasado">Atrasado</option>
-                <option value="previsto_hoje">Previsto para hoje</option>
-                <option value="recebido">Recebido</option>
-                <option value="recebidos_recente">Recebidos recentemente</option>
-                <option value="cancelado">Cancelado</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Modalidade</label>
-              <select
-                value={filtroModalidade}
-                onChange={(e) => setFiltroModalidade(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-              >
-                <option value="todas">Todas</option>
-                <option value="pedido_com_entrega">Entrega</option>
-                <option value="compra_presencial">Retirada</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Período inicial</label>
-              <input
-                type="date"
-                value={filtroPeriodoInicio}
-                onChange={(e) => setFiltroPeriodoInicio(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Período final</label>
-              <input
-                type="date"
-                value={filtroPeriodoFim}
-                onChange={(e) => setFiltroPeriodoFim(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {carregando ? (
-          <p>Carregando pedidos...</p>
-        ) : pedidos.length === 0 ? (
-          <p>Nenhum pedido cadastrado ainda.</p>
-        ) : pedidosFiltrados.length === 0 ? (
-          <p>Nenhum resultado para esta busca/filtro.</p>
-        ) : (
-          <div
-            style={{
-              backgroundColor: 'white',
-              padding: '20px',
-              borderRadius: '5px',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-              overflowX: 'auto',
-            }}
-          >
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  {['Fornecedor', 'Data do pedido', 'Previsão de entrega', 'Status', 'Itens', 'Total estimado', 'Ações'].map((coluna) => (
-                    <th
-                      key={coluna}
-                      style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}
-                    >
-                      {coluna}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {pedidosFiltrados.map((pedido) => {
-                  const itensDoPedido = itensPorPedido[pedido.id] || [];
-                  // Mesma regra de DetalhePedidoModal/PedidoForm: só existe
-                  // um total quando TODOS os itens têm preço -- somar só
-                  // os precificados e chamar isso de "total" seria
-                  // enganoso (pareceria completo sem estar).
-                  const todosComValor = itensDoPedido.length > 0 && itensDoPedido.every((item) => item.valor_unitario != null);
-                  const algumComValor = itensDoPedido.some((item) => item.valor_unitario != null);
-                  const total = todosComValor
-                    ? itensDoPedido.reduce((soma, item) => soma + item.quantidade_pedida * item.valor_unitario, 0)
-                    : null;
-
-                  return (
-                    <tr key={pedido.id} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: '12px' }}>
-                        {fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}
-                        {pedido.observacoes && (
-                          <div
-                            title={pedido.observacoes}
-                            style={{
-                              fontSize: '11px',
-                              color: '#999',
-                              fontStyle: 'italic',
-                              marginTop: '2px',
-                              maxWidth: '220px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {pedido.observacoes}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(pedido.data_pedido)}</td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatarDataExibicao(pedido.previsao_entrega)}</td>
-                      <td style={{ padding: '12px' }}>
-                        <BadgeStatusPedido pedido={pedido} hoje={hoje} />
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {itensDoPedido.length} {itensDoPedido.length === 1 ? 'item' : 'itens'}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {todosComValor ? (
-                          formatarMoeda(total)
-                        ) : (
-                          <span title={algumComValor ? 'Nem todos os itens têm preço informado.' : undefined}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <BotaoIconeAcao
-                          rotulo="Ver pedido"
-                          icone={IconeOlho}
-                          cor={aparencia.corPrimaria}
-                          onClick={() => abrirDetalhe(pedido)}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <p style={{ marginTop: '15px', color: '#666', fontSize: '14px' }}>
-              Total de pedidos: <strong>{pedidosFiltrados.length}</strong>
-            </p>
-          </div>
-        )}
-      </div>
 
       {mostrarNovoPedido && (
         <PedidoForm
@@ -830,6 +792,7 @@ function PedidosConteudo() {
 
       {pedidoParaExcluir && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Excluir pedido definitivamente"
           corPrimaria={aparencia.corPrimaria}
           perigo
@@ -864,6 +827,7 @@ function PedidosConteudo() {
 
       {pedidoParaCancelar && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Cancelar pedido"
           corPrimaria={aparencia.corPrimaria}
           perigo
@@ -903,6 +867,7 @@ function PedidosConteudo() {
 
       {pedidoParaReabrirRecebimento && (
         <ConfirmarAcaoModal
+          modalDS
           titulo="Reabrir recebimento"
           corPrimaria={aparencia.corPrimaria}
           perigo
@@ -920,7 +885,7 @@ function PedidosConteudo() {
           onCancelar={fecharConfirmarReaberturaRecebimento}
         />
       )}
-    </div>
+    </PaginaPedidos>
   );
 }
 

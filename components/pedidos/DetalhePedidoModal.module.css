@@ -1,0 +1,108 @@
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+  margin: 0 0 var(--ds-sp-4);
+}
+
+.grade dt {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.grade dd {
+  margin: 0;
+  font-size: var(--ds-fs-body);
+  overflow-wrap: anywhere;
+}
+
+.bloco {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.rotuloBloco {
+  display: block;
+  margin-bottom: var(--ds-sp-1);
+  font-size: var(--ds-fs-aux);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+}
+
+.observacoes {
+  margin: 0;
+  font-size: var(--ds-fs-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.secao {
+  padding-top: var(--ds-sp-4);
+  margin-top: var(--ds-sp-4);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+.tituloSecao {
+  margin: 0 0 var(--ds-sp-2);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+}
+
+.subtituloSecao {
+  margin: 0 0 var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.total {
+  margin: var(--ds-sp-3) 0 0;
+  font-size: var(--ds-fs-body);
+  text-align: right;
+}
+
+.notaTotal {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  text-align: right;
+}
+
+.notaAviso {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-warning);
+  text-align: right;
+}
+
+.legado {
+  color: var(--ds-text-muted);
+  font-style: italic;
+  font-size: var(--ds-fs-label);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+  padding-top: var(--ds-sp-4);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+@media (max-width: 768px) {
+  /* Ações sempre à vista no fim da folha (o pedido pode ter muitos itens). */
+  .acoes {
+    position: sticky;
+    bottom: calc(-1 * (var(--ds-sp-4) + env(safe-area-inset-bottom, 0px)));
+    margin-inline: calc(-1 * var(--ds-sp-4));
+    padding: var(--ds-sp-3) var(--ds-sp-4) calc(var(--ds-sp-4) + env(safe-area-inset-bottom, 0px));
+    background-color: var(--ds-surface);
+    justify-content: stretch;
+  }
+  .acoes > * {
+    flex: 1 1 100%;
+  }
+}

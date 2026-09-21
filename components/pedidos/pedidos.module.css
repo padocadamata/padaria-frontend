@@ -1,0 +1,165 @@
+/* Peças visuais comuns às telas de Pedidos (só apresentação). */
+
+.superficie {
+  min-width: 0;
+}
+
+/* Desktop: a tabela fica numa superfície; no mobile os cartões são a própria
+   superfície. Lista em cartões (tablet / desktop estreito): sem "cartão dentro
+   de cartão". */
+@media (min-width: 769px) {
+  .superficie {
+    padding: var(--ds-sp-4);
+    background-color: var(--ds-surface);
+    border: var(--ds-border-w) solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  .superficie:has(ul[aria-label]) {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.resumo {
+  margin: var(--ds-sp-4) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.secao {
+  margin-bottom: var(--ds-sp-6);
+}
+
+.observacaoLinha {
+  max-width: 220px;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: var(--ds-fs-aux);
+  font-style: italic;
+  font-weight: var(--ds-fw-regular);
+  color: var(--ds-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pilhaBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-1) var(--ds-sp-2);
+}
+
+.acoesLinha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+/* Indicadores clicáveis do Resumo (botões de verdade: teclado e leitor de tela). */
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-6);
+}
+
+.indicador {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-sp-1);
+  min-height: var(--ds-touch-min);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-left-width: 4px;
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+  color: var(--ds-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.indicador:hover {
+  background-color: var(--ds-surface-muted);
+}
+
+.indicador:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.indicadorRotulo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.indicadorValor {
+  font-size: 28px;
+  font-weight: var(--ds-fw-bold);
+  line-height: 1.1;
+}
+
+.indicadorLink {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-info);
+}
+
+.tomNeutro { border-left-color: var(--ds-neutral); }
+.tomDanger { border-left-color: var(--ds-danger); }
+.tomWarning { border-left-color: var(--ds-warning); }
+.tomSuccess { border-left-color: var(--ds-success); }
+.tomInfo { border-left-color: var(--ds-info); }
+
+.unico {
+  max-width: 300px;
+}
+
+.nota {
+  margin: 0 0 var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.avisoVinculo {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.avisoVinculo p {
+  margin: 0 0 var(--ds-sp-2);
+}
+
+.botoesAviso {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-2);
+}
+
+.marcaNaoCadastrado {
+  margin-left: var(--ds-sp-2);
+}
+
+.observacaoCelula {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1270px) {
+  .observacaoCelula {
+    max-width: none;
+    white-space: normal;
+  }
+}
