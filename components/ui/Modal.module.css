@@ -1,0 +1,135 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ds-z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-sp-4);
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.caixa {
+  width: 100%;
+  max-width: var(--largura-modal, 520px);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--ds-sp-5);
+  background-color: var(--ds-surface);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-modal);
+  color: var(--ds-text);
+  font-family: var(--ds-font);
+  font-size: var(--ds-fs-body);
+  line-height: var(--ds-lh-body);
+  outline: none;
+  --ds-focus: var(--ds-primary);
+}
+
+.cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.titulo {
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-section);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Camada de compatibilidade dos modais LEGADOS (corpo ainda em estilo inline).
+   Inline vence CSS comum, por isso !important -- e só dentro deste quadro.
+   Normaliza tipografia, altura de toque e raio; cores de ação (verde
+   primário, vermelho de exclusão) são preservadas. Remover à medida que cada
+   modal migrar o corpo para Field/Button do Design System.
+   -------------------------------------------------------------------------- */
+.legado h3 {
+  margin: 0 0 var(--ds-sp-4) !important;
+  color: var(--ds-primary) !important;
+  font-size: var(--ds-fs-section) !important;
+  font-weight: var(--ds-fw-semibold) !important;
+  line-height: var(--ds-lh-section) !important;
+  overflow-wrap: anywhere;
+}
+
+.legado label {
+  color: var(--ds-text) !important;
+  font-size: var(--ds-fs-label) !important;
+  font-weight: var(--ds-fw-semibold) !important;
+  line-height: var(--ds-lh-label) !important;
+}
+
+.legado input:not([type='checkbox']):not([type='radio']),
+.legado select,
+.legado textarea {
+  min-height: var(--ds-control-h);
+  border-color: var(--ds-border-strong) !important;
+  border-radius: var(--ds-radius-md) !important;
+  font-family: inherit !important;
+  font-size: var(--ds-fs-control) !important;
+}
+
+.legado textarea {
+  min-height: 88px;
+}
+
+.legado button {
+  min-height: var(--ds-control-h);
+  border-radius: var(--ds-radius-md) !important;
+  font-family: inherit !important;
+  font-size: var(--ds-fs-button) !important;
+  font-weight: var(--ds-fw-semibold) !important;
+}
+
+/* Botão "Cancelar" cinza (#999) -> secundário do Design System. */
+.legado button[style*='153, 153, 153'] {
+  background-color: var(--ds-surface) !important;
+  border: var(--ds-border-w) solid var(--ds-border-strong) !important;
+  color: var(--ds-primary) !important;
+}
+
+/* Botão destrutivo vermelho -> vermelho oficial. */
+.legado button[style*='244, 67, 54'] {
+  background-color: var(--ds-danger) !important;
+}
+
+/* Mensagens de erro em texto vermelho -> vermelho oficial. */
+.legado p[style*='244, 67, 54'] {
+  color: var(--ds-danger) !important;
+  font-size: var(--ds-fs-body) !important;
+}
+
+/* ------------------------------ mobile ------------------------------ */
+@media (max-width: 768px) {
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .caixa {
+    max-width: none;
+    max-height: 92vh;
+    max-height: 92dvh;
+    padding: var(--ds-sp-4) var(--ds-sp-4) calc(var(--ds-sp-4) + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--ds-radius-lg) var(--ds-radius-lg) 0 0;
+    animation: modalEntrada 0.18s ease-out;
+  }
+}
+
+@keyframes modalEntrada {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

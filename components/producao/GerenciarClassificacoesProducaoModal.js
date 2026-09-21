@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
+import Modal from '../ui/Modal';
 
 function mensagemErroClassificacaoProducao(error, rotulo, maxLen) {
   const code = error?.code;
@@ -422,30 +423,7 @@ export default function GerenciarClassificacoesProducaoModal({
   if (!aberto) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-      onClick={onFechar}
-    >
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: 8,
-          padding: 20,
-          width: 420,
-          maxWidth: '90vw',
-          maxHeight: '85vh',
-          overflowY: 'auto',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal onFechar={onFechar} largura="sm" fecharAoClicarFora legado>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Gerenciar Classificações</h2>
           <button type="button" onClick={onFechar} style={{ fontSize: 13 }}>
@@ -482,7 +460,6 @@ export default function GerenciarClassificacoesProducaoModal({
           inativo continua disponível nas produções já cadastradas, mas deixa
           de ser oferecido para novas escolhas.
         </p>
-      </div>
-    </div>
+    </Modal>
   );
 }

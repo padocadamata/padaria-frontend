@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
-import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
+import PaginaProducao from '../../components/producao/PaginaProducao';
 import ReaberturaModal from '../../components/producao/ReaberturaModal';
 import FechamentoTurnoForm from '../../components/producao/FechamentoTurnoForm';
 import GerenciarSobrasModal from '../../components/producao/GerenciarSobrasModal';
@@ -12,22 +10,24 @@ import CompletarProducaoRetroativaModal from '../../components/producao/Completa
 import EditarProducaoModal from '../../components/producao/EditarProducaoModal';
 import ExcluirRegistroModal from '../../components/producao/ExcluirRegistroModal';
 import MarcadorFalta from '../../components/producao/MarcadorFalta';
-import {
-  BotaoIconeAcao,
-  IconeOlho,
-  IconeLapis,
-  IconeCaixa,
-  IconeCheck,
-  IconeReabrir,
-  IconeLixeira,
-} from '../../components/producao/IconesAcoes';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import DataTable from '../../components/ui/DataTable';
+import AcoesLinha from '../../components/ui/AcoesLinha';
+import EmptyState from '../../components/ui/EmptyState';
+import Field from '../../components/ui/Field';
+import FilterBar from '../../components/ui/FilterBar';
+import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
+import { cx } from '../../lib/design/cx';
+import estilos from '../../components/producao/producao.module.css';
 import { PERMISSOES, hasPermissao, isAdmin } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
-import BotaoLimparFiltros, { campoFiltroEstilo } from '../../components/BotaoLimparFiltros';
 
 const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 
@@ -64,7 +64,8 @@ function indiceDiaSemana(dataYYYYMMDD) {
 
 const STATUS_LABEL = { aberto: 'Aberto', fechado: 'Fechado', reaberto: 'Reaberto' };
 const ORIGEM_LABEL = { manual: 'Manual', historico: 'Histórico', retroativo: 'Retroativo' };
-const ORIGEM_COR = { manual: '#2196F3', historico: '#795548', retroativo: '#9C27B0' };
+const STATUS_TOM = { aberto: 'warning', fechado: 'success', reaberto: 'danger' };
+const ORIGEM_TOM = { manual: 'info', historico: 'neutral', retroativo: 'primary' };
 
 function formatarDataExibicao(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
@@ -98,41 +99,11 @@ function datasDoDiaDaSemana(inicio, fim, diaSemana) {
 }
 
 function BadgeStatus({ status }) {
-  const cores = { aberto: '#FF9800', fechado: '#4CAF50', reaberto: '#f44336' };
-
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: cores[status] || '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {STATUS_LABEL[status] || status}
-    </span>
-  );
+  return <Badge tom={STATUS_TOM[status] || 'neutral'}>{STATUS_LABEL[status] || status}</Badge>;
 }
 
 function BadgeOrigem({ origem }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: ORIGEM_COR[origem] || '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {ORIGEM_LABEL[origem] || origem}
-    </span>
-  );
+  return <Badge tom={ORIGEM_TOM[origem] || 'neutral'}>{ORIGEM_LABEL[origem] || origem}</Badge>;
 }
 
 function HistoricoConteudo() {
@@ -399,6 +370,15 @@ function HistoricoConteudo() {
     filtroStatus !== 'todos' ||
     filtroDiaSemana !== 'todos';
 
+  const quantidadeFiltrosAtivos = [
+    filtroPeriodoInicio !== '',
+    filtroPeriodoFim !== '',
+    filtroProduto !== 'todos',
+    filtroTurno !== 'todos',
+    filtroStatus !== 'todos',
+    filtroDiaSemana !== 'todos',
+  ].filter(Boolean).length;
+
   function limparFiltros() {
     setFiltroPeriodoInicio('');
     setFiltroPeriodoFim('');
@@ -511,368 +491,173 @@ function HistoricoConteudo() {
   // trocas de filtro/página a tabela anterior fica visível, esmaecida.
   const carregando = carregandoBase || (carregandoRegistros && registros.length === 0 && !erroRegistros);
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Produção" />
+  // Ações do registro: UMA lista, alimentando tanto a linha da tabela
+  // (ícones) quanto o cartão mobile (principal + "Mais ações"). Cada onClick
+  // é o mesmo handler de antes e cada condição é o mesmo gate de permissão.
+  function acoesDoRegistro(registro) {
+    const ehAberto = registro.status === 'aberto';
+    const acoes = [
+      { chave: 'visualizar', rotulo: 'Visualizar', icone: 'eye', primaria: !ehAberto, onClick: () => abrirVisualizar(registro) },
+    ];
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
+    if (ehAberto && registro.origem === 'manual' && podeEditar) {
+      acoes.push({ chave: 'fechar', rotulo: 'Fechar agora', icone: 'check', primaria: true, onClick: () => abrirAcao('fechar', registro) });
+    }
+    if (ehAberto && registro.origem === 'retroativo' && podeEditar) {
+      acoes.push({ chave: 'completar', rotulo: 'Completar lançamento', icone: 'check', primaria: true, onClick: () => abrirAcao('completar_retroativo', registro) });
+    }
+    if ((registro.status === 'reaberto' || registro.status === 'fechado') && podeEditarProducaoRegistro(registro)) {
+      acoes.push({ chave: 'editar', rotulo: 'Editar produção', icone: 'pencil', onClick: () => abrirAcao('editar_producao', registro) });
+    }
+    if (registro.status === 'fechado' && podeGerenciarSobrasRegistro(registro)) {
+      acoes.push({ chave: 'sobras', rotulo: 'Gerenciar sobras', icone: 'package', onClick: () => abrirAcao('sobras', registro) });
+    }
+    if (registro.status === 'fechado' && podeReabrirRegistro(registro)) {
+      acoes.push({ chave: 'reabrir', rotulo: 'Reabrir lançamento', icone: 'undo', onClick: () => abrirAcao('reabrir', registro) });
+    }
+    if (podeExcluir) {
+      acoes.push({ chave: 'excluir', rotulo: 'Excluir lançamento', icone: 'trash', destrutivo: true, onClick: () => abrirAcao('excluir', registro) });
+    }
+    return acoes;
+  }
 
-        <NavegacaoProducao abaAtiva="historico" corPrimaria={aparencia.corPrimaria} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Histórico</h2>
-
-          {podeLancarRetroativo && (
-            <button
-              onClick={abrirLancarRetroativo}
-              style={{
-                padding: '10px 18px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              + Lançar produção passada
-            </button>
+  // UMA definição de colunas para tabela (desktop) e cartões (mobile).
+  const colunas = [
+    { chave: 'data', rotulo: 'Data', semQuebra: true, mobile: 'titulo', cartaoOrdem: 1, render: (r) => formatarDataExibicao(r.data) },
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (r) => receitaNomePorId[r.receita_id] || r.receita_id },
+    { chave: 'turno', rotulo: 'Turno', mobile: 'titulo', cartaoOrdem: 2, render: (r) => TURNO_LABEL[r.turno] || r.turno },
+    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', render: (r) => r.quantidade_produzida },
+    { chave: 'vendido', rotulo: 'Vendido', alinhar: 'direita', render: (r) => r.quantidade_vendida ?? '—' },
+    { chave: 'percentual', rotulo: '% Venda', alinhar: 'direita', render: (r) => formatarPercentualVenda(r.quantidade_vendida, r.quantidade_produzida) },
+    { chave: 'sobra', rotulo: 'Sobra total', alinhar: 'direita', render: (r) => r.sobra_total ?? '—' },
+    {
+      chave: 'status',
+      rotulo: 'Status/Origem',
+      render: (r) => (
+        <div className={estilos.pilhaBadges}>
+          <BadgeStatus status={r.status} />
+          <BadgeOrigem origem={r.origem} />
+          {r.status !== 'fechado' && <Badge tom="warning">Pendência</Badge>}
+        </div>
+      ),
+    },
+    {
+      chave: 'obs',
+      rotulo: 'Obs. / Falta',
+      alinhar: 'centro',
+      render: (r) => (
+        <div className={estilos.celulaObs}>
+          {r.observacoes && r.observacoes.trim() ? (
+            <span className={estilos.marcaObs} title="Possui observação" role="img" aria-label="Possui observação">
+              !
+            </span>
+          ) : (
+            '—'
           )}
+          <MarcadorFalta
+            registro={r}
+            podeEditar={podeMarcarFaltaRegistro(r)}
+            onAtualizado={() => setRecarregarTick((tick) => tick + 1)}
+          />
         </div>
+      ),
+    },
+  ];
 
-        {erro && <p style={{ color: '#f44336', marginTop: '10px' }}>{erro}</p>}
+  return (
+    <PaginaProducao
+      ativo="historico"
+      titulo="Histórico"
+      acoes={
+        podeLancarRetroativo && (
+          <Button icone="plus" onClick={abrirLancarRetroativo}>
+            Lançar produção passada
+          </Button>
+        )
+      }
+    >
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
-        <div
-          style={{
-            backgroundColor: '#f9f9f9',
-            padding: '15px',
-            borderRadius: '5px',
-            marginBottom: '20px',
-            marginTop: '15px',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '15px',
-              alignItems: 'end',
-            }}
-          >
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Período inicial
-              </label>
-              <input
-                type="date"
-                value={filtroPeriodoInicio}
-                onChange={(e) => alterarFiltro(setFiltroPeriodoInicio)(e.target.value)}
-                style={campoFiltroEstilo}
-              />
-            </div>
+      <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+        <Field label="Período inicial">
+          <Input type="date" value={filtroPeriodoInicio} onChange={(e) => alterarFiltro(setFiltroPeriodoInicio)(e.target.value)} />
+        </Field>
+        <Field label="Período final">
+          <Input type="date" value={filtroPeriodoFim} onChange={(e) => alterarFiltro(setFiltroPeriodoFim)(e.target.value)} />
+        </Field>
+        <Field label="Produto">
+          <Select value={filtroProduto} onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}>
+            <option value="todos">Todos</option>
+            {produtosDisponiveis.map((produto) => (
+              <option key={produto.id} value={produto.id}>
+                {produto.nome}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Turno">
+          <Select value={filtroTurno} onChange={(e) => alterarFiltro(setFiltroTurno)(e.target.value)}>
+            <option value="todos">Todos</option>
+            <option value="manha">Manhã</option>
+            <option value="tarde">Tarde</option>
+          </Select>
+        </Field>
+        <Field label="Status">
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+            <option value="todos">Todos</option>
+            <option value="aberto">Aberto</option>
+            <option value="fechado">Fechado</option>
+            <option value="reaberto">Reaberto</option>
+          </Select>
+        </Field>
+        <Field label="Dia da semana">
+          <Select value={filtroDiaSemana} onChange={(e) => alterarFiltro(setFiltroDiaSemana)(e.target.value)}>
+            <option value="todos">Todos</option>
+            {DIA_SEMANA_OPCOES.map((opcao) => (
+              <option key={opcao.value} value={opcao.value}>
+                {opcao.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </FilterBar>
 
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Período final
-              </label>
-              <input
-                type="date"
-                value={filtroPeriodoFim}
-                onChange={(e) => alterarFiltro(setFiltroPeriodoFim)(e.target.value)}
-                style={campoFiltroEstilo}
-              />
-            </div>
+      {erroRegistros && <Alert tom="danger" className={estilos.mensagem}>{erroRegistros}</Alert>}
 
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Produto
-              </label>
-              <select
-                value={filtroProduto}
-                onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}
-                style={campoFiltroEstilo}
-              >
-                <option value="todos">Todos</option>
-                {produtosDisponiveis.map((produto) => (
-                  <option key={produto.id} value={produto.id}>
-                    {produto.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Turno
-              </label>
-              <select
-                value={filtroTurno}
-                onChange={(e) => alterarFiltro(setFiltroTurno)(e.target.value)}
-                style={campoFiltroEstilo}
-              >
-                <option value="todos">Todos</option>
-                <option value="manha">Manhã</option>
-                <option value="tarde">Tarde</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Status
-              </label>
-              <select
-                value={filtroStatus}
-                onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}
-                style={campoFiltroEstilo}
-              >
-                <option value="todos">Todos</option>
-                <option value="aberto">Aberto</option>
-                <option value="fechado">Fechado</option>
-                <option value="reaberto">Reaberto</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Dia da semana
-              </label>
-              <select
-                value={filtroDiaSemana}
-                onChange={(e) => alterarFiltro(setFiltroDiaSemana)(e.target.value)}
-                style={campoFiltroEstilo}
-              >
-                <option value="todos">Todos</option>
-                {DIA_SEMANA_OPCOES.map((opcao) => (
-                  <option key={opcao.value} value={opcao.value}>
-                    {opcao.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <BotaoLimparFiltros
-                filtrosAtivos={filtrosAtivos}
-                onClick={limparFiltros}
-                corPrimaria={aparencia.corPrimaria}
-              />
-            </div>
-          </div>
-        </div>
-
-        {erroRegistros && <p style={{ color: '#f44336', marginTop: '10px' }}>{erroRegistros}</p>}
-
-        {carregando ? (
-          <p>Carregando histórico...</p>
-        ) : totalRegistros === 0 ? (
-          erroRegistros ? null : (
-            <p>{filtrosAtivos ? 'Nenhum resultado para esta busca/filtro.' : 'Nenhum registro encontrado.'}</p>
-          )
-        ) : (
-          <div
-            style={{
-              backgroundColor: 'white',
-              padding: '20px',
-              borderRadius: '5px',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-            }}
-          >
-            <div style={{ overflowX: 'auto', opacity: carregandoRegistros ? 0.55 : 1, transition: 'opacity 0.15s' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  {[
-                    'Data',
-                    'Produto',
-                    'Turno',
-                    'Produzido',
-                    'Vendido',
-                    '% Venda',
-                    'Sobra total',
-                    'Status/Origem',
-                    'Obs. / Falta',
-                    'Ações',
-                  ].map((coluna) => (
-                    <th
-                      key={coluna}
-                      style={{
-                        padding: '12px',
-                        textAlign: 'left',
-                        color: aparencia.corPrimaria,
-                        fontWeight: 'bold',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {coluna}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {registros.map((registro) => {
-                  const pendente = registro.status !== 'fechado';
-                  const temObservacao = !!(registro.observacoes && registro.observacoes.trim());
-
-                  return (
-                    <tr
-                      key={registro.id}
-                      style={{
-                        borderBottom: '1px solid #ddd',
-                        backgroundColor: pendente ? '#fff8e1' : 'transparent',
-                      }}
-                    >
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                        {formatarDataExibicao(registro.data)}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {receitaNomePorId[registro.receita_id] || registro.receita_id}
-                      </td>
-                      <td style={{ padding: '12px' }}>{TURNO_LABEL[registro.turno] || registro.turno}</td>
-                      <td style={{ padding: '12px' }}>{registro.quantidade_produzida}</td>
-                      <td style={{ padding: '12px' }}>{registro.quantidade_vendida ?? '—'}</td>
-                      <td style={{ padding: '12px' }}>
-                        {formatarPercentualVenda(registro.quantidade_vendida, registro.quantidade_produzida)}
-                      </td>
-                      <td style={{ padding: '12px' }}>{registro.sobra_total ?? '—'}</td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                          <BadgeStatus status={registro.status} />
-                          <BadgeOrigem origem={registro.origem} />
-                          {pendente && (
-                            <span
-                              style={{
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                fontSize: '11px',
-                                fontWeight: 'bold',
-                                color: '#8a6d00',
-                                backgroundColor: '#ffe082',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              Pendência
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                          {temObservacao ? (
-                            <span
-                              title="Possui observação"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '20px',
-                                height: '20px',
-                                borderRadius: '50%',
-                                backgroundColor: '#FF9800',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                fontSize: '12px',
-                                cursor: 'default',
-                              }}
-                            >
-                              !
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                          <MarcadorFalta
-                            registro={registro}
-                            podeEditar={podeMarcarFaltaRegistro(registro)}
-                            onAtualizado={() => setRecarregarTick((tick) => tick + 1)}
-                          />
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <BotaoIconeAcao
-                            rotulo="Visualizar"
-                            icone={IconeOlho}
-                            onClick={() => abrirVisualizar(registro)}
-                          />
-
-                          {registro.status === 'aberto' && registro.origem === 'manual' && podeEditar && (
-                            <BotaoIconeAcao
-                              rotulo="Fechar agora"
-                              icone={IconeCheck}
-                              cor="#FF9800"
-                              onClick={() => abrirAcao('fechar', registro)}
-                            />
-                          )}
-
-                          {registro.status === 'aberto' && registro.origem === 'retroativo' && podeEditar && (
-                            <BotaoIconeAcao
-                              rotulo="Completar lançamento"
-                              icone={IconeCheck}
-                              cor="#FF9800"
-                              onClick={() => abrirAcao('completar_retroativo', registro)}
-                            />
-                          )}
-
-                          {(registro.status === 'reaberto' || registro.status === 'fechado') &&
-                            podeEditarProducaoRegistro(registro) && (
-                              <BotaoIconeAcao
-                                rotulo="Editar produção"
-                                icone={IconeLapis}
-                                cor={aparencia.corPrimaria}
-                                onClick={() => abrirAcao('editar_producao', registro)}
-                              />
-                            )}
-
-                          {registro.status === 'fechado' && podeGerenciarSobrasRegistro(registro) && (
-                            <BotaoIconeAcao
-                              rotulo="Gerenciar sobras"
-                              icone={IconeCaixa}
-                              cor="#FF9800"
-                              onClick={() => abrirAcao('sobras', registro)}
-                            />
-                          )}
-
-                          {registro.status === 'fechado' && podeReabrirRegistro(registro) && (
-                            <BotaoIconeAcao
-                              rotulo="Reabrir lançamento"
-                              icone={IconeReabrir}
-                              onClick={() => abrirAcao('reabrir', registro)}
-                            />
-                          )}
-
-                          {podeExcluir && (
-                            <BotaoIconeAcao
-                              rotulo="Excluir lançamento"
-                              icone={IconeLixeira}
-                              destrutivo
-                              onClick={() => abrirAcao('excluir', registro)}
-                            />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-
-            <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
-              Mostrando {(pagina - 1) * TAMANHO_PAGINA + 1}–{(pagina - 1) * TAMANHO_PAGINA + registros.length} de{' '}
-              {totalRegistros} {totalRegistros === 1 ? 'registro' : 'registros'}
-              {totalPaginas > 1 ? ` — página ${pagina} de ${totalPaginas}` : ''}
-            </p>
-            <Paginacao
-              paginaAtual={pagina}
-              totalPaginas={totalPaginas}
-              onMudarPagina={setPagina}
-              desabilitado={carregandoRegistros}
-              corPrimaria={aparencia.corPrimaria}
+      {carregando ? (
+        <p role="status">Carregando histórico...</p>
+      ) : totalRegistros === 0 ? (
+        erroRegistros ? null : (
+          <EmptyState>{filtrosAtivos ? 'Nenhum resultado para esta busca/filtro.' : 'Nenhum registro encontrado.'}</EmptyState>
+        )
+      ) : (
+        <div className={estilos.superficie}>
+          <div className={cx(carregandoRegistros && estilos.carregandoConteudo)}>
+            <DataTable
+              rotulo="Histórico de produção"
+              colunas={colunas}
+              linhas={registros}
+              chaveLinha={(r) => r.id}
+              destaque={(r) => (r.status !== 'fechado' ? 'aviso' : null)}
+              cartoesAte={1300}
+              renderAcoes={(r, { cartao }) => <AcoesLinha acoes={acoesDoRegistro(r)} cartao={cartao} />}
             />
           </div>
-        )}
-      </div>
+
+          <p className={estilos.resumo}>
+            Mostrando {(pagina - 1) * TAMANHO_PAGINA + 1}–{(pagina - 1) * TAMANHO_PAGINA + registros.length} de{' '}
+            {totalRegistros} {totalRegistros === 1 ? 'registro' : 'registros'}
+            {totalPaginas > 1 ? ` — página ${pagina} de ${totalPaginas}` : ''}
+          </p>
+          <Paginacao
+            paginaAtual={pagina}
+            totalPaginas={totalPaginas}
+            onMudarPagina={setPagina}
+            desabilitado={carregandoRegistros}
+            corPrimaria={aparencia.corPrimaria}
+          />
+        </div>
+      )}
 
       {registroVisualizado && (
         <VisualizarRegistroModal
@@ -957,7 +742,7 @@ function HistoricoConteudo() {
           onCancelar={fecharLancarRetroativo}
         />
       )}
-    </div>
+    </PaginaProducao>
   );
 }
 

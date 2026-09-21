@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import Modal from '../ui/Modal';
 
 function mensagemErro(error) {
   if (!error) return '';
@@ -18,28 +19,6 @@ function mensagemErro(error) {
   }
   return 'Não foi possível reabrir o registro. Tente novamente ou avise um administrador.';
 }
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '420px',
-  width: '90%',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 const campoEstilo = {
   width: '100%',
@@ -87,8 +66,7 @@ export default function ReaberturaModal({ registro, receitaNome, turnoLabel, cor
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="sm" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>
           Reabrir registro — {receitaNome} ({turnoLabel})
         </h3>
@@ -126,7 +104,6 @@ export default function ReaberturaModal({ registro, receitaNome, turnoLabel, cor
             {salvando ? 'Reabrindo...' : 'Reabrir'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

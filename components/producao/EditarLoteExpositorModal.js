@@ -1,29 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { mensagemErroLoteExpositor } from '../../lib/producao/mensagensExpositor';
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '420px',
-  width: '100%',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
+import Modal from '../ui/Modal';
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
 
@@ -80,8 +58,7 @@ export default function EditarLoteExpositorModal({ lote, produtoNome, corPrimari
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="sm" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>Editar lote -- {produtoNome}</h3>
 
         <p style={{ color: '#666', fontSize: '13px' }}>
@@ -141,7 +118,6 @@ export default function EditarLoteExpositorModal({ lote, produtoNome, corPrimari
             {salvando ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

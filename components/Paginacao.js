@@ -1,11 +1,13 @@
-// Paginação reutilizável: Anterior | números | Próxima.
+import { cx } from '../lib/design/cx';
+import styles from './Paginacao.module.css';
+
+// Paginação reutilizável: Anterior | números | Próxima. Aparência do Design
+// System (tokens); API e comportamento inalterados.
 //
 // Os números usam janela com reticências (primeira, última, atual ±1) --
 // no máximo 7 itens, então nunca estoura a largura mesmo com centenas de
-// páginas. Em telas estreitas (<= 600px) "Anterior" e "Próxima" dividem a
+// páginas. Em telas estreitas (<= 768px) "Anterior" e "Próxima" dividem a
 // primeira linha e os números vão para a linha de baixo, centralizados.
-// O @media fica num <style> com classes prefixadas porque o projeto usa
-// estilos inline e não tem CSS global.
 
 export function calcularJanelaPaginas(paginaAtual, totalPaginas) {
   if (totalPaginas <= 7) {
@@ -28,53 +30,30 @@ export function calcularJanelaPaginas(paginaAtual, totalPaginas) {
   return itens;
 }
 
-const CSS = `
-.pag-raiz { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; }
-.pag-numeros { display: flex; align-items: center; justify-content: center; gap: 6px; }
-.pag-btn { min-width: 40px; min-height: 40px; padding: 0 12px; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
-@media (max-width: 600px) {
-  .pag-raiz { gap: 10px; }
-  .pag-anterior { order: 1; flex: 1 1 40%; }
-  .pag-proxima { order: 2; flex: 1 1 40%; }
-  .pag-numeros { order: 3; flex: 1 1 100%; }
-}
-`;
-
-export default function Paginacao({ paginaAtual, totalPaginas, onMudarPagina, desabilitado = false, corPrimaria = '#8B4513' }) {
+// `corPrimaria` é aceito por compatibilidade e ignorado (a cor vem do tema).
+export default function Paginacao({ paginaAtual, totalPaginas, onMudarPagina, desabilitado = false }) {
   if (totalPaginas <= 1) return null;
 
   const janela = calcularJanelaPaginas(paginaAtual, totalPaginas);
   const naoTemAnterior = paginaAtual <= 1;
   const naoTemProxima = paginaAtual >= totalPaginas;
 
-  function estiloBotao(desativado) {
-    return {
-      backgroundColor: 'white',
-      color: desativado ? '#aaa' : corPrimaria,
-      border: `1px solid ${desativado ? '#ddd' : corPrimaria}`,
-      cursor: desativado ? 'not-allowed' : 'pointer',
-    };
-  }
-
   return (
-    <nav className="pag-raiz" aria-label="Paginação">
-      <style>{CSS}</style>
-
+    <nav className={styles.raiz} aria-label="Paginação">
       <button
         type="button"
-        className="pag-btn pag-anterior"
+        className={cx(styles.botao, styles.anterior)}
         onClick={() => onMudarPagina(paginaAtual - 1)}
         disabled={naoTemAnterior || desabilitado}
-        style={estiloBotao(naoTemAnterior || desabilitado)}
       >
         Anterior
       </button>
 
-      <div className="pag-numeros">
+      <div className={styles.numeros}>
         {janela.map((item) => {
           if (typeof item === 'string') {
             return (
-              <span key={item} aria-hidden="true" style={{ minWidth: '20px', textAlign: 'center', color: '#888' }}>
+              <span key={item} aria-hidden="true" className={styles.reticencias}>
                 …
               </span>
             );
@@ -84,19 +63,11 @@ export default function Paginacao({ paginaAtual, totalPaginas, onMudarPagina, de
             <button
               key={item}
               type="button"
-              className="pag-btn"
+              className={cx(styles.botao, styles.numero, ativa && styles.ativa)}
               onClick={() => onMudarPagina(item)}
               disabled={desabilitado}
               aria-label={`Página ${item}`}
               aria-current={ativa ? 'page' : undefined}
-              style={{
-                backgroundColor: ativa ? corPrimaria : 'white',
-                color: ativa ? 'white' : corPrimaria,
-                border: `1px solid ${corPrimaria}`,
-                fontWeight: ativa ? 'bold' : 'normal',
-                cursor: desabilitado ? 'wait' : 'pointer',
-                padding: '0 6px',
-              }}
             >
               {item}
             </button>
@@ -106,10 +77,9 @@ export default function Paginacao({ paginaAtual, totalPaginas, onMudarPagina, de
 
       <button
         type="button"
-        className="pag-btn pag-proxima"
+        className={cx(styles.botao, styles.proxima)}
         onClick={() => onMudarPagina(paginaAtual + 1)}
         disabled={naoTemProxima || desabilitado}
-        style={estiloBotao(naoTemProxima || desabilitado)}
       >
         Próxima
       </button>

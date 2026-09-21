@@ -1,0 +1,8 @@
+.vazio {
+  padding: var(--ds-sp-5) var(--ds-sp-4);
+  border: var(--ds-border-w) dashed var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background-color: var(--ds-surface);
+  color: var(--ds-text-muted);
+  text-align: center;
+}

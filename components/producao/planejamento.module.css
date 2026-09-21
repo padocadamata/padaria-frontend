@@ -1,0 +1,126 @@
+.feriado {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: var(--ds-sp-2);
+  color: var(--ds-secondary);
+}
+
+.diaFechado {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+  font-style: italic;
+}
+
+.sugestao {
+  min-width: 150px;
+}
+
+.sugestaoLinha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.semSugestao {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.resumoSugestao {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.detalhes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  min-height: 32px;
+  padding: 0 var(--ds-sp-1);
+  border: none;
+  background: none;
+  color: var(--ds-primary);
+  font-size: var(--ds-fs-label);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.detalhes:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.campoQuantidade {
+  width: 80px;
+}
+
+.campoObservacao {
+  width: 130px;
+}
+
+.acoes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-sp-2);
+}
+
+.botoes {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ds-sp-2);
+}
+
+.periodoInvalido {
+  color: var(--ds-danger);
+}
+
+.detalheData {
+  margin: -8px 0 var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.detalheQuantidade {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+  font-size: var(--ds-fs-card);
+}
+
+.detalheJustificativa {
+  font-size: var(--ds-fs-body);
+  line-height: 1.5;
+}
+
+.detalheRodape {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 1439px) {
+  /* Em cartões os campos ocupam a largura toda: fácil de tocar e digitar. */
+  .campoQuantidade,
+  .campoObservacao {
+    width: 100%;
+  }
+  .sugestao {
+    min-width: 0;
+  }
+  .acoes,
+  .botoes {
+    width: 100%;
+  }
+  .botoes {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .botoes > * {
+    flex: 1 1 140px;
+  }
+}

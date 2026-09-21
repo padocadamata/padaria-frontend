@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import Modal from '../ui/Modal';
 
 function mensagemErro(error) {
   if (!error) return '';
@@ -37,31 +38,6 @@ function mensagemErro(error) {
   }
   return 'Não foi possível salvar a correção. Tente novamente ou avise um administrador.';
 }
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '450px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px' };
 
@@ -189,8 +165,7 @@ export default function EditarProducaoModal({ registro, receitaNome, turnoLabel,
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="md" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>
           Editar produção — {receitaNome} ({turnoLabel})
         </h3>
@@ -324,7 +299,6 @@ export default function EditarProducaoModal({ registro, receitaNome, turnoLabel,
             {salvando ? 'Salvando...' : 'Salvar correção'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

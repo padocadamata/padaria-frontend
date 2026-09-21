@@ -1,0 +1,198 @@
+/* ------------------------------ desktop ------------------------------ */
+
+.envolucro {
+  /* Rede de segurança: se a tabela não couber (ex.: tablet), só ELA rola. */
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ds-fs-td);
+  line-height: var(--ds-lh-body);
+}
+
+.tabela th {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  font-size: var(--ds-fs-th);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: var(--ds-sp-3);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  vertical-align: middle;
+}
+
+.tabela tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tabela tbody tr:hover td {
+  background-color: var(--ds-surface-muted);
+}
+
+.densa th,
+.densa td {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.dir {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.centro {
+  text-align: center !important;
+}
+
+.semQuebra {
+  white-space: nowrap;
+}
+
+.celulaAcoes {
+  white-space: nowrap;
+}
+
+/* Linha que pede atenção: fundo leve + marca lateral (os selos continuam legíveis). */
+.linhaAviso td {
+  background-color: var(--ds-warning-soft);
+  background-color: color-mix(in srgb, var(--ds-warning-soft) 35%, var(--ds-surface));
+}
+
+.linhaAviso td:first-child {
+  box-shadow: inset 4px 0 0 var(--ds-warning);
+}
+
+.linhaAviso:hover td {
+  background-color: var(--ds-warning-soft);
+  background-color: color-mix(in srgb, var(--ds-warning-soft) 55%, var(--ds-surface));
+}
+
+.linhaInativa td {
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-text-muted);
+}
+
+.linhaInativa:hover td {
+  background-color: var(--ds-neutral-soft);
+}
+
+/* 1ª linha de um novo bloco (ex.: outra data): divisória mais forte. */
+.inicioGrupo td {
+  border-top: 2px solid var(--ds-border-strong);
+}
+
+.linhaExtra td {
+  padding-top: 0;
+  background-color: transparent !important;
+}
+
+/* ------------------------------ mobile ------------------------------- */
+
+/* Uma coluna no celular; em telas maiores (tablet / desktop estreito) a lista
+   vira uma grade de cartões, aproveitando a largura. */
+.cartoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: var(--ds-sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cartao {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.cartaoAviso {
+  border-left: 4px solid var(--ds-warning);
+}
+
+.cartaoInativo {
+  background-color: var(--ds-neutral-soft);
+}
+
+.grupoTitulo {
+  grid-column: 1 / -1;
+  margin-top: var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+  list-style: none;
+}
+
+.cartoes > .grupoTitulo:first-child {
+  margin-top: 0;
+}
+
+.cartaoTopo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-1) var(--ds-sp-3);
+}
+
+.cartaoTitulo {
+  min-width: 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  overflow-wrap: anywhere;
+}
+
+.cartaoSub {
+  min-width: 0;
+  font-size: var(--ds-fs-body);
+  color: var(--ds-text-muted);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  gap: var(--ds-sp-2) var(--ds-sp-4);
+  margin: var(--ds-sp-3) 0 var(--ds-sp-3);
+}
+
+.metaItem {
+  min-width: 0;
+}
+
+.metaItem dt {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.metaItem dd {
+  margin: 0;
+  font-size: var(--ds-fs-body);
+  overflow-wrap: anywhere;
+}
+
+.cartaoAcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  margin-top: auto;
+  padding-top: var(--ds-sp-3);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+.cartaoAcoes:empty {
+  display: none;
+}

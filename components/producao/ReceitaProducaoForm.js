@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
+import Modal from '../ui/Modal';
 
 // Formulário SOMENTE da extensão operacional de Produção (public.receitas).
 // Desde a unificação Catálogo x Produção (receitas.catalogo_produto_id,
@@ -204,33 +205,7 @@ export default function ReceitaProducaoForm({ receita, tiposProducao = [], grupo
   const opcoesGrupo = opcoesClassificacaoProducao(gruposProducao, dados.grupo);
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '20px',
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'white',
-          padding: '30px',
-          borderRadius: '10px',
-          maxWidth: '700px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        }}
-      >
+    <Modal onFechar={onFechar} largura="lg" legado>
         <h3 style={{ marginTop: 0 }}>Editar extensão de Produção</h3>
 
         <h4 style={{ ...tituloBlocoEstilo, borderTop: 'none', paddingTop: 0, marginTop: 0 }}>
@@ -487,7 +462,6 @@ export default function ReceitaProducaoForm({ receita, tiposProducao = [], grupo
             {salvando ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { mensagemErroSacos } from '../../lib/producao/mensagensSacos';
+import Modal from '../ui/Modal';
 
 // Abertura manual de saco fechado (migration 0042) -- único caminho é a
 // RPC registrar_abertura_saco (SECURITY DEFINER), nunca INSERT direto em
@@ -56,8 +57,7 @@ export default function AbrirSacoModal({ configuracao, corPrimaria = '#8B4513', 
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="sm" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>Abrir saco</h3>
 
         <div style={{ marginBottom: '15px' }}>
@@ -141,33 +141,9 @@ export default function AbrirSacoModal({ configuracao, corPrimaria = '#8B4513', 
             {salvando ? 'Abrindo...' : 'Abrir saco'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '420px',
-  width: '100%',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
 

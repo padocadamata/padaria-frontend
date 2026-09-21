@@ -1,0 +1,25 @@
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  min-width: 0;
+}
+
+.rotulo {
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-label);
+  color: var(--ds-text);
+}
+
+.dica {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.erro {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-danger);
+}

@@ -1,4 +1,5 @@
 import { diaDaSemanaExibicao } from '../../lib/data/dataLocal';
+import Modal from '../ui/Modal';
 
 const STATUS_LABEL = { aberto: 'Aberto', fechado: 'Fechado', reaberto: 'Reaberto' };
 const ORIGEM_LABEL = { manual: 'Manual', historico: 'Histórico' };
@@ -107,33 +108,7 @@ function Linha({ rotulo, children }) {
 // tela que usa este componente.
 export default function VisualizarRegistroModal({ registro, receitaNome, turnoLabel, corPrimaria, onFechar }) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '20px',
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'white',
-          padding: '30px',
-          borderRadius: '10px',
-          maxWidth: '600px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        }}
-      >
+    <Modal onFechar={onFechar} largura="md" legado>
         <h3 style={{ marginTop: 0, color: corPrimaria }}>
           {receitaNome} — {turnoLabel}
         </h3>
@@ -192,7 +167,6 @@ export default function VisualizarRegistroModal({ registro, receitaNome, turnoLa
             Fechar
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

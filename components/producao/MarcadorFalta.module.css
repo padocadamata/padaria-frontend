@@ -1,0 +1,56 @@
+.raiz {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+/* Área de toque de 44px em volta do círculo de 22px. */
+.botao {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--ds-border-strong);
+  border-radius: 50%;
+  background-color: transparent;
+  color: var(--ds-on-primary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: default;
+}
+
+.botao::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+}
+
+.pode {
+  cursor: pointer;
+}
+
+.ativo {
+  border-color: var(--ds-danger);
+  background-color: var(--ds-danger);
+}
+
+.botao:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.bloqueado {
+  opacity: 0.4;
+}
+
+.salvando {
+  opacity: 0.6;
+}
+
+.erro {
+  color: var(--ds-danger);
+  font-size: var(--ds-fs-aux);
+}

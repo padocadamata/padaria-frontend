@@ -1,12 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
-import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
+import PaginaProducao from '../../components/producao/PaginaProducao';
 import EditarLoteExpositorModal from '../../components/producao/EditarLoteExpositorModal';
 import CorrigirLoteExpositorConcluidoModal from '../../components/producao/CorrigirLoteExpositorConcluidoModal';
 import ExcluirLoteExpositorModal from '../../components/producao/ExcluirLoteExpositorModal';
-import { BotaoIconeAcao, IconeLapis, IconeLixeira, IconeCheck, IndicadorObservacao } from '../../components/producao/IconesAcoes';
+import { IndicadorObservacao } from '../../components/producao/IconesAcoes';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+import DataTable from '../../components/ui/DataTable';
+import EmptyState from '../../components/ui/EmptyState';
+import Field from '../../components/ui/Field';
+import FilterBar from '../../components/ui/FilterBar';
+import IconButton from '../../components/ui/IconButton';
+import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
+import SectionHeader from '../../components/ui/SectionHeader';
+import Textarea from '../../components/ui/Textarea';
+import AcoesLinha from '../../components/ui/AcoesLinha';
+import estilos from '../../components/producao/producao.module.css';
+import estilosExp from '../../components/producao/expositores.module.css';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -37,30 +51,16 @@ const SITUACAO_LABEL = {
   concluido: 'Concluído',
 };
 
-const SITUACAO_COR = {
-  atrasado: '#f44336',
-  retirar_hoje: '#FF9800',
-  retirar_amanha: '#2196F3',
-  no_expositor: '#9e9e9e',
-  concluido: '#4CAF50',
+const SITUACAO_TOM = {
+  atrasado: 'danger',
+  retirar_hoje: 'warning',
+  retirar_amanha: 'info',
+  no_expositor: 'neutral',
+  concluido: 'success',
 };
 
 function BadgeSituacao({ situacao }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: SITUACAO_COR[situacao] || '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {SITUACAO_LABEL[situacao] || situacao}
-    </span>
-  );
+  return <Badge tom={SITUACAO_TOM[situacao] || 'neutral'}>{SITUACAO_LABEL[situacao] || situacao}</Badge>;
 }
 
 function formatarData(dataYYYYMMDD) {
@@ -69,41 +69,15 @@ function formatarData(dataYYYYMMDD) {
   return `${dia}/${mes}/${ano}`;
 }
 
-const CARD_INDICADOR_ESTILO = {
-  flex: '1 1 140px',
-  minWidth: '140px',
-  backgroundColor: 'white',
-  borderRadius: '8px',
-  boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-  padding: '14px 16px',
-};
-
-function CardIndicador({ label, valor, cor }) {
+// Indicador numérico (só apresentação). O tom acompanha o da Situação.
+function CardIndicador({ label, valor, tom }) {
   return (
-    <div style={CARD_INDICADOR_ESTILO}>
-      <div style={{ fontSize: '12px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ fontSize: '28px', fontWeight: 'bold', color: cor || '#333' }}>{valor}</div>
+    <div className={`${estilosExp.indicador} ${estilosExp[tom]}`}>
+      <span className={estilosExp.indicadorRotulo}>{label}</span>
+      <strong className={estilosExp.indicadorValor}>{valor}</strong>
     </div>
   );
 }
-
-const campoEstilo = {
-  width: '100%',
-  padding: '8px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-  fontSize: '14px',
-};
-
-const campoInlineEstilo = {
-  width: '80px',
-  padding: '6px',
-  border: '1px solid #ddd',
-  borderRadius: '4px',
-  boxSizing: 'border-box',
-  fontSize: '13px',
-};
 
 function ExpositoresConteudo() {
   const { permissoes } = useAuth();
@@ -330,6 +304,21 @@ function ExpositoresConteudo() {
   const paginacao = paginarLista(lotesListaHistorico, pagina);
   const paginaAtual = paginacao.paginaAtual;
 
+  const quantidadeFiltrosAtivos = [
+    filtroInicio !== '',
+    filtroFim !== '',
+    filtroProdutoId !== 'todos',
+    filtroSituacao !== 'todos',
+  ].filter(Boolean).length;
+
+  function limparFiltros() {
+    setFiltroInicio('');
+    setFiltroFim('');
+    setFiltroProdutoId('todos');
+    setFiltroSituacao('todos');
+    setPagina(1);
+  }
+
   // Qualquer mudança de filtro volta para a página 1.
   function alterarFiltro(setter) {
     return (valor) => {
@@ -464,404 +453,341 @@ function ExpositoresConteudo() {
   const [loteParaCorrigir, setLoteParaCorrigir] = useState(null);
   const [loteParaExcluir, setLoteParaExcluir] = useState(null);
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Produção" />
+  // --- Definições de colunas (UMA para tabela e cartão) ---------------
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-        <NavegacaoProducao abaAtiva="expositores" corPrimaria={aparencia.corPrimaria} />
+  function campoRetirada(lote, rotulo) {
+    return (
+      <Input
+        type="number"
+        min="0"
+        max={lote.quantidade_enviada}
+        className={estilosExp.campoRetirada}
+        aria-label={rotulo}
+        value={quantidadeRetiradaPorLote[lote.lote_id] ?? ''}
+        onChange={(e) => setQuantidadeRetiradaPorLote((atual) => ({ ...atual, [lote.lote_id]: e.target.value }))}
+      />
+    );
+  }
 
-        {mensagemSucesso && (
-          <p style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '10px 15px', borderRadius: '5px', marginBottom: '15px' }}>
-            {mensagemSucesso}
-          </p>
+  const colunasUrgentes = [
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (l) => l.produto_nome },
+    { chave: 'entrada', rotulo: 'Entrada', render: (l) => formatarData(l.data_entrada) },
+    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', render: (l) => formatarData(l.data_prevista_retirada) },
+    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', render: (l) => l.quantidade_enviada },
+    {
+      chave: 'qtdRetirada',
+      rotulo: 'Qtd. retirada',
+      render: (l) => (podeOperar ? campoRetirada(l, `Quantidade retirada — ${l.produto_nome}`) : '—'),
+    },
+    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
+  ];
+
+  const colunasLotes = [
+    {
+      chave: 'produto',
+      rotulo: 'Produto',
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      render: (l) => (
+        <>
+          {l.produto_nome}
+          <IndicadorObservacao texto={l.observacao} />
+        </>
+      ),
+    },
+    { chave: 'dataProducao', rotulo: 'Data produção', render: (l) => formatarData(l.data_producao) },
+    { chave: 'dataEntrada', rotulo: 'Data entrada', render: (l) => formatarData(l.data_entrada) },
+    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', render: (l) => formatarData(l.data_prevista_retirada) },
+    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', render: (l) => l.quantidade_produzida },
+    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', render: (l) => l.quantidade_enviada },
+    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', render: (l) => l.quantidade_retirada ?? '—' },
+    {
+      chave: 'vendaEstimada',
+      rotulo: 'Venda estimada',
+      alinhar: 'direita',
+      /* venda_estimada só existe (não-null) para lote concluído -- a view
+         producao_expositor_detalhado já garante isso (CASE WHEN concluido_em
+         IS NOT NULL). "Pendente" aqui reforça visualmente que a quantidade
+         enviada de um lote ainda no expositor NUNCA deve ser lida como venda
+         estimada -- a retirada final ainda não é conhecida. */
+      render: (l) => (l.concluido_em ? l.venda_estimada : <span className={estilosExp.pendente}>Pendente</span>),
+    },
+    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
+  ];
+
+  const colunasRelatorio = [
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', render: (r) => r.produtoNome },
+    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', render: (r) => r.quantidadeProduzida },
+    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', render: (r) => r.quantidadeEnviada },
+    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', render: (r) => r.quantidadeRetirada },
+    { chave: 'venda', rotulo: 'Venda estimada', alinhar: 'direita', render: (r) => r.vendaEstimada },
+    { chave: 'aproveitamento', rotulo: 'Aproveitamento', alinhar: 'direita', render: (r) => (r.aproveitamento == null ? '—' : `${r.aproveitamento.toFixed(0)}%`) },
+  ];
+
+  // Erro da retirada, logo abaixo da linha do lote (mesmo texto/estado de antes).
+  const erroDaRetirada = (lote) =>
+    erroRetiradaPorLote[lote.lote_id] ? <p className={estilosExp.erroLinha} role="alert">{erroRetiradaPorLote[lote.lote_id]}</p> : null;
+
+  // Painel "Retirar hoje": a única ação é "Retirado".
+  function acoesUrgentes(lote, { cartao }) {
+    if (!podeOperar) return null;
+    return (
+      <AcoesLinha
+        cartao={cartao}
+        acoes={[
+          {
+            chave: 'retirado',
+            rotulo: 'Retirado',
+            icone: 'check',
+            primaria: true,
+            desabilitado: concluindoLoteId === lote.lote_id,
+            onClick: () => confirmarRetirada(lote),
+          },
+        ]}
+      />
+    );
+  }
+
+  // Lista "Produtos nos Expositores": retirada rápida (mesmo handler e mesmo
+  // estado do painel acima) + editar/corrigir + excluir.
+  /* Retirada rápida também aqui, não só no painel "Retirar hoje" -- um produto
+     pode esgotar no expositor ANTES da data prevista (ex.: pão do dia vende
+     tudo de manhã, mas o prazo só vence à noite), e o operador precisa
+     conseguir concluir o lote na hora, sem esperar a situação virar
+     "Atrasado"/"Retirar hoje". Mesmo handler (confirmarRetirada) e mesmo
+     estado (quantidadeRetiradaPorLote) do painel urgente -- nenhuma lógica
+     nova. */
+  function acoesLote(lote, { cartao }) {
+    const rotuloRetirado = 'Retirado (esgotou ou encerrou antes do prazo previsto)';
+    const outras = [
+      !lote.concluido_em && podeOperar && { chave: 'editar', rotulo: 'Editar', icone: 'pencil', onClick: () => setLoteParaEditar(lote) },
+      !!lote.concluido_em && podeEditarConcluido && { chave: 'corrigir', rotulo: 'Corrigir', icone: 'pencil', onClick: () => setLoteParaCorrigir(lote) },
+      podeExcluir && { chave: 'excluir', rotulo: 'Excluir', icone: 'trash', destrutivo: true, onClick: () => setLoteParaExcluir(lote) },
+    ].filter(Boolean);
+
+    return (
+      <div className={estilosExp.acoesLote}>
+        {!lote.concluido_em && podeOperar && (
+          <div className={estilosExp.retiradaRapida}>
+            {campoRetirada(lote, `Qtd. retirada — ${lote.produto_nome}`)}
+            {cartao ? (
+              <Button
+                tamanho="sm"
+                icone="check"
+                title="Quantidade retirada -- use também se o produto esgotou antes do prazo previsto."
+                disabled={concluindoLoteId === lote.lote_id}
+                onClick={() => confirmarRetirada(lote)}
+              >
+                Retirado
+              </Button>
+            ) : (
+              <IconButton
+                icone="check"
+                rotulo={rotuloRetirado}
+                tom="success"
+                tamanho="sm"
+                disabled={concluindoLoteId === lote.lote_id}
+                onClick={() => confirmarRetirada(lote)}
+              />
+            )}
+          </div>
         )}
+        <AcoesLinha acoes={outras} cartao={cartao} />
+      </div>
+    );
+  }
 
-        {carregando ? (
-          <p>Carregando...</p>
-        ) : erro ? (
-          <p style={{ color: '#f44336' }}>{erro}</p>
-        ) : (
-          <>
-            {/* Indicadores */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '25px' }}>
-              <CardIndicador label="Atrasados" valor={indicadores.atrasado} cor={SITUACAO_COR.atrasado} />
-              <CardIndicador label="Retirar hoje" valor={indicadores.retirar_hoje} cor={SITUACAO_COR.retirar_hoje} />
-              <CardIndicador label="Retirar amanhã" valor={indicadores.retirar_amanha} cor={SITUACAO_COR.retirar_amanha} />
-              <CardIndicador label="No expositor" valor={indicadores.no_expositor} cor={SITUACAO_COR.no_expositor} />
-            </div>
+  return (
+    <PaginaProducao ativo="expositores" titulo="Expositores">
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
-            {/* Controle de Qualidade -- Retirar hoje */}
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '25px' }}>
-              <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>Controle de Qualidade — Retirar hoje</h2>
+      {carregando ? (
+        <p role="status">Carregando...</p>
+      ) : erro ? (
+        <Alert tom="danger">{erro}</Alert>
+      ) : (
+        <>
+          {/* Indicadores */}
+          <div className={estilosExp.indicadores}>
+            <CardIndicador label="Atrasados" valor={indicadores.atrasado} tom="danger" />
+            <CardIndicador label="Retirar hoje" valor={indicadores.retirar_hoje} tom="warning" />
+            <CardIndicador label="Retirar amanhã" valor={indicadores.retirar_amanha} tom="info" />
+            <CardIndicador label="No expositor" valor={indicadores.no_expositor} tom="neutral" />
+          </div>
 
+          {/* Controle de Qualidade -- Retirar hoje */}
+          <section className={estilos.secao} aria-label="Retirar hoje">
+            <SectionHeader titulo="Controle de Qualidade — Retirar hoje" />
+            <div className={`${estilos.superficie} ${estilosExp.urgente}`}>
               {lotesUrgentes.length === 0 ? (
-                <p style={{ color: '#666' }}>Nenhum lote atrasado ou previsto para hoje.</p>
+                <EmptyState>Nenhum lote atrasado ou previsto para hoje.</EmptyState>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #eee' }}>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Entrada</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Retirada prevista</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Enviado</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Qtd. retirada</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Situação</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Ação</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lotesUrgentes.map((lote) => (
-                        <tr key={lote.lote_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                          <td style={{ padding: '10px' }}>{lote.produto_nome}</td>
-                          <td style={{ padding: '10px' }}>{formatarData(lote.data_entrada)}</td>
-                          <td style={{ padding: '10px' }}>{formatarData(lote.data_prevista_retirada)}</td>
-                          <td style={{ padding: '10px' }}>{lote.quantidade_enviada}</td>
-                          <td style={{ padding: '10px' }}>
-                            {podeOperar ? (
-                              <input
-                                type="number"
-                                min="0"
-                                max={lote.quantidade_enviada}
-                                value={quantidadeRetiradaPorLote[lote.lote_id] ?? ''}
-                                onChange={(e) =>
-                                  setQuantidadeRetiradaPorLote((atual) => ({ ...atual, [lote.lote_id]: e.target.value }))
-                                }
-                                style={campoInlineEstilo}
-                              />
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td style={{ padding: '10px' }}>
-                            <BadgeSituacao situacao={lote.situacao} />
-                          </td>
-                          <td style={{ padding: '10px' }}>
-                            {podeOperar && (
-                              <BotaoIconeAcao
-                                rotulo="Retirado"
-                                icone={IconeCheck}
-                                cor="#4CAF50"
-                                disabled={concluindoLoteId === lote.lote_id}
-                                onClick={() => confirmarRetirada(lote)}
-                              />
-                            )}
-                          </td>
-                          {erroRetiradaPorLote[lote.lote_id] && (
-                            <td colSpan={7} style={{ padding: '0 10px 8px 10px' }}>
-                              <span style={{ color: '#f44336', fontSize: '12px' }}>{erroRetiradaPorLote[lote.lote_id]}</span>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  rotulo="Lotes para retirar hoje"
+                  colunas={colunasUrgentes}
+                  linhas={lotesUrgentes}
+                  chaveLinha={(l) => l.lote_id}
+                  tituloAcoes="Ação"
+                  linhaExtra={erroDaRetirada}
+                  renderAcoes={podeOperar ? acoesUrgentes : undefined}
+                />
               )}
 
               {lotesAmanha.length > 0 && (
-                <p style={{ marginTop: '15px', fontSize: '13px', color: '#666' }}>
+                <Alert tom="info" className={estilosExp.avisoAmanha}>
                   Aviso: {lotesAmanha.length} lote(s) com retirada prevista para amanhã ({lotesAmanha.map((l) => l.produto_nome).join(', ')}).
-                </p>
+                </Alert>
               )}
             </div>
+          </section>
 
-            {/* Criar novo lote */}
-            {podeOperar && (
-              <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '25px' }}>
-                <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>Enviar produção ao expositor</h2>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Lançamento</label>
-                    <select
-                      value={registroSelecionadoId}
-                      onChange={(e) => setRegistroSelecionadoId(e.target.value)}
-                      style={campoEstilo}
-                    >
+          {/* Criar novo lote */}
+          {podeOperar && (
+            <section className={estilos.secao} aria-label="Enviar produção ao expositor">
+              <Card titulo="Enviar produção ao expositor">
+                <div className={estilosExp.formGrade}>
+                  <Field label="Lançamento">
+                    <Select value={registroSelecionadoId} onChange={(e) => setRegistroSelecionadoId(e.target.value)}>
                       <option value="">Selecione</option>
                       {registrosComDisponivel.map((r) => (
                         <option key={r.id} value={r.id}>
                           {formatarData(r.data)} — {r.produtoNome} (disponível: {r.disponivel})
                         </option>
                       ))}
-                    </select>
-                  </div>
+                    </Select>
+                  </Field>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Data de entrada</label>
-                    <input
-                      type="date"
-                      value={novoDataEntrada}
-                      onChange={(e) => setNovoDataEntrada(e.target.value)}
-                      style={campoEstilo}
-                    />
-                  </div>
+                  <Field label="Data de entrada">
+                    <Input type="date" value={novoDataEntrada} onChange={(e) => setNovoDataEntrada(e.target.value)} />
+                  </Field>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Quantidade enviada</label>
-                    <input
+                  <Field label="Quantidade enviada">
+                    <Input
                       type="number"
                       min="1"
                       max={registroSelecionado?.disponivel}
                       value={novaQuantidade}
                       onChange={(e) => setNovaQuantidade(e.target.value)}
-                      style={campoEstilo}
                     />
-                  </div>
+                  </Field>
                 </div>
 
                 {registroSelecionado && (
-                  <p style={{ fontSize: '13px', color: '#666', marginTop: '-5px', marginBottom: '15px' }}>
+                  <p className={estilosExp.resumoLancamento}>
                     Produzido: {registroSelecionado.quantidadeProduzida} · Já enviado:{' '}
                     {registroSelecionado.quantidadeProduzida - registroSelecionado.disponivel} · Disponível para envio:{' '}
                     <strong>{registroSelecionado.disponivel}</strong>
                   </p>
                 )}
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Observação</label>
-                  <textarea
+                <Field label="Observação" className={estilosExp.campoObservacao}>
+                  <Textarea
                     value={novaObservacao}
                     onChange={(e) => setNovaObservacao(e.target.value)}
                     placeholder="Opcional -- anotação operacional sobre este lote."
-                    style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
+                    rows={2}
                   />
-                </div>
+                </Field>
 
-                {erroNovoLote && <p style={{ color: '#f44336', marginBottom: '15px' }}>{erroNovoLote}</p>}
+                {erroNovoLote && <Alert tom="danger" className={estilos.mensagem}>{erroNovoLote}</Alert>}
 
-                <button
-                  onClick={criarLote}
-                  disabled={criandoLote}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: aparencia.corPrimaria,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    opacity: criandoLote ? 0.6 : 1,
-                  }}
-                >
+                <Button onClick={criarLote} disabled={criandoLote}>
                   {criandoLote ? 'Criando...' : 'Criar lote'}
-                </button>
+                </Button>
 
                 {registrosComDisponivel.length === 0 && (
-                  <p style={{ fontSize: '13px', color: '#999', marginTop: '10px' }}>
+                  <EmptyState>
                     Nenhum lançamento elegível nos últimos 60 dias (produto sem Controle de Expositores habilitado, ou
                     tudo já enviado).
-                  </p>
+                  </EmptyState>
                 )}
+              </Card>
+            </section>
+          )}
+
+          {/* Produtos nos Expositores */}
+          <section className={estilos.secao} aria-label="Produtos nos Expositores">
+            <SectionHeader titulo="Produtos nos Expositores" />
+
+            <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+              <Field label="Entrada -- de">
+                <Input type="date" value={filtroInicio} onChange={(e) => alterarFiltro(setFiltroInicio)(e.target.value)} />
+              </Field>
+              <Field label="Entrada -- até">
+                <Input type="date" value={filtroFim} onChange={(e) => alterarFiltro(setFiltroFim)(e.target.value)} />
+              </Field>
+              <Field label="Produto">
+                <Select value={filtroProdutoId} onChange={(e) => alterarFiltro(setFiltroProdutoId)(e.target.value)}>
+                  <option value="todos">Todos</option>
+                  {produtosControlados.map((pr) => (
+                    <option key={pr.id} value={pr.id}>{pr.nome}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Situação">
+                <Select value={filtroSituacao} onChange={(e) => alterarFiltro(setFiltroSituacao)(e.target.value)}>
+                  <option value="todos">Todas</option>
+                  <option value="atrasado">Atrasado</option>
+                  <option value="retirar_hoje">Retirar hoje</option>
+                  <option value="retirar_amanha">Retirar amanhã</option>
+                  <option value="no_expositor">No expositor</option>
+                  <option value="concluido">Concluído</option>
+                </Select>
+              </Field>
+            </FilterBar>
+
+            {lotesListaHistorico.length === 0 ? (
+              <EmptyState>Nenhum lote encontrado para os filtros selecionados.</EmptyState>
+            ) : (
+              <div className={estilos.superficie}>
+                <DataTable
+                  rotulo="Produtos nos Expositores"
+                  colunas={colunasLotes}
+                  linhas={paginacao.itens}
+                  chaveLinha={(l) => l.lote_id}
+                  cartoesAte={1330}
+                  linhaExtra={erroDaRetirada}
+                  renderAcoes={acoesLote}
+                />
+
+                <p className={estilos.resumo}>
+                  Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+                  {paginacao.total === 1 ? 'lote' : 'lotes'}
+                  {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+                </p>
+                <Paginacao
+                  paginaAtual={paginaAtual}
+                  totalPaginas={paginacao.totalPaginas}
+                  onMudarPagina={setPagina}
+                  corPrimaria={aparencia.corPrimaria}
+                />
               </div>
             )}
+          </section>
 
-            {/* Produtos nos Expositores */}
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '25px' }}>
-              <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>Produtos nos Expositores</h2>
+          {/* Relatório de desempenho */}
+          <section className={estilos.secao} aria-label="Desempenho por produto">
+            <SectionHeader titulo="Desempenho por produto" />
+            <p className={estilosExp.notaRelatorio}>
+              Somente lotes já concluídos (retirados), dentro do período/produto filtrados acima. Venda estimada nunca é
+              venda real -- não alimenta o histórico de vendas nem a sugestão de produção.
+            </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Entrada -- de</label>
-                  <input type="date" value={filtroInicio} onChange={(e) => alterarFiltro(setFiltroInicio)(e.target.value)} style={campoEstilo} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Entrada -- até</label>
-                  <input type="date" value={filtroFim} onChange={(e) => alterarFiltro(setFiltroFim)(e.target.value)} style={campoEstilo} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Produto</label>
-                  <select value={filtroProdutoId} onChange={(e) => alterarFiltro(setFiltroProdutoId)(e.target.value)} style={campoEstilo}>
-                    <option value="todos">Todos</option>
-                    {produtosControlados.map((p) => (
-                      <option key={p.id} value={p.id}>{p.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Situação</label>
-                  <select value={filtroSituacao} onChange={(e) => alterarFiltro(setFiltroSituacao)(e.target.value)} style={campoEstilo}>
-                    <option value="todos">Todas</option>
-                    <option value="atrasado">Atrasado</option>
-                    <option value="retirar_hoje">Retirar hoje</option>
-                    <option value="retirar_amanha">Retirar amanhã</option>
-                    <option value="no_expositor">No expositor</option>
-                    <option value="concluido">Concluído</option>
-                  </select>
-                </div>
+            {relatorio.length === 0 ? (
+              <EmptyState>Nenhum lote concluído para os filtros selecionados.</EmptyState>
+            ) : (
+              <div className={estilos.superficie}>
+                <DataTable
+                  rotulo="Desempenho por produto"
+                  colunas={colunasRelatorio}
+                  linhas={relatorio}
+                  chaveLinha={(r) => r.produtoNome}
+                />
               </div>
-
-              {lotesListaHistorico.length === 0 ? (
-                <p style={{ color: '#666' }}>Nenhum lote encontrado para os filtros selecionados.</p>
-              ) : (
-                <>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid #ddd' }}>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Data produção</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Data entrada</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Retirada prevista</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Produzido</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Enviado</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Retirado</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Venda estimada</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Situação</th>
-                          <th style={{ padding: '10px', textAlign: 'left' }}>Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginacao.itens.map((lote) => (
-                          <tr key={lote.lote_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                            <td style={{ padding: '10px' }}>
-                              {lote.produto_nome}
-                              <IndicadorObservacao texto={lote.observacao} />
-                            </td>
-                            <td style={{ padding: '10px' }}>{formatarData(lote.data_producao)}</td>
-                            <td style={{ padding: '10px' }}>{formatarData(lote.data_entrada)}</td>
-                            <td style={{ padding: '10px' }}>{formatarData(lote.data_prevista_retirada)}</td>
-                            <td style={{ padding: '10px' }}>{lote.quantidade_produzida}</td>
-                            <td style={{ padding: '10px' }}>{lote.quantidade_enviada}</td>
-                            <td style={{ padding: '10px' }}>{lote.quantidade_retirada ?? '—'}</td>
-                            <td style={{ padding: '10px', color: lote.concluido_em ? undefined : '#999' }}>
-                              {/* venda_estimada só existe (não-null) para lote concluído -- a view
-                                  producao_expositor_detalhado já garante isso (CASE WHEN concluido_em
-                                  IS NOT NULL). "Pendente" aqui reforça visualmente que a quantidade
-                                  enviada de um lote ainda no expositor NUNCA deve ser lida como venda
-                                  estimada -- a retirada final ainda não é conhecida. */}
-                              {lote.concluido_em ? lote.venda_estimada : 'Pendente'}
-                            </td>
-                            <td style={{ padding: '10px' }}><BadgeSituacao situacao={lote.situacao} /></td>
-                            <td style={{ padding: '10px' }}>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                {/* Retirada rápida também aqui, não só no painel "Retirar hoje" --
-                                    um produto pode esgotar no expositor ANTES da data prevista (ex.:
-                                    pão do dia vende tudo de manhã, mas o prazo só vence à noite), e o
-                                    operador precisa conseguir concluir o lote na hora, sem esperar a
-                                    situação virar "Atrasado"/"Retirar hoje". Mesmo handler
-                                    (confirmarRetirada) e mesmo estado (quantidadeRetiradaPorLote) do
-                                    painel urgente -- nenhuma lógica nova. */}
-                                {!lote.concluido_em && podeOperar && (
-                                  <>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={lote.quantidade_enviada}
-                                      value={quantidadeRetiradaPorLote[lote.lote_id] ?? ''}
-                                      onChange={(e) =>
-                                        setQuantidadeRetiradaPorLote((atual) => ({ ...atual, [lote.lote_id]: e.target.value }))
-                                      }
-                                      placeholder="Qtd."
-                                      title="Quantidade retirada -- use também se o produto esgotou antes do prazo previsto."
-                                      style={{ ...campoInlineEstilo, width: '55px' }}
-                                    />
-                                    <BotaoIconeAcao
-                                      rotulo="Retirado (esgotou ou encerrou antes do prazo previsto)"
-                                      icone={IconeCheck}
-                                      cor="#4CAF50"
-                                      disabled={concluindoLoteId === lote.lote_id}
-                                      onClick={() => confirmarRetirada(lote)}
-                                    />
-                                  </>
-                                )}
-                                {!lote.concluido_em && podeOperar && (
-                                  <BotaoIconeAcao
-                                    rotulo="Editar"
-                                    icone={IconeLapis}
-                                    cor={aparencia.corPrimaria}
-                                    onClick={() => setLoteParaEditar(lote)}
-                                  />
-                                )}
-                                {!!lote.concluido_em && podeEditarConcluido && (
-                                  <BotaoIconeAcao
-                                    rotulo="Corrigir"
-                                    icone={IconeLapis}
-                                    cor={aparencia.corPrimaria}
-                                    onClick={() => setLoteParaCorrigir(lote)}
-                                  />
-                                )}
-                                {podeExcluir && (
-                                  <BotaoIconeAcao
-                                    rotulo="Excluir"
-                                    icone={IconeLixeira}
-                                    destrutivo
-                                    onClick={() => setLoteParaExcluir(lote)}
-                                  />
-                                )}
-                              </div>
-                              {erroRetiradaPorLote[lote.lote_id] && (
-                                <div style={{ color: '#f44336', fontSize: '11px', marginTop: '4px' }}>
-                                  {erroRetiradaPorLote[lote.lote_id]}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
-                    Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
-                    {paginacao.total === 1 ? 'lote' : 'lotes'}
-                    {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
-                  </p>
-                  <Paginacao
-                    paginaAtual={paginaAtual}
-                    totalPaginas={paginacao.totalPaginas}
-                    onMudarPagina={setPagina}
-                    corPrimaria={aparencia.corPrimaria}
-                  />
-                </>
-              )}
-            </div>
-
-            {/* Relatório de desempenho */}
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-              <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>Desempenho por produto</h2>
-              <p style={{ fontSize: '12px', color: '#666', marginTop: '-8px' }}>
-                Somente lotes já concluídos (retirados), dentro do período/produto filtrados acima. Venda estimada nunca é
-                venda real -- não alimenta o histórico de vendas nem a sugestão de produção.
-              </p>
-
-              {relatorio.length === 0 ? (
-                <p style={{ color: '#666' }}>Nenhum lote concluído para os filtros selecionados.</p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #ddd' }}>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Produzido</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Enviado</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Retirado</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Venda estimada</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Aproveitamento</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {relatorio.map((p) => (
-                        <tr key={p.produtoNome} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                          <td style={{ padding: '10px' }}>{p.produtoNome}</td>
-                          <td style={{ padding: '10px' }}>{p.quantidadeProduzida}</td>
-                          <td style={{ padding: '10px' }}>{p.quantidadeEnviada}</td>
-                          <td style={{ padding: '10px' }}>{p.quantidadeRetirada}</td>
-                          <td style={{ padding: '10px' }}>{p.vendaEstimada}</td>
-                          <td style={{ padding: '10px' }}>{p.aproveitamento == null ? '—' : `${p.aproveitamento.toFixed(0)}%`}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+            )}
+          </section>
+        </>
+      )}
 
       {loteParaEditar && (
         <EditarLoteExpositorModal
@@ -900,7 +826,7 @@ function ExpositoresConteudo() {
           onCancelar={() => setLoteParaExcluir(null)}
         />
       )}
-    </div>
+    </PaginaProducao>
   );
 }
 

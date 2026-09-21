@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import Button from '../ui/Button';
+import Select from '../ui/Select';
+import EmptyState from '../ui/EmptyState';
+import styles from './SeletorOutroProduto.module.css';
 
 // Ação secundária "+ Outro produto": só aparece um link discreto até o
 // usuário clicar, então vira um <select> com as receitas ativas que ainda
@@ -12,58 +16,41 @@ export default function SeletorOutroProduto({ receitasDisponiveis, corPrimaria, 
 
   if (!aberto) {
     return (
-      <div>
-        <button
-          onClick={() => setAberto(true)}
-          disabled={semOpcoes}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: semOpcoes ? '#999' : corPrimaria,
-            cursor: semOpcoes ? 'default' : 'pointer',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            padding: '8px 0',
-          }}
-        >
+      <div className={styles.raiz}>
+        <Button variante="secondary" onClick={() => setAberto(true)} disabled={semOpcoes}>
           + Outro produto
-        </button>
+        </Button>
         {semOpcoes && (
-          <p style={{ color: '#999', fontSize: '12px', margin: '0 0 8px 0' }}>
-            Nenhum outro produto habilitado para controle de produção.
-          </p>
+          <EmptyState>Nenhum outro produto habilitado para controle de produção.</EmptyState>
         )}
       </div>
     );
   }
 
   return (
-    <select
-      autoFocus
-      defaultValue=""
-      onChange={(e) => {
-        const receita = receitasDisponiveis.find((r) => r.id === e.target.value);
-        setAberto(false);
-        if (receita) {
-          onSelecionar(receita);
-        }
-      }}
-      onBlur={() => setAberto(false)}
-      style={{
-        padding: '8px',
-        border: `1px solid ${corPrimaria}`,
-        borderRadius: '5px',
-        fontSize: '14px',
-      }}
-    >
-      <option value="" disabled>
-        Selecione uma receita...
-      </option>
-      {receitasDisponiveis.map((r) => (
-        <option key={r.id} value={r.id}>
-          {r.nome}
+    <div className={styles.raiz}>
+      <Select
+        autoFocus
+        aria-label="Outro produto"
+        defaultValue=""
+        onChange={(e) => {
+          const receita = receitasDisponiveis.find((r) => r.id === e.target.value);
+          setAberto(false);
+          if (receita) {
+            onSelecionar(receita);
+          }
+        }}
+        onBlur={() => setAberto(false)}
+      >
+        <option value="" disabled>
+          Selecione uma receita...
         </option>
-      ))}
-    </select>
+        {receitasDisponiveis.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.nome}
+          </option>
+        ))}
+      </Select>
+    </div>
   );
 }

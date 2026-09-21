@@ -1,0 +1,65 @@
+.barra {
+  margin-bottom: var(--ds-sp-4);
+  padding: var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+  align-items: end;
+}
+
+.rodape {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--ds-sp-3);
+}
+
+/* ------------------------------ mobile ------------------------------ */
+
+.topoMobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+.alternar {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  min-height: var(--ds-control-h);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ds-text);
+  font-size: var(--ds-fs-body);
+  font-weight: var(--ds-fw-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.seta {
+  display: inline-flex;
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.setaAberta {
+  transform: rotate(180deg);
+}
+
+.conteudoMobile {
+  margin-top: var(--ds-sp-3);
+  padding-top: var(--ds-sp-3);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+.conteudoMobile .grade {
+  grid-template-columns: minmax(0, 1fr);
+}

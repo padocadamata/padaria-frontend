@@ -1,31 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { mensagemErroLoteExpositor } from '../../lib/producao/mensagensExpositor';
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '440px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
+import Modal from '../ui/Modal';
 
 const rotuloEstilo = { fontWeight: 'bold', color: '#666', fontSize: '12px' };
 const valorEstilo = { fontSize: '15px', marginBottom: '10px' };
@@ -78,8 +54,7 @@ export default function ExcluirLoteExpositorModal({ lote, produtoNome, onExcluid
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="md" legado>
         <h3 style={{ color: '#f44336', marginTop: 0 }}>Excluir lote de expositor</h3>
 
         <div style={{ backgroundColor: '#f9f9f9', padding: '12px 15px', borderRadius: '5px', marginBottom: '15px' }}>
@@ -149,7 +124,6 @@ export default function ExcluirLoteExpositorModal({ lote, produtoNome, onExcluid
             {excluindo ? 'Excluindo...' : 'Excluir definitivamente'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

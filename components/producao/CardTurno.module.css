@@ -1,0 +1,139 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+  min-width: 0;
+  padding: var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-left-width: 4px;
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.semRegistro {
+  border-left-color: var(--ds-border-strong);
+}
+.aberto {
+  border-left-color: var(--ds-warning);
+}
+.fechado {
+  border-left-color: var(--ds-success);
+}
+.reaberto {
+  border-left-color: var(--ds-danger);
+}
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+.turno {
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+}
+
+.vazio {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-body);
+}
+
+.quantidade {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+}
+
+.quantidadeRotulo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.quantidadeValor {
+  font-size: 28px;
+  font-weight: var(--ds-fw-bold);
+  line-height: 1.1;
+  color: var(--ds-text);
+}
+
+.linhaResumo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  font-size: var(--ds-fs-body);
+}
+
+.linhaResumo strong {
+  font-weight: var(--ds-fw-bold);
+}
+
+/* Resumo do turno fechado: 5 indicadores lado a lado (2-3 por linha quando
+   o cartão não comporta) -- só apresentação, os mesmos valores de antes. */
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--ds-sp-2);
+  margin: 0;
+}
+
+.indicador {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  background-color: var(--ds-surface-muted);
+  border-radius: var(--ds-radius-md);
+  text-align: center;
+}
+
+.indicador dt {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+.indicador dd {
+  margin: 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-bold);
+  color: var(--ds-text);
+}
+
+.falta {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.observacoes {
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  font-style: italic;
+  color: var(--ds-text-muted);
+}
+
+.aviso {
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-danger);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}
+
+@media (max-width: 768px) {
+  /* Ação principal em largura total: alvo de toque confortável. */
+  .acoes > * {
+    flex: 1 1 140px;
+  }
+}

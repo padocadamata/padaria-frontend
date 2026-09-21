@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
-
-const TAMANHO = 18;
+import { cx } from '../../lib/design/cx';
+import styles from './MarcadorFalta.module.css';
 
 // Marcador compacto de "houve falta de produto" (migration 0031,
 // producao_registros.houve_falta), reutilizado por Hoje (CardTurno) e
@@ -82,7 +82,7 @@ export default function MarcadorFalta({ registro, podeEditar, onAtualizado }) {
   }
 
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+    <span className={styles.raiz}>
       <button
         type="button"
         onClick={alternar}
@@ -90,26 +90,16 @@ export default function MarcadorFalta({ registro, podeEditar, onAtualizado }) {
         title={titulo}
         aria-label="Houve falta de produto"
         aria-pressed={houveFalta}
-        style={{
-          width: TAMANHO,
-          height: TAMANHO,
-          borderRadius: '50%',
-          border: houveFalta ? 'none' : '2px solid #bbb',
-          backgroundColor: houveFalta ? '#f44336' : 'transparent',
-          padding: 0,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '11px',
-          lineHeight: 1,
-          color: 'white',
-          cursor: podeEditar && vendaConhecida ? 'pointer' : 'default',
-          opacity: !vendaConhecida ? 0.4 : salvando ? 0.6 : 1,
-        }}
+        className={cx(
+          styles.botao,
+          houveFalta && styles.ativo,
+          podeEditar && vendaConhecida && styles.pode,
+          !vendaConhecida ? styles.bloqueado : salvando && styles.salvando
+        )}
       >
         {houveFalta ? '⚠' : ''}
       </button>
-      {erro && <span style={{ color: '#f44336', fontSize: '11px' }}>{erro}</span>}
+      {erro && <span className={styles.erro}>{erro}</span>}
     </span>
   );
 }

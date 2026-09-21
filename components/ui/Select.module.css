@@ -1,0 +1,36 @@
+.select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--ds-control-h);
+  padding: 0 var(--ds-sp-7) 0 var(--ds-sp-3);
+  border: var(--ds-border-w) solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234d5957' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ds-sp-3) center;
+  color: var(--ds-text);
+  font-family: inherit;
+  font-size: var(--ds-fs-control);
+  line-height: 1.4;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.select:hover {
+  border-color: var(--ds-text-muted);
+}
+
+.select:focus-visible {
+  border-color: var(--ds-primary);
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 0;
+}
+
+.select:disabled {
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-text-disabled);
+  cursor: not-allowed;
+}

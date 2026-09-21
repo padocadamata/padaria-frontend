@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { mensagemErroSacos } from '../../lib/producao/mensagensSacos';
+import Modal from '../ui/Modal';
 
 // Lançamento do saldo inicial de uma configuração comercial (migration
 // 0044, mais a proteção de unicidade da 0047) -- único caminho é a RPC
@@ -55,8 +56,7 @@ export default function LancarSaldoInicialModal({ configuracao, corPrimaria = '#
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="sm" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>Lançar saldo inicial</h3>
 
         <div style={{ marginBottom: '15px' }}>
@@ -138,33 +138,9 @@ export default function LancarSaldoInicialModal({ configuracao, corPrimaria = '#
             {salvando ? 'Salvando...' : 'Lançar saldo inicial'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '420px',
-  width: '100%',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
 

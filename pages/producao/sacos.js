@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
-import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
+import PaginaProducao from '../../components/producao/PaginaProducao';
 import AbrirSacoModal from '../../components/producao/AbrirSacoModal';
 import LancarSaldoInicialModal from '../../components/producao/LancarSaldoInicialModal';
 import EditarMovimentacaoSacoModal from '../../components/producao/EditarMovimentacaoSacoModal';
 import ExcluirMovimentacaoSacoModal from '../../components/producao/ExcluirMovimentacaoSacoModal';
-import { BotaoIconeAcao, IconeCaixa, IconeLapis, IconeLixeira } from '../../components/producao/IconesAcoes';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import DataTable from '../../components/ui/DataTable';
+import EmptyState from '../../components/ui/EmptyState';
+import Field from '../../components/ui/Field';
+import FilterBar from '../../components/ui/FilterBar';
+import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
+import SectionHeader from '../../components/ui/SectionHeader';
+import AcoesLinha from '../../components/ui/AcoesLinha';
+import { cx } from '../../lib/design/cx';
+import estilos from '../../components/producao/producao.module.css';
+import estilosSacos from '../../components/producao/sacos.module.css';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -15,7 +26,6 @@ import { mensagemErroSacos, TIPO_MOVIMENTO_LABEL, ORIGEM_MOVIMENTO_LABEL } from 
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
-import BotaoLimparFiltros from '../../components/BotaoLimparFiltros';
 
 // Controle de Sacos Fechados (migrations 0041/0042 + complementar de
 // operação inicial). Leitura via RPC listar_sacos_fechados_configuracoes
@@ -80,20 +90,12 @@ function formatarKg(valor) {
   return valor.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
-// Campos dos filtros: altura mínima de 42px (área de toque) e fonte 16px
-// (iOS dá zoom automático em inputs menores que 16px).
-const campoEstilo = {
-  width: '100%',
-  minWidth: 0,
-  minHeight: '42px',
-  padding: '8px',
-  fontSize: '16px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
+const TOM_MOVIMENTO = {
+  entrada: 'success',
+  abertura: 'warning',
+  ajuste_manual: 'info',
+  saldo_inicial: 'primary',
 };
-
-const rotuloEstilo = { display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' };
 
 function SacosConteudo() {
   const { permissoes, usuarioAuth } = useAuth();
@@ -379,319 +381,213 @@ function SacosConteudo() {
   const [movimentacaoParaEditar, setMovimentacaoParaEditar] = useState(null);
   const [movimentacaoParaExcluir, setMovimentacaoParaExcluir] = useState(null);
 
+  const quantidadeFiltrosMov = [busca !== '', filtroTipo !== 'todos', filtroDe !== '', filtroAte !== ''].filter(Boolean).length;
+
+  // Saldo: UMA definição de colunas para tabela e cartão.
+  const colunasSaldo = [
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (c) => c.produtoNome },
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 1, render: (c) => c.fornecedorNome },
+    { chave: 'saldo', rotulo: 'Sacos fechados', alinhar: 'direita', render: (c) => <strong>{c.saldoSacos}</strong> },
+    { chave: 'peso', rotulo: 'Kg/saco', alinhar: 'direita', semQuebra: true, render: (c) => `${c.pesoPorSacoKg} kg` },
+    { chave: 'kgTotal', rotulo: 'Kg total', alinhar: 'direita', semQuebra: true, render: (c) => `${formatarKg(c.kgTotal)} kg` },
+  ];
+
+  const colunasMov = [
+    { chave: 'data', rotulo: 'Data', semQuebra: true, mobile: 'titulo', cartaoOrdem: 2, render: (m) => formatarDataHora(m.criado_em) },
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (m) => m.produtoNome },
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 1, render: (m) => m.fornecedorNome },
+    {
+      chave: 'movimento',
+      rotulo: 'Movimento',
+      render: (m) => <Badge tom={TOM_MOVIMENTO[m.tipo] || 'neutral'}>{TIPO_MOVIMENTO_LABEL[m.tipo] || m.tipo}</Badge>,
+    },
+    {
+      chave: 'quantidade',
+      rotulo: 'Quantidade',
+      alinhar: 'direita',
+      render: (m) => (
+        <strong className={m.quantidade_sacos > 0 ? estilosSacos.positivo : estilosSacos.negativo}>
+          {Math.abs(m.quantidade_sacos)}
+        </strong>
+      ),
+    },
+    { chave: 'kg', rotulo: 'Kg', alinhar: 'direita', semQuebra: true, render: (m) => `${formatarKg(m.kg)} kg` },
+    { chave: 'origem', rotulo: 'Origem', render: (m) => ORIGEM_MOVIMENTO_LABEL[m.origem] || m.origem },
+    { chave: 'responsavel', rotulo: 'Responsável', render: (m) => m.responsavelNome },
+  ];
+
+  function acoesMovimentacao(m) {
+    const ehManual = m.tipo === 'abertura' || m.tipo === 'ajuste_manual' || m.tipo === 'saldo_inicial';
+    return [
+      podeEditar && ehManual && { chave: 'editar', rotulo: 'Editar', icone: 'pencil', onClick: () => setMovimentacaoParaEditar(m) },
+      podeExcluir && ehManual && { chave: 'excluir', rotulo: 'Excluir', icone: 'trash', destrutivo: true, onClick: () => setMovimentacaoParaExcluir(m) },
+    ].filter(Boolean);
+  }
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Produção" />
+    <PaginaProducao ativo="sacos" titulo="Sacos Fechados">
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-        <NavegacaoProducao abaAtiva="sacos" corPrimaria={aparencia.corPrimaria} />
+      {carregando ? (
+        <p role="status">Carregando dados de Sacos Fechados...</p>
+      ) : erro ? (
+        <div className={estilos.superficie}>
+          <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>
+          <Button onClick={() => recarregar()}>Tentar novamente</Button>
+        </div>
+      ) : !podeVisualizar ? (
+        <Alert tom="danger">Você não tem permissão para ver esta tela.</Alert>
+      ) : (
+        <>
+          {/* Saldo de Sacos Fechados */}
+          <section className={estilos.secao} aria-label="Saldo de Sacos Fechados">
+            <SectionHeader titulo="Saldo de Sacos Fechados" />
 
-        {mensagemSucesso && (
-          <p style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '10px 15px', borderRadius: '5px', marginBottom: '15px' }}>
-            {mensagemSucesso}
-          </p>
-        )}
-
-        {carregando ? (
-          <p>Carregando dados de Sacos Fechados...</p>
-        ) : erro ? (
-          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-            <p style={{ color: '#f44336', marginTop: 0 }}>{erro}</p>
-            <button
-              type="button"
-              onClick={() => recarregar()}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-              }}
-            >
-              Tentar novamente
-            </button>
-          </div>
-        ) : !podeVisualizar ? (
-          <p style={{ color: '#f44336' }}>Você não tem permissão para ver esta tela.</p>
-        ) : (
-          <>
-            {/* Saldo de Sacos Fechados */}
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '25px' }}>
-              <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>Saldo de Sacos Fechados</h2>
-
-              {configuracoesControladas.length === 0 ? (
-                <p style={{ color: '#666' }}>
-                  Nenhum produto configurado para controle de sacos fechados. Configure em Catálogo &gt; abrir o
-                  produto &gt; configuração comercial do fornecedor &gt; &quot;Controlar sacos fechados&quot;.
-                </p>
-              ) : (
-                <>
-                  <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '5px', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-end' }}>
-                      <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                        <label htmlFor="sacos-saldo-busca" style={rotuloEstilo}>Produto ou fornecedor</label>
-                        <input
-                          id="sacos-saldo-busca"
-                          type="search"
-                          value={buscaSaldo}
-                          onChange={(e) => setBuscaSaldo(e.target.value)}
-                          placeholder="Buscar..."
-                          style={campoEstilo}
-                        />
-                      </div>
-                      <div style={{ flex: '1 1 160px', maxWidth: '220px' }}>
-                        <BotaoLimparFiltros
-                          filtrosAtivos={Boolean(buscaSaldo)}
-                          onClick={() => setBuscaSaldo('')}
-                          corPrimaria={aparencia.corPrimaria}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {configuracoesSaldoFiltradas.length === 0 ? (
-                    <p style={{ color: '#666' }}>Nenhum produto encontrado para a busca.</p>
-                    ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '2px solid #ddd' }}>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Fornecedor</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Sacos fechados</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Kg/saco</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Kg total</th>
-                            <th style={{ padding: '10px', textAlign: 'left' }}>Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {configuracoesSaldoFiltradas.map((c) => (
-                            <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                              <td style={{ padding: '10px' }}>{c.produtoNome}</td>
-                              <td style={{ padding: '10px' }}>{c.fornecedorNome}</td>
-                              <td style={{ padding: '10px', fontWeight: 'bold' }}>{c.saldoSacos}</td>
-                              <td style={{ padding: '10px' }}>{c.pesoPorSacoKg} kg</td>
-                              <td style={{ padding: '10px' }}>{formatarKg(c.kgTotal)} kg</td>
-                              <td style={{ padding: '10px', display: 'flex', gap: '8px' }}>
-                                {podeOperar && !c.temSaldoInicial && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfiguracaoParaSaldoInicial(c)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      backgroundColor: 'white',
-                                      color: aparencia.corPrimaria,
-                                      border: `1px solid ${aparencia.corPrimaria}`,
-                                      borderRadius: '5px',
-                                      cursor: 'pointer',
-                                      fontSize: '13px',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                  >
-                                    Lançar saldo inicial
-                                  </button>
-                                )}
-                                {podeOperar && (
-                                  <BotaoIconeAcao
-                                    rotulo="Abrir saco"
-                                    icone={IconeCaixa}
-                                    cor={aparencia.corPrimaria}
-                                    onClick={() => setConfiguracaoParaAbrir(c)}
-                                  />
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Movimentações */}
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-              <h2 style={{ color: aparencia.corPrimaria, marginTop: 0, marginBottom: '15px' }}>Movimentações</h2>
-
-              <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '5px', marginBottom: '20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', alignItems: 'end' }}>
-                  <div>
-                    <label htmlFor="sacos-filtro-busca" style={rotuloEstilo}>Produto ou fornecedor</label>
-                    <input
-                      id="sacos-filtro-busca"
+            {configuracoesControladas.length === 0 ? (
+              <EmptyState>
+                Nenhum produto configurado para controle de sacos fechados. Configure em Catálogo &gt; abrir o
+                produto &gt; configuração comercial do fornecedor &gt; &quot;Controlar sacos fechados&quot;.
+              </EmptyState>
+            ) : (
+              <>
+                <FilterBar ativos={buscaSaldo ? 1 : 0} onLimpar={() => setBuscaSaldo('')}>
+                  <Field label="Produto ou fornecedor" id="sacos-saldo-busca">
+                    <Input
+                      id="sacos-saldo-busca"
                       type="search"
-                      value={busca}
-                      onChange={(e) => {
-                        setBusca(e.target.value);
-                        setPagina(1);
-                      }}
+                      value={buscaSaldo}
+                      onChange={(e) => setBuscaSaldo(e.target.value)}
                       placeholder="Buscar..."
-                      style={campoEstilo}
+                    />
+                  </Field>
+                </FilterBar>
+
+                {configuracoesSaldoFiltradas.length === 0 ? (
+                  <EmptyState>Nenhum produto encontrado para a busca.</EmptyState>
+                ) : (
+                  <div className={estilos.superficie}>
+                    <DataTable
+                      rotulo="Saldo de sacos fechados"
+                      colunas={colunasSaldo}
+                      linhas={configuracoesSaldoFiltradas}
+                      chaveLinha={(c) => c.id}
+                      renderAcoes={
+                        podeOperar
+                          ? (c) => (
+                              <div className={estilosSacos.acoesSaldo}>
+                                {!c.temSaldoInicial && (
+                                  <Button variante="secondary" tamanho="sm" onClick={() => setConfiguracaoParaSaldoInicial(c)}>
+                                    Lançar saldo inicial
+                                  </Button>
+                                )}
+                                <Button tamanho="sm" icone="package" onClick={() => setConfiguracaoParaAbrir(c)}>
+                                  Abrir saco
+                                </Button>
+                              </div>
+                            )
+                          : undefined
+                      }
                     />
                   </div>
-                  <div>
-                    <label htmlFor="sacos-filtro-tipo" style={rotuloEstilo}>Movimento</label>
-                    <select
-                      id="sacos-filtro-tipo"
-                      value={filtroTipo}
-                      onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}
-                      style={campoEstilo}
-                    >
-                      <option value="todos">Todos</option>
-                      {Object.entries(TIPO_MOVIMENTO_LABEL).map(([valor, rotulo]) => (
-                        <option key={valor} value={valor}>{rotulo}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="sacos-filtro-de" style={rotuloEstilo}>Data -- de</label>
-                    <input
-                      id="sacos-filtro-de"
-                      type="date"
-                      value={filtroDe}
-                      max={filtroAte || undefined}
-                      onChange={(e) => alterarFiltro(setFiltroDe)(e.target.value)}
-                      style={campoEstilo}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="sacos-filtro-ate" style={rotuloEstilo}>Data -- até</label>
-                    <input
-                      id="sacos-filtro-ate"
-                      type="date"
-                      value={filtroAte}
-                      min={filtroDe || undefined}
-                      onChange={(e) => alterarFiltro(setFiltroAte)(e.target.value)}
-                      style={campoEstilo}
-                    />
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      onClick={limparFiltros}
-                      disabled={!filtrosAtivos}
-                      style={{
-                        ...campoEstilo,
-                        backgroundColor: 'white',
-                        color: filtrosAtivos ? aparencia.corPrimaria : '#aaa',
-                        border: `1px solid ${filtrosAtivos ? aparencia.corPrimaria : '#ddd'}`,
-                        cursor: filtrosAtivos ? 'pointer' : 'not-allowed',
-                        fontSize: '14px',
-                      }}
-                    >
-                      Limpar filtros
-                    </button>
-                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          {/* Movimentações */}
+          <section className={estilos.secao} aria-label="Movimentações">
+            <SectionHeader titulo="Movimentações" />
+
+            <FilterBar ativos={quantidadeFiltrosMov} onLimpar={limparFiltros}>
+              <Field label="Produto ou fornecedor" id="sacos-filtro-busca">
+                <Input
+                  id="sacos-filtro-busca"
+                  type="search"
+                  value={busca}
+                  onChange={(e) => {
+                    setBusca(e.target.value);
+                    setPagina(1);
+                  }}
+                  placeholder="Buscar..."
+                />
+              </Field>
+              <Field label="Movimento" id="sacos-filtro-tipo">
+                <Select id="sacos-filtro-tipo" value={filtroTipo} onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}>
+                  <option value="todos">Todos</option>
+                  {Object.entries(TIPO_MOVIMENTO_LABEL).map(([valor, rotulo]) => (
+                    <option key={valor} value={valor}>{rotulo}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Data -- de" id="sacos-filtro-de">
+                <Input
+                  id="sacos-filtro-de"
+                  type="date"
+                  value={filtroDe}
+                  max={filtroAte || undefined}
+                  onChange={(e) => alterarFiltro(setFiltroDe)(e.target.value)}
+                />
+              </Field>
+              <Field label="Data -- até" id="sacos-filtro-ate">
+                <Input
+                  id="sacos-filtro-ate"
+                  type="date"
+                  value={filtroAte}
+                  min={filtroDe || undefined}
+                  onChange={(e) => alterarFiltro(setFiltroAte)(e.target.value)}
+                />
+              </Field>
+            </FilterBar>
+
+            {periodoInvertido && <Alert tom="danger" className={estilos.mensagem}>A data inicial é posterior à data final.</Alert>}
+
+            {erroMovs ? (
+              <div>
+                <Alert tom="danger" className={estilos.mensagem}>{erroMovs}</Alert>
+                <Button onClick={() => recarregar()}>Tentar novamente</Button>
+              </div>
+            ) : movimentacoes.length === 0 ? (
+              <EmptyState>
+                {carregandoMovs
+                  ? 'Carregando movimentações...'
+                  : filtrosAtivos
+                    ? 'Nenhuma movimentação encontrada para os filtros selecionados.'
+                    : 'Nenhuma movimentação registrada ainda.'}
+              </EmptyState>
+            ) : (
+              <div className={estilos.superficie}>
+                <div className={cx(carregandoMovs && estilos.carregandoConteudo)}>
+                  <DataTable
+                    rotulo="Movimentações de sacos fechados"
+                    colunas={colunasMov}
+                    linhas={movimentacoes}
+                    chaveLinha={(m) => m.id}
+                    cartoesAte={1200}
+                    renderAcoes={(m, { cartao }) => <AcoesLinha acoes={acoesMovimentacao(m)} cartao={cartao} />}
+                  />
                 </div>
-                {periodoInvertido && (
-                  <p style={{ color: '#c62828', fontSize: '13px', margin: '10px 0 0' }}>
-                    A data inicial é posterior à data final.
-                  </p>
+
+                {!erroMovs && totalMovimentacoes > 0 && (
+                  <>
+                    <p className={estilos.resumo}>
+                      Mostrando {(pagina - 1) * TAMANHO_PAGINA + 1}–{(pagina - 1) * TAMANHO_PAGINA + movimentacoes.length} de{' '}
+                      {totalMovimentacoes} {totalMovimentacoes === 1 ? 'movimentação' : 'movimentações'}
+                      {totalPaginas > 1 ? ` — página ${pagina} de ${totalPaginas}` : ''}
+                    </p>
+                    <Paginacao
+                      paginaAtual={pagina}
+                      totalPaginas={totalPaginas}
+                      onMudarPagina={setPagina}
+                      desabilitado={carregandoMovs}
+                      corPrimaria={aparencia.corPrimaria}
+                    />
+                  </>
                 )}
               </div>
-
-              {erroMovs ? (
-                <div>
-                  <p style={{ color: '#f44336', marginTop: 0 }}>{erroMovs}</p>
-                  <button
-                    type="button"
-                    onClick={() => recarregar()}
-                    style={{ padding: '8px 16px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                  >
-                    Tentar novamente
-                  </button>
-                </div>
-              ) : movimentacoes.length === 0 ? (
-                <p style={{ color: '#666' }}>
-                  {carregandoMovs
-                    ? 'Carregando movimentações...'
-                    : filtrosAtivos
-                      ? 'Nenhuma movimentação encontrada para os filtros selecionados.'
-                      : 'Nenhuma movimentação registrada ainda.'}
-                </p>
-              ) : (
-                <div style={{ overflowX: 'auto', opacity: carregandoMovs ? 0.55 : 1, transition: 'opacity 0.15s' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #ddd' }}>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Data</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Produto</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Fornecedor</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Movimento</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Quantidade</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Kg</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Origem</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Responsável</th>
-                        <th style={{ padding: '10px', textAlign: 'left' }}>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movimentacoes.map((m) => {
-                        const positivo = m.quantidade_sacos > 0;
-                        const ehManual = m.tipo === 'abertura' || m.tipo === 'ajuste_manual' || m.tipo === 'saldo_inicial';
-                        const editavel = podeEditar && ehManual;
-                        const excluivel = podeExcluir && ehManual;
-                        return (
-                          <tr key={m.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                            <td style={{ padding: '10px', whiteSpace: 'nowrap' }}>{formatarDataHora(m.criado_em)}</td>
-                            <td style={{ padding: '10px' }}>{m.produtoNome}</td>
-                            <td style={{ padding: '10px' }}>{m.fornecedorNome}</td>
-                            <td style={{ padding: '10px' }}>{TIPO_MOVIMENTO_LABEL[m.tipo] || m.tipo}</td>
-                            <td style={{ padding: '10px', fontWeight: 'bold', color: positivo ? '#2e7d32' : '#c62828' }}>
-                              {Math.abs(m.quantidade_sacos)}
-                            </td>
-                            <td style={{ padding: '10px' }}>{formatarKg(m.kg)} kg</td>
-                            <td style={{ padding: '10px' }}>{ORIGEM_MOVIMENTO_LABEL[m.origem] || m.origem}</td>
-                            <td style={{ padding: '10px' }}>{m.responsavelNome}</td>
-                            <td style={{ padding: '10px', display: 'flex', gap: '4px' }}>
-                              {editavel && (
-                                <BotaoIconeAcao
-                                  rotulo="Editar"
-                                  icone={IconeLapis}
-                                  cor={aparencia.corPrimaria}
-                                  onClick={() => setMovimentacaoParaEditar(m)}
-                                />
-                              )}
-                              {excluivel && (
-                                <BotaoIconeAcao
-                                  rotulo="Excluir"
-                                  icone={IconeLixeira}
-                                  destrutivo
-                                  onClick={() => setMovimentacaoParaExcluir(m)}
-                                />
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {!erroMovs && totalMovimentacoes > 0 && (
-                <>
-                  <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
-                    Mostrando {(pagina - 1) * TAMANHO_PAGINA + 1}–{(pagina - 1) * TAMANHO_PAGINA + movimentacoes.length} de{' '}
-                    {totalMovimentacoes} {totalMovimentacoes === 1 ? 'movimentação' : 'movimentações'}
-                    {totalPaginas > 1 ? ` — página ${pagina} de ${totalPaginas}` : ''}
-                  </p>
-                  <Paginacao
-                    paginaAtual={pagina}
-                    totalPaginas={totalPaginas}
-                    onMudarPagina={setPagina}
-                    desabilitado={carregandoMovs}
-                    corPrimaria={aparencia.corPrimaria}
-                  />
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+            )}
+          </section>
+        </>
+      )}
 
       {configuracaoParaAbrir && (
         <AbrirSacoModal
@@ -740,7 +636,7 @@ function SacosConteudo() {
           onCancelar={() => setMovimentacaoParaExcluir(null)}
         />
       )}
-    </div>
+    </PaginaProducao>
   );
 }
 

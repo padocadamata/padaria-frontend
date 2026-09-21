@@ -6,55 +6,15 @@ import FechamentoTurnoForm from './FechamentoTurnoForm';
 import ReaberturaModal from './ReaberturaModal';
 import GerenciarSobrasModal from './GerenciarSobrasModal';
 import MarcadorFalta from './MarcadorFalta';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Alert from '../ui/Alert';
+import { cx } from '../../lib/design/cx';
+import styles from './CardTurno.module.css';
 
-function Badge({ texto, cor }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: cor,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {texto}
-    </span>
-  );
-}
-
-const cardEstilo = {
-  backgroundColor: 'white',
-  borderRadius: '8px',
-  boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-  padding: '18px',
-  flex: 1,
-  minWidth: '260px',
-};
-
-const botaoEstilo = (cor) => ({
-  padding: '8px 14px',
-  backgroundColor: cor,
-  color: 'white',
-  border: 'none',
-  borderRadius: '5px',
-  cursor: 'pointer',
-  fontSize: '13px',
-  fontWeight: 'bold',
-});
-
-const linhaResumoEstilo = { display: 'flex', justifyContent: 'space-between', fontSize: '14px', padding: '3px 0' };
-
-// Resumo numérico do turno FECHADO, em painel horizontal compacto — só
-// apresentação (nenhum cálculo novo, nenhum campo novo): os mesmos 5
-// valores que antes apareciam empilhados verticalmente (um <div> por
-// linha), agora lado a lado num grid responsivo (repeat(auto-fit, ...)
-// reduz sozinho para 2-3 colunas por linha quando a largura do card não
-// comportar as 5, sem nunca gerar scroll horizontal). Usado SOMENTE pelo
-// branch status==='fechado' abaixo — aberto/reaberto continuam com o
-// layout vertical de sempre (linhaResumoEstilo), sem nenhuma mudança.
+// Resumo numérico do turno FECHADO: os mesmos 5 valores de antes, em grade
+// responsiva (nenhum cálculo novo, nenhum campo novo). Só o branch
+// status==='fechado' usa; aberto/reaberto mostram linhas simples.
 function ResumoFechadoCompacto({ registro }) {
   const indicadores = [
     { label: 'Produzido', valor: registro.quantidade_produzida },
@@ -65,30 +25,14 @@ function ResumoFechadoCompacto({ registro }) {
   ];
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
-        gap: '2px',
-        marginBottom: '10px',
-      }}
-    >
-      {indicadores.map((item, indice) => (
-        <div
-          key={item.label}
-          style={{
-            textAlign: 'center',
-            padding: '2px 6px',
-            borderLeft: indice > 0 ? '1px solid #eee' : 'none',
-          }}
-        >
-          <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
-            {item.label}
-          </div>
-          <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#333' }}>{item.valor}</div>
+    <dl className={styles.indicadores}>
+      {indicadores.map((item) => (
+        <div key={item.label} className={styles.indicador}>
+          <dt>{item.label}</dt>
+          <dd>{item.valor}</dd>
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -140,43 +84,41 @@ export default function CardTurno({
       : podeEditar
     : false;
 
+  const classeEstado = !registro ? styles.semRegistro : styles[registro.status];
+
   return (
-    <div style={cardEstilo}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-        <h4 style={{ margin: 0, color: corPrimaria }}>{label}</h4>
-        {registro?.status === 'aberto' && <Badge texto="Em produção" cor="#FF9800" />}
-        {registro?.status === 'fechado' && <Badge texto="Fechado" cor="#4CAF50" />}
-        {registro?.status === 'reaberto' && <Badge texto="Em correção" cor="#f44336" />}
+    <article className={cx(styles.card, classeEstado)} aria-label={`${label} — ${receitaNome}`}>
+      <div className={styles.topo}>
+        <h3 className={styles.turno}>{label}</h3>
+        {registro?.status === 'aberto' && <Badge tom="warning">Em produção</Badge>}
+        {registro?.status === 'fechado' && <Badge tom="success">Fechado</Badge>}
+        {registro?.status === 'reaberto' && <Badge tom="danger">Em correção</Badge>}
       </div>
 
       {!registro && (
         <>
-          <p style={{ color: '#999', fontSize: '14px' }}>Nenhuma produção lançada</p>
+          <p className={styles.vazio}>Nenhuma produção lançada</p>
           {podeInserir && (
-            <button style={botaoEstilo(corPrimaria)} onClick={() => setAcaoAberta('iniciar')}>
-              Iniciar produção
-            </button>
+            <div className={styles.acoes}>
+              <Button onClick={() => setAcaoAberta('iniciar')}>Iniciar produção</Button>
+            </div>
           )}
         </>
       )}
 
       {registro?.status === 'aberto' && (
         <>
-          <div style={linhaResumoEstilo}>
-            <span>Produzido</span>
-            <strong>{registro.quantidade_produzida}</strong>
+          <div className={styles.quantidade}>
+            <span className={styles.quantidadeRotulo}>Produzido</span>
+            <strong className={styles.quantidadeValor}>{registro.quantidade_produzida}</strong>
           </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <div className={styles.acoes}>
             {podeEditar && (
-              <button style={botaoEstilo('#2196F3')} onClick={() => setAcaoAberta('adicionar')}>
+              <Button variante="secondary" onClick={() => setAcaoAberta('adicionar')}>
                 + Adicionar produção
-              </button>
+              </Button>
             )}
-            {podeEditar && (
-              <button style={botaoEstilo(corPrimaria)} onClick={() => setAcaoAberta('fechar')}>
-                Fechar turno
-              </button>
-            )}
+            {podeEditar && <Button onClick={() => setAcaoAberta('fechar')}>Fechar turno</Button>}
           </div>
         </>
       )}
@@ -184,38 +126,36 @@ export default function CardTurno({
       {registro?.status === 'fechado' && (
         <>
           <ResumoFechadoCompacto registro={registro} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-            <MarcadorFalta registro={registro} podeEditar={podeEditar} onAtualizado={onAtualizado} />
-            <span style={{ fontSize: '12px', color: '#666' }}>Houve falta de produto</span>
-          </div>
-          {registro.observacoes && (
-            <p style={{ fontSize: '12px', color: '#666', marginTop: '8px', fontStyle: 'italic' }}>{registro.observacoes}</p>
-          )}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <div className={styles.acoes}>
             {podeGerenciarSobras && (
-              <button style={botaoEstilo('#FF9800')} onClick={() => setAcaoAberta('sobras')}>
+              <Button variante="secondary" onClick={() => setAcaoAberta('sobras')}>
                 Gerenciar sobras
-              </button>
+              </Button>
             )}
             {podeReabrir && (
-              <button style={botaoEstilo('#9e9e9e')} onClick={() => setAcaoAberta('reabrir')}>
+              <Button variante="ghost" onClick={() => setAcaoAberta('reabrir')}>
                 Reabrir
-              </button>
+              </Button>
             )}
           </div>
+          <div className={styles.falta}>
+            <MarcadorFalta registro={registro} podeEditar={podeEditar} onAtualizado={onAtualizado} />
+            <span>Houve falta de produto</span>
+          </div>
+          {registro.observacoes && <p className={styles.observacoes}>{registro.observacoes}</p>}
         </>
       )}
 
       {registro?.status === 'reaberto' && (
         <>
-          <p style={{ color: '#f44336', fontSize: '13px', fontWeight: 'bold' }}>Em correção — os valores antigos foram preservados.</p>
-          <div style={linhaResumoEstilo}><span>Produzido (atual)</span><strong>{registro.quantidade_produzida}</strong></div>
-          <div style={linhaResumoEstilo}><span>Sobra aproveitável (atual)</span><strong>{registro.sobra_aproveitavel}</strong></div>
-          <div style={linhaResumoEstilo}><span>Perda/descarte (atual)</span><strong>{registro.perda_descarte}</strong></div>
+          <Alert tom="danger">Em correção — os valores antigos foram preservados.</Alert>
+          <div className={styles.linhaResumo}><span>Produzido (atual)</span><strong>{registro.quantidade_produzida}</strong></div>
+          <div className={styles.linhaResumo}><span>Sobra aproveitável (atual)</span><strong>{registro.sobra_aproveitavel}</strong></div>
+          <div className={styles.linhaResumo}><span>Perda/descarte (atual)</span><strong>{registro.perda_descarte}</strong></div>
           {podeEditar && (
-            <button style={{ ...botaoEstilo(corPrimaria), marginTop: '12px' }} onClick={() => setAcaoAberta('corrigir')}>
-              Corrigir e fechar
-            </button>
+            <div className={styles.acoes}>
+              <Button onClick={() => setAcaoAberta('corrigir')}>Corrigir e fechar</Button>
+            </div>
           )}
         </>
       )}
@@ -276,6 +216,6 @@ export default function CardTurno({
           onCancelar={fechar}
         />
       )}
-    </div>
+    </article>
   );
 }

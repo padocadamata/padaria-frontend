@@ -1,0 +1,20 @@
+.raiz {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-sp-2);
+  max-width: 360px;
+}
+
+.raiz select {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .raiz {
+    max-width: none;
+  }
+  .raiz > button {
+    width: 100%;
+  }
+}

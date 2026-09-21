@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import Modal from '../ui/Modal';
 
 function dataLocalOntem() {
   // Mesma técnica segura já usada em diaDaSemanaExibicao (lib/data/dataLocal.js):
@@ -47,31 +48,6 @@ function mensagemErro(error) {
   }
   return 'Não foi possível lançar a produção retroativa. Tente novamente ou avise um administrador.';
 }
-
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '480px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px' };
 
@@ -208,8 +184,7 @@ export default function LancarProducaoRetroativaModal({ produtosAtivos, corPrima
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
+    <Modal onFechar={onCancelar} largura="md" legado>
         <h3 style={{ color: corPrimaria, marginTop: 0 }}>Lançar produção passada</h3>
 
         <p style={{ color: '#666', fontSize: '13px' }}>
@@ -366,7 +341,6 @@ export default function LancarProducaoRetroativaModal({ produtosAtivos, corPrima
             {salvando ? 'Salvando...' : 'Lançar produção'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

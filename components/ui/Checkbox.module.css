@@ -1,0 +1,17 @@
+.linha {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  min-height: var(--ds-touch-min);
+  font-size: var(--ds-fs-body);
+  cursor: pointer;
+}
+
+.caixa {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--ds-primary);
+  cursor: inherit;
+}

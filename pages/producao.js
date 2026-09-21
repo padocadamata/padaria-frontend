@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import CardTurno from '../components/producao/CardTurno';
 import BannerPendencias from '../components/producao/BannerPendencias';
 import SeletorOutroProduto from '../components/producao/SeletorOutroProduto';
-import NavegacaoProducao from '../components/producao/NavegacaoProducao';
+import PaginaProducao from '../components/producao/PaginaProducao';
+import Alert from '../components/ui/Alert';
+import SectionHeader from '../components/ui/SectionHeader';
+import styles from '../components/producao/producaoHoje.module.css';
 import { PERMISSOES } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
@@ -152,64 +153,52 @@ function ProducaoConteudo() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Produção" />
+    <PaginaProducao ativo="hoje" titulo="Hoje" subtitulo={capitalizarPrimeiraLetra(dataLocalExibicao())}>
+      {erro && <Alert tom="danger">{erro}</Alert>}
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
+      {carregando ? (
+        <p role="status">Carregando produção...</p>
+      ) : (
+        <>
+          <BannerPendencias
+            pendencias={pendencias}
+            receitaNomePorId={receitaNomePorId}
+            corPrimaria={aparencia.corPrimaria}
+            permissoes={permissoes}
+            onAtualizado={carregarDados}
+          />
 
-        <NavegacaoProducao abaAtiva="hoje" corPrimaria={aparencia.corPrimaria} />
-
-        <h2 style={{ color: aparencia.corPrimaria, marginBottom: '20px' }}>
-          Hoje — {capitalizarPrimeiraLetra(dataLocalExibicao())}
-        </h2>
-
-        {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
-
-        {carregando ? (
-          <p>Carregando produção...</p>
-        ) : (
-          <>
-            <BannerPendencias
-              pendencias={pendencias}
-              receitaNomePorId={receitaNomePorId}
-              corPrimaria={aparencia.corPrimaria}
-              permissoes={permissoes}
-              onAtualizado={carregarDados}
-            />
-
-            {blocosProduto.map((bloco) => (
-              <div key={bloco.receitaId} style={{ marginBottom: '30px' }}>
-                <h3 style={{ color: aparencia.corPrimaria, marginBottom: '10px' }}>{bloco.receitaNome}</h3>
-                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                  {TURNOS.map((t) => (
-                    <CardTurno
-                      key={t.chave}
-                      turno={t.chave}
-                      label={t.label}
-                      registro={registroDoBloco(bloco.receitaId, t.chave)}
-                      receitaId={bloco.receitaId}
-                      receitaNome={bloco.receitaNome}
-                      data={hoje}
-                      corPrimaria={aparencia.corPrimaria}
-                      permissoes={permissoes}
-                      perfilUsuario={perfilUsuario}
-                      onAtualizado={carregarDados}
-                    />
-                  ))}
-                </div>
+          {blocosProduto.map((bloco) => (
+            <section key={bloco.receitaId} className={styles.bloco} aria-label={bloco.receitaNome}>
+              <SectionHeader titulo={bloco.receitaNome} />
+              <div className={styles.turnos}>
+                {TURNOS.map((t) => (
+                  <CardTurno
+                    key={t.chave}
+                    turno={t.chave}
+                    label={t.label}
+                    registro={registroDoBloco(bloco.receitaId, t.chave)}
+                    receitaId={bloco.receitaId}
+                    receitaNome={bloco.receitaNome}
+                    data={hoje}
+                    corPrimaria={aparencia.corPrimaria}
+                    permissoes={permissoes}
+                    perfilUsuario={perfilUsuario}
+                    onAtualizado={carregarDados}
+                  />
+                ))}
               </div>
-            ))}
+            </section>
+          ))}
 
-            <SeletorOutroProduto
-              receitasDisponiveis={receitasDisponiveisParaAdicionar}
-              corPrimaria={aparencia.corPrimaria}
-              onSelecionar={(receita) => setProdutosExtras((atual) => [...atual, receita.id])}
-            />
-          </>
-        )}
-      </div>
-    </div>
+          <SeletorOutroProduto
+            receitasDisponiveis={receitasDisponiveisParaAdicionar}
+            corPrimaria={aparencia.corPrimaria}
+            onSelecionar={(receita) => setProdutosExtras((atual) => [...atual, receita.id])}
+          />
+        </>
+      )}
+    </PaginaProducao>
   );
 }
 

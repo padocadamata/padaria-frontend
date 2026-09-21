@@ -1,0 +1,83 @@
+/* Peças visuais comuns às telas de Produção (Histórico, Planejamento,
+   Produtos, Expositores, Sacos). Só apresentação. */
+
+.superficie {
+  min-width: 0;
+}
+
+/* Desktop: a tabela fica numa superfície; no mobile os cartões são a
+   própria superfície (sem "cartão dentro de cartão"). */
+@media (min-width: 769px) {
+  .superficie {
+    padding: var(--ds-sp-4);
+    background-color: var(--ds-surface);
+    border: var(--ds-border-w) solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+  }
+}
+
+/* Lista em cartões (tablet / desktop estreito): sem "cartão dentro de cartão". */
+@media (min-width: 769px) {
+  .superficie:has(ul[aria-label]) {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.carregandoConteudo {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.resumo {
+  margin: var(--ds-sp-4) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+
+.marcaObs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: var(--ds-warning);
+  color: var(--ds-on-primary);
+  font-size: var(--ds-fs-aux);
+  font-weight: var(--ds-fw-bold);
+  cursor: default;
+}
+
+.celulaObs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-sp-2);
+}
+
+.pilhaBadges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-sp-1);
+}
+
+@media (max-width: 768px) {
+  .pilhaBadges {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+.secao {
+  margin-bottom: var(--ds-sp-6);
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}

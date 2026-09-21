@@ -1,0 +1,14 @@
+.positivo {
+  color: var(--ds-success);
+}
+
+.negativo {
+  color: var(--ds-danger);
+}
+
+.acoesSaldo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}

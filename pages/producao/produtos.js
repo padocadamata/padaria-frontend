@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
-import NavegacaoProducao from '../../components/producao/NavegacaoProducao';
+import PaginaProducao from '../../components/producao/PaginaProducao';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import DataTable from '../../components/ui/DataTable';
+import EmptyState from '../../components/ui/EmptyState';
+import Field from '../../components/ui/Field';
+import FilterBar from '../../components/ui/FilterBar';
+import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
+import estilos from '../../components/producao/producao.module.css';
 import ReceitaProducaoForm from '../../components/producao/ReceitaProducaoForm';
 import GerenciarClassificacoesProducaoModal from '../../components/producao/GerenciarClassificacoesProducaoModal';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
@@ -21,39 +29,11 @@ function formatarRendimento(quantidade, unidade) {
 }
 
 function BadgeAtivo({ ativo }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: ativo ? '#4CAF50' : '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {ativo ? 'Ativo' : 'Inativo'}
-    </span>
-  );
+  return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
 }
 
 function BadgeTelaHoje({ naTelaHoje }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: naTelaHoje ? '#2196F3' : '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {naTelaHoje ? 'Na Tela Hoje' : 'Fora da Tela Hoje'}
-    </span>
-  );
+  return <Badge tom={naTelaHoje ? 'info' : 'neutral'}>{naTelaHoje ? 'Na Tela Hoje' : 'Fora da Tela Hoje'}</Badge>;
 }
 
 function ProdutosProducaoConteudo() {
@@ -265,6 +245,24 @@ function ProdutosProducaoConteudo() {
   const paginacao = paginarLista(receitasFiltradas, pagina);
   const paginaAtual = paginacao.paginaAtual;
 
+  const quantidadeFiltrosAtivos = [
+    filtroStatus !== 'ativos',
+    filtroTelaHoje !== 'todas',
+    filtroTipo !== 'todos',
+    filtroGrupo !== 'todos',
+    busca !== '',
+  ].filter(Boolean).length;
+
+  // Volta aos valores iniciais da tela (Status = Ativas, demais em "todos").
+  function limparFiltros() {
+    setFiltroStatus('ativos');
+    setFiltroTelaHoje('todas');
+    setFiltroTipo('todos');
+    setFiltroGrupo('todos');
+    setBusca('');
+    setPagina(1);
+  }
+
   // Qualquer mudança de filtro/busca volta para a página 1.
   function alterarFiltro(setter) {
     return (valor) => {
@@ -279,306 +277,119 @@ function ProdutosProducaoConteudo() {
     if (pagina !== paginaAtual) setPagina(paginaAtual);
   }, [pagina, paginaAtual]);
 
+  const colunas = [
+    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', render: (r) => r.produtos?.nome || '—' },
+    { chave: 'codigo', rotulo: 'Código G3', render: (r) => r.produtos?.codigo_g3 || '—' },
+    { chave: 'tipo', rotulo: 'Tipo', render: (r) => r.tipo || '—' },
+    { chave: 'grupo', rotulo: 'Grupo', render: (r) => r.grupo || '—' },
+    { chave: 'ativo', rotulo: 'Ativo', render: (r) => <BadgeAtivo ativo={!!r.ativo && !!r.produtos?.ativo} /> },
+    { chave: 'telaHoje', rotulo: 'Tela Hoje', render: (r) => <BadgeTelaHoje naTelaHoje={r.controlado_producao} /> },
+    { chave: 'rendimento', rotulo: 'Rendimento', render: (r) => formatarRendimento(r.rendimento_quantidade, r.unidade_medida_saida) },
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Produção" />
+    <PaginaProducao
+      ativo="produtos"
+      titulo="Produtos"
+      subtitulo={'Para adicionar um produto à Produção, cadastre ou edite o produto no Catálogo e marque "Produto de Produção".'}
+      acoes={
+        <>
+          {podeEscrever && (
+            <Button variante="secondary" onClick={() => setModalClassificacoesAberto(true)}>
+              Gerenciar Classificações
+            </Button>
+          )}
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
+          {/* Unificação Catálogo x Produção: não existe mais criação
+              independente de receita -- todo produto de Produção nasce de
+              um produto do Catálogo marcado como "Produto de Produção". */}
+          <Button icone="plus" onClick={() => router.push('/catalogo')}>
+            Adicionar produto de produção
+          </Button>
+        </>
+      }
+    >
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
-        <NavegacaoProducao abaAtiva="produtos" corPrimaria={aparencia.corPrimaria} />
+      <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+        <Field label="Buscar por nome">
+          <Input type="text" value={busca} onChange={(e) => alterarFiltro(setBusca)(e.target.value)} placeholder="Nome do produto..." />
+        </Field>
+        <Field label="Status">
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+            <option value="ativos">Ativas</option>
+            <option value="inativos">Inativas</option>
+            <option value="todos">Todas</option>
+          </Select>
+        </Field>
+        <Field label="Exibição na Tela Hoje">
+          <Select value={filtroTelaHoje} onChange={(e) => alterarFiltro(setFiltroTelaHoje)(e.target.value)}>
+            <option value="todas">Todas</option>
+            <option value="na_tela_hoje">Na Tela Hoje</option>
+            <option value="fora_tela_hoje">Fora da Tela Hoje</option>
+          </Select>
+        </Field>
+        <Field label="Tipo">
+          <Select value={filtroTipo} onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}>
+            <option value="todos">Todos</option>
+            {tiposDisponiveis.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {tipo}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Grupo">
+          <Select value={filtroGrupo} onChange={(e) => alterarFiltro(setFiltroGrupo)(e.target.value)}>
+            <option value="todos">Todos</option>
+            {gruposDisponiveis.map((grupo) => (
+              <option key={grupo} value={grupo}>
+                {grupo}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </FilterBar>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '10px',
-          }}
-        >
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Produtos</h2>
+      {carregando ? (
+        <p role="status">Carregando produtos...</p>
+      ) : receitas.length === 0 ? (
+        <EmptyState>Nenhum produto de Produção encontrado.</EmptyState>
+      ) : receitasFiltradas.length === 0 ? (
+        <EmptyState>Nenhum resultado para esta busca/filtro.</EmptyState>
+      ) : (
+        <div className={estilos.superficie}>
+          <DataTable
+            rotulo="Produtos de Produção"
+            colunas={colunas}
+            linhas={paginacao.itens}
+            chaveLinha={(r) => r.id}
+            cartoesAte={1100}
+            renderAcoes={
+              podeEscrever
+                ? (r) => (
+                    <Button variante="secondary" tamanho="sm" icone="pencil" onClick={() => abrirEdicao(r)}>
+                      Editar
+                    </Button>
+                  )
+                : undefined
+            }
+          />
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {podeEscrever && (
-              <button
-                onClick={() => setModalClassificacoesAberto(true)}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: 'white',
-                  color: aparencia.corPrimaria,
-                  border: `1px solid ${aparencia.corPrimaria}`,
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                }}
-              >
-                Gerenciar Classificações
-              </button>
-            )}
-
-            {/* Unificação Catálogo x Produção: não existe mais criação
-                independente de receita -- todo produto de Produção nasce de
-                um produto do Catálogo marcado como "Produto de Produção". */}
-            <button
-              onClick={() => router.push('/catalogo')}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              Adicionar produto de produção
-            </button>
-          </div>
-        </div>
-
-        <p style={{ color: '#666', fontSize: '13px', marginTop: '8px' }}>
-          Para adicionar um produto à Produção, cadastre ou edite o produto no Catálogo e marque "Produto de
-          Produção".
-        </p>
-
-        {mensagemSucesso && (
-          <p style={{ color: '#4CAF50', fontWeight: 'bold', marginTop: '10px' }}>
-            {mensagemSucesso}
+          <p className={estilos.resumo}>
+            Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+            {paginacao.total === 1 ? 'produto' : 'produtos'}
+            {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
           </p>
-        )}
-
-        {erro && <p style={{ color: '#f44336', marginTop: '10px' }}>{erro}</p>}
-
-        <div
-          style={{
-            backgroundColor: '#f9f9f9',
-            padding: '15px',
-            borderRadius: '5px',
-            marginBottom: '20px',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '15px',
-            }}
-          >
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Status
-              </label>
-              <select
-                value={filtroStatus}
-                onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="ativos">Ativas</option>
-                <option value="inativos">Inativas</option>
-                <option value="todos">Todas</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Exibição na Tela Hoje
-              </label>
-              <select
-                value={filtroTelaHoje}
-                onChange={(e) => alterarFiltro(setFiltroTelaHoje)(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="todas">Todas</option>
-                <option value="na_tela_hoje">Na Tela Hoje</option>
-                <option value="fora_tela_hoje">Fora da Tela Hoje</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Tipo
-              </label>
-              <select
-                value={filtroTipo}
-                onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="todos">Todos</option>
-                {tiposDisponiveis.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Grupo
-              </label>
-              <select
-                value={filtroGrupo}
-                onChange={(e) => alterarFiltro(setFiltroGrupo)(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="todos">Todos</option>
-                {gruposDisponiveis.map((grupo) => (
-                  <option key={grupo} value={grupo}>
-                    {grupo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-                Buscar por nome
-              </label>
-              <input
-                type="text"
-                value={busca}
-                onChange={(e) => alterarFiltro(setBusca)(e.target.value)}
-                placeholder="Nome do produto..."
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
+          <Paginacao
+            paginaAtual={paginaAtual}
+            totalPaginas={paginacao.totalPaginas}
+            onMudarPagina={setPagina}
+            corPrimaria={aparencia.corPrimaria}
+          />
         </div>
-
-        {carregando ? (
-          <p>Carregando produtos...</p>
-        ) : receitas.length === 0 ? (
-          <p>Nenhum produto de Produção encontrado.</p>
-        ) : receitasFiltradas.length === 0 ? (
-          <p>Nenhum resultado para esta busca/filtro.</p>
-        ) : (
-          <div
-            style={{
-              backgroundColor: 'white',
-              padding: '20px',
-              borderRadius: '5px',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-            }}
-          >
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #ddd' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Nome
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Código G3
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Tipo
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Grupo
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Ativo
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Tela Hoje
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Rendimento
-                    </th>
-                    <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' }}>
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {paginacao.itens.map((receita) => {
-                    const ativoProducao = !!receita.ativo && !!receita.produtos?.ativo;
-                    return (
-                      <tr key={receita.id} style={{ borderBottom: '1px solid #ddd' }}>
-                        <td style={{ padding: '12px' }}>{receita.produtos?.nome || '—'}</td>
-                        <td style={{ padding: '12px' }}>{receita.produtos?.codigo_g3 || '—'}</td>
-                        <td style={{ padding: '12px' }}>{receita.tipo || '—'}</td>
-                        <td style={{ padding: '12px' }}>{receita.grupo || '—'}</td>
-                        <td style={{ padding: '12px' }}>
-                          <BadgeAtivo ativo={ativoProducao} />
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <BadgeTelaHoje naTelaHoje={receita.controlado_producao} />
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {formatarRendimento(receita.rendimento_quantidade, receita.unidade_medida_saida)}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {podeEscrever && (
-                            <button
-                              onClick={() => abrirEdicao(receita)}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#2196F3',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '3px',
-                                cursor: 'pointer',
-                                fontSize: '13px',
-                              }}
-                            >
-                              Editar
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <p style={{ color: '#666', fontSize: '13px', textAlign: 'center', margin: '15px 0 0' }}>
-              Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
-              {paginacao.total === 1 ? 'produto' : 'produtos'}
-              {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
-            </p>
-            <Paginacao
-              paginaAtual={paginaAtual}
-              totalPaginas={paginacao.totalPaginas}
-              onMudarPagina={setPagina}
-              corPrimaria={aparencia.corPrimaria}
-            />
-          </div>
-        )}
-      </div>
+      )}
 
       {modalAberto && (
         <ReceitaProducaoForm
@@ -598,7 +409,7 @@ function ProdutosProducaoConteudo() {
         podeGerenciar={podeEscrever}
         onAtualizar={aoAlterarClassificacoes}
       />
-    </div>
+    </PaginaProducao>
   );
 }
 
