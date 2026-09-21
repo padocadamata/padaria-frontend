@@ -1,0 +1,14 @@
+.secao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-3);
+}
+
+.titulo {
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-section);
+  color: var(--ds-text);
+}

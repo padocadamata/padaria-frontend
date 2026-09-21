@@ -1,0 +1,70 @@
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-sp-2);
+  min-height: var(--ds-control-h);
+  padding: 0 var(--ds-sp-4);
+  border: var(--ds-border-w) solid transparent;
+  border-radius: var(--ds-radius-md);
+  font-family: inherit;
+  font-size: var(--ds-fs-button);
+  font-weight: var(--ds-fw-semibold);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sm {
+  min-height: var(--ds-control-h-sm);
+  padding: 0 var(--ds-sp-3);
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+.primary {
+  background-color: var(--ds-primary);
+  color: var(--ds-on-primary);
+}
+.primary:hover {
+  background-color: var(--ds-primary-hover);
+}
+
+.secondary {
+  background-color: var(--ds-surface);
+  border-color: var(--ds-border-strong);
+  color: var(--ds-primary);
+}
+.secondary:hover {
+  background-color: var(--ds-primary-soft);
+}
+
+.danger {
+  background-color: var(--ds-danger);
+  color: var(--ds-on-primary);
+}
+.danger:hover {
+  background-color: var(--ds-danger-hover);
+}
+
+.ghost {
+  background-color: transparent;
+  color: var(--ds-primary);
+}
+.ghost:hover {
+  background-color: var(--ds-primary-soft);
+}
+
+.botao:disabled,
+.botao[aria-disabled='true'] {
+  background-color: var(--ds-neutral-soft);
+  border-color: transparent;
+  color: var(--ds-text-disabled);
+  cursor: not-allowed;
+}

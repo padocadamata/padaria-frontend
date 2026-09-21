@@ -1,0 +1,57 @@
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--ds-control-h);
+  height: var(--ds-control-h);
+  padding: 0;
+  border: none;
+  border-radius: var(--ds-radius-md);
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sm {
+  width: var(--ds-control-h-sm);
+  height: var(--ds-control-h-sm);
+}
+
+.neutral {
+  color: var(--ds-text-muted);
+}
+.neutral:hover {
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-text);
+}
+
+.success {
+  color: var(--ds-success);
+}
+.success:hover {
+  background-color: var(--ds-success-soft);
+}
+
+.danger {
+  color: var(--ds-text-muted);
+}
+.danger:hover {
+  background-color: var(--ds-danger-soft);
+  color: var(--ds-danger);
+}
+
+.inverso {
+  color: var(--ds-on-primary);
+  --ds-focus: #ffffff;
+}
+.inverso:hover {
+  background-color: var(--ds-overlay-on-primary-active);
+}
+
+.botao:disabled {
+  color: var(--ds-text-disabled);
+  cursor: not-allowed;
+  background-color: transparent;
+}

@@ -1,0 +1,295 @@
+/* Estilos compartilhados dos widgets do Dashboard (piloto do Design System). */
+
+/* ---------------------------- Atalhos ------------------------------------ */
+
+.secao {
+  margin-bottom: var(--ds-sp-6);
+}
+
+.atalhos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+.atalhos > li {
+  display: flex;
+}
+
+.atalho {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  min-height: 88px;
+  padding: var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+  overflow-wrap: anywhere;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.atalho:hover {
+  border-color: var(--ds-primary);
+  box-shadow: var(--ds-shadow-md);
+}
+
+.atalhoIcone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+
+/* ------------------------------ Grade ------------------------------------ */
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: var(--ds-sp-4);
+  align-items: start;
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* --------------------------- Listas dos cards ---------------------------- */
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  min-height: 48px;
+  padding: var(--ds-sp-3);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemLink {
+  color: inherit;
+  text-decoration: none;
+}
+.itemLink:hover {
+  border-color: var(--ds-primary);
+}
+
+.itemAviso {
+  border-left: 4px solid var(--ds-warning);
+}
+.itemErro {
+  border-left: 4px solid var(--ds-danger);
+}
+.itemNota {
+  background-color: var(--ds-surface-muted);
+}
+
+.itemIcone {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--ds-warning);
+}
+.itemIconeErro {
+  color: var(--ds-danger);
+}
+
+.itemTextos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.itemTitulo {
+  font-weight: var(--ds-fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.itemTexto {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.itemAcoes {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--ds-sp-1);
+}
+
+.itemLado {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.mais {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ds-control-h-sm);
+  margin-top: var(--ds-sp-2);
+  font-size: var(--ds-fs-body);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-primary);
+  text-decoration: underline;
+}
+
+.vazio {
+  color: var(--ds-text-muted);
+}
+
+.erro {
+  color: var(--ds-danger);
+  margin-bottom: var(--ds-sp-3);
+}
+
+/* ------------------------- Agenda de hoje -------------------------------- */
+
+.itemIconeAgenda {
+  color: var(--ds-primary);
+}
+
+.agendaHora {
+  font-weight: var(--ds-fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------- Lembretes ---------------------------------- */
+
+.novoLembrete {
+  display: flex;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* ------------------ Agenda de pedidos e entregas ------------------------- */
+
+.semana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--ds-sp-2);
+}
+
+.diaItem {
+  display: flex;
+  min-width: 0;
+}
+
+.nota {
+  cursor: help;
+}
+
+.dia {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  min-width: 0;
+  min-height: 96px;
+  padding: var(--ds-sp-3);
+  background-color: var(--ds-surface-muted);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.dia:hover {
+  border-color: var(--ds-primary);
+}
+
+.diaHoje {
+  background-color: var(--ds-surface);
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 1px var(--ds-primary);
+}
+
+.diaCabecalho {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: var(--ds-fs-aux);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+.diaHoje .diaCabecalho {
+  color: var(--ds-primary);
+}
+
+.eventos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.evento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  overflow-wrap: anywhere;
+}
+
+.diaVazio {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-disabled);
+}
+
+.diarios {
+  margin-top: var(--ds-sp-3);
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+/* Até 1180px a semana vira uma lista vertical (um dia por linha): nada de
+   largura mínima que estoure a tela. */
+@media (max-width: 1180px) {
+  .semana {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dia {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--ds-sp-3);
+    min-height: 0;
+  }
+
+  .diaCabecalho {
+    flex: 0 0 76px;
+  }
+
+  .eventos {
+    flex: 1;
+  }
+}

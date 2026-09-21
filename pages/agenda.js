@@ -14,17 +14,13 @@ import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
+import { buscarItensDaAgenda, buscarNascimentosParaAgenda } from '../lib/agenda/consultasAgenda';
 import { itemAgendaAniversario } from '../lib/funcionarios/aniversarios';
 import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 // FullCalendar manipula o DOM diretamente -- client-only, sem SSR
 // (mesmo padrão recomendado pela própria lib para Next.js).
 const AgendaCalendario = dynamic(() => import('../components/agenda/AgendaCalendario'), { ssr: false });
-
-const SELECT_ITENS =
-  'id, tipo, titulo, descricao, categoria, data_inicio, data_fim, hora_inicio, hora_fim, dia_inteiro, ' +
-  'tipo_recorrencia, recorrencia_intervalo, recorrencia_dias_semana, recorrencia_data_fim, ' +
-  'concluido_em, concluido_por, observacao_conclusao, criado_por, criado_em, atualizado_em';
 
 function AgendaConteudo() {
   const { permissoes } = useAuth();
@@ -101,11 +97,7 @@ function AgendaConteudo() {
     let ativo = true;
     async function carregarNascimentos() {
       const supabase = createClient();
-      const { data, error: erroNascimentos } = await supabase
-        .from('funcionarios')
-        .select('id, nome, data_nascimento')
-        .eq('ativo', true)
-        .not('data_nascimento', 'is', null);
+      const { data, error: erroNascimentos } = await buscarNascimentosParaAgenda(supabase);
       if (!ativo) return;
       if (erroNascimentos) {
         console.error('Erro ao carregar aniversários de funcionários para a Agenda:', erroNascimentos);
@@ -148,60 +140,19 @@ function AgendaConteudo() {
       setErro('');
       const supabase = createClient();
 
-      const [eventosAvulsos, tarefasAvulsas, recorrentes] = await Promise.all([
-        supabase
-          .from('agenda_itens')
-          .select(SELECT_ITENS)
-          .eq('tipo', 'evento')
-          .eq('tipo_recorrencia', 'nenhuma')
-          .lte('data_inicio', janela.fim)
-          .or(`data_fim.gte.${janela.inicio},and(data_fim.is.null,data_inicio.gte.${janela.inicio})`),
-        supabase
-          .from('agenda_itens')
-          .select(SELECT_ITENS)
-          .eq('tipo', 'tarefa')
-          .eq('tipo_recorrencia', 'nenhuma')
-          .gte('data_inicio', janela.inicio)
-          .lte('data_inicio', janela.fim),
-        supabase
-          .from('agenda_itens')
-          .select(SELECT_ITENS)
-          .neq('tipo_recorrencia', 'nenhuma')
-          .lte('data_inicio', janela.fim)
-          .or(`recorrencia_data_fim.is.null,recorrencia_data_fim.gte.${janela.inicio}`),
-      ]);
+      const { itens: itensCarregados, excecoes: excecoesCarregadas, erro: erroBusca, cancelado } =
+        await buscarItensDaAgenda(supabase, janela, { continuar: () => ativo });
 
-      if (!ativo) return;
+      if (cancelado || !ativo) return;
 
-      const primeiroErro = eventosAvulsos.error || tarefasAvulsas.error || recorrentes.error;
-      if (primeiroErro) {
-        console.error('Erro ao carregar itens da Agenda:', primeiroErro);
-        setErro('Não foi possível carregar a Agenda.');
-        setCarregando(false);
-        return;
-      }
-
-      const itensCarregados = [
-        ...(eventosAvulsos.data || []),
-        ...(tarefasAvulsas.data || []),
-        ...(recorrentes.data || []),
-      ];
-
-      const ids = itensCarregados.map((it) => it.id);
-      const excecoesData = ids.length
-        ? await supabase.from('agenda_ocorrencias').select('*').in('agenda_item_id', ids)
-        : { data: [], error: null };
-
-      if (!ativo) return;
-      if (excecoesData.error) {
-        console.error('Erro ao carregar exceções da Agenda:', excecoesData.error);
+      if (erroBusca) {
         setErro('Não foi possível carregar a Agenda.');
         setCarregando(false);
         return;
       }
 
       setItens(itensCarregados);
-      setExcecoes(excecoesData.data || []);
+      setExcecoes(excecoesCarregadas);
       setCarregando(false);
     }
 

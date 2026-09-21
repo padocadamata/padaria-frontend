@@ -1,0 +1,33 @@
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+  margin-bottom: var(--ds-sp-5);
+}
+
+.textos {
+  min-width: 0;
+}
+
+.titulo {
+  font-size: var(--ds-fs-page);
+  font-weight: var(--ds-fw-bold);
+  line-height: var(--ds-lh-page);
+  color: var(--ds-primary);
+  overflow-wrap: anywhere;
+}
+
+.subtitulo {
+  margin-top: var(--ds-sp-1);
+  font-size: var(--ds-fs-body);
+  line-height: var(--ds-lh-body);
+  color: var(--ds-text-muted);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}

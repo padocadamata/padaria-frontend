@@ -1,17 +1,15 @@
-import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import Card from '../ui/Card';
+import Badge from '../ui/Badge';
+import Icon from '../ui/Icon';
+import { cx } from '../../lib/design/cx';
+import styles from './dashboard.module.css';
 
 const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 const STATUS_LABEL = { aberto: 'Aberto', reaberto: 'Reaberto' };
 const LIMITE_VISIVEL = 5;
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '18px 20px',
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-};
 
 function formatarDataExibicao(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
@@ -25,8 +23,7 @@ function formatarDataExibicao(dataYYYYMMDD) {
 // resolvidas no próprio módulo de Produção. Reaproveita producao.
 // visualizar (RLS já existente) — este componente só é renderizado pelo
 // Dashboard quando o usuário já tem essa permissão.
-export default function AtencaoProducao({ corPrimaria }) {
-  const router = useRouter();
+export default function AtencaoProducao() {
   const [pendencias, setPendencias] = useState([]);
   const [receitaNomePorId, setReceitaNomePorId] = useState({});
   const [carregando, setCarregando] = useState(true);
@@ -83,64 +80,49 @@ export default function AtencaoProducao({ corPrimaria }) {
     };
   }, []);
 
-  function irParaHistorico() {
-    router.push('/producao/historico');
-  }
-
   const visiveis = pendencias.slice(0, LIMITE_VISIVEL);
   const restantes = pendencias.length - visiveis.length;
 
   return (
-    <section style={caixaEstilo}>
-      <h3 style={{ margin: '0 0 12px 0', color: corPrimaria, fontSize: '16px' }}>Atenção</h3>
-
+    <Card titulo="Atenção" subtitulo="Produções pendentes" icone="alert">
       {erro ? (
-        <p style={{ color: '#f44336', fontSize: '13px', margin: 0 }}>{erro}</p>
+        <p className={styles.erro}>{erro}</p>
       ) : carregando ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>Carregando...</p>
+        <p className={styles.vazio}>Carregando...</p>
       ) : pendencias.length === 0 ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>Nenhuma pendência de produção no momento.</p>
+        <p className={styles.vazio}>Nenhuma pendência de produção no momento.</p>
       ) : (
         <>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <ul className={styles.lista}>
             {visiveis.map((pendencia) => (
-              <li
-                key={pendencia.id}
-                onClick={irParaHistorico}
-                style={{
-                  cursor: 'pointer',
-                  padding: '8px 10px',
-                  backgroundColor: '#fff3e0',
-                  border: '1px solid #ffcc80',
-                  borderRadius: '5px',
-                  fontSize: '13px',
-                }}
-              >
-                ⚠ Produção pendente — {formatarDataExibicao(pendencia.data)} · {TURNO_LABEL[pendencia.turno] || pendencia.turno} ·{' '}
-                {receitaNomePorId[pendencia.receita_id] || pendencia.receita_id} ·{' '}
-                {STATUS_LABEL[pendencia.status] || pendencia.status}
+              <li key={pendencia.id}>
+                <Link href="/producao/historico" className={cx(styles.item, styles.itemLink, styles.itemAviso)}>
+                  <span className={styles.itemIcone}>
+                    <Icon nome="alert" tamanho={18} />
+                  </span>
+                  <span className={styles.itemTextos}>
+                    <span className={styles.itemTitulo}>
+                      {receitaNomePorId[pendencia.receita_id] || pendencia.receita_id}
+                    </span>
+                    <span className={styles.itemMeta}>
+                      {formatarDataExibicao(pendencia.data)} · {TURNO_LABEL[pendencia.turno] || pendencia.turno}
+                    </span>
+                  </span>
+                  <Badge tom={pendencia.status === 'reaberto' ? 'danger' : 'warning'}>
+                    {STATUS_LABEL[pendencia.status] || pendencia.status}
+                  </Badge>
+                </Link>
               </li>
             ))}
           </ul>
 
           {restantes > 0 && (
-            <p
-              onClick={irParaHistorico}
-              style={{
-                cursor: 'pointer',
-                color: corPrimaria,
-                fontSize: '13px',
-                fontWeight: 'bold',
-                marginTop: '8px',
-                marginBottom: 0,
-                textDecoration: 'underline',
-              }}
-            >
+            <Link href="/producao/historico" className={styles.mais}>
               + {restantes} outras pendências
-            </p>
+            </Link>
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }

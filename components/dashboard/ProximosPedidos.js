@@ -1,8 +1,12 @@
-import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { diaSemanaISO, adicionarDias, calcularDataEntrega } from '../../lib/fornecedores/regrasPedido';
+import Card from '../ui/Card';
+import Badge from '../ui/Badge';
+import { cx } from '../../lib/design/cx';
+import styles from './dashboard.module.css';
 
 // 1=segunda .. 7=domingo — mesma convenção de public.fornecedor_regras_pedido
 // (migration 0007) e de components/fornecedores/FornecedorRegras.js.
@@ -25,13 +29,6 @@ const DIA_SEMANA_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 // fora do grid exibido (semana anterior/seguinte), então não dá pra usar
 // posição relativa ao domingo exibido.
 const DIA_SEMANA_CURTO_POR_ISO = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 7: 'Dom' };
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '18px 20px',
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-};
 
 // Domingo que INICIA a semana corrente (contém "hoje") — sempre olha
 // para trás até o domingo mais recente (ou o próprio hoje, se hoje já
@@ -82,8 +79,7 @@ function descreverEntregaTexto(regra) {
 // possível de uma regra dia_fixo (ciclo semanal, nunca mais que 6 dias);
 // para prazo_dias usa o maior valor realmente cadastrado, nunca um
 // número arbitrário fixo.
-export default function ProximosPedidos({ corPrimaria }) {
-  const router = useRouter();
+export default function ProximosPedidos() {
   const [colunas, setColunas] = useState([]);
   const [diarios, setDiarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -240,104 +236,87 @@ export default function ProximosPedidos({ corPrimaria }) {
     };
   }, []);
 
-  function irParaFornecedores() {
-    router.push('/fornecedores');
-  }
-
   const semanaVazia = colunas.every((c) => c.pedidos.length === 0 && c.entregas.length === 0);
 
   return (
-    <section style={caixaEstilo}>
-      <h3 style={{ margin: '0 0 12px 0', color: corPrimaria, fontSize: '16px' }}>Agenda de pedidos e entregas</h3>
-
+    <Card titulo="Agenda de pedidos e entregas" subtitulo="Semana atual (domingo a sábado)" icone="calendar">
       {erro ? (
-        <p style={{ color: '#f44336', fontSize: '13px', margin: 0 }}>{erro}</p>
+        <p className={styles.erro}>{erro}</p>
       ) : carregando ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>Carregando...</p>
+        <p className={styles.vazio}>Carregando...</p>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(7, minmax(110px, 1fr))',
-                gap: '8px',
-                minWidth: '770px',
-              }}
-            >
-              {colunas.map((coluna) => {
-                const temEvento = coluna.pedidos.length > 0 || coluna.entregas.length > 0;
-                return (
-                  <div
-                    key={coluna.data}
-                    onClick={temEvento ? irParaFornecedores : undefined}
-                    style={{
-                      padding: '8px',
-                      borderRadius: '5px',
-                      minHeight: '92px',
-                      backgroundColor: coluna.ehHoje ? '#e3f2fd' : '#fafafa',
-                      border: coluna.ehHoje ? '1px solid #90caf9' : '1px solid #eee',
-                      cursor: temEvento ? 'pointer' : 'default',
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        color: coluna.ehHoje ? corPrimaria : '#666',
-                        marginBottom: '6px',
-                      }}
-                    >
-                      {coluna.label} {formatarDataExibicao(coluna.data)}
-                    </div>
+          <ul className={styles.semana}>
+            {colunas.map((coluna) => {
+              const temEvento = coluna.pedidos.length > 0 || coluna.entregas.length > 0;
 
-                    {temEvento ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        {coluna.pedidos.map((p) => (
-                          <div key={`pedir-${p.chaveCiclo}`} style={{ fontSize: '11px', color: '#1565c0' }}>
-                            PEDIR · {p.nome}{' '}
+              const conteudo = (
+                <>
+                  <div className={styles.diaCabecalho}>
+                    <span>
+                      {coluna.label} {formatarDataExibicao(coluna.data)}
+                    </span>
+                    {coluna.ehHoje && <Badge tom="primary">Hoje</Badge>}
+                  </div>
+
+                  {temEvento ? (
+                    <div className={styles.eventos}>
+                      {coluna.pedidos.map((p) => (
+                        <div key={`pedir-${p.chaveCiclo}`} className={styles.evento}>
+                          <Badge tom="info">Pedir</Badge>
+                          <span>
+                            {p.nome}{' '}
                             <sup
                               title={`Pedido ${formatarDataComDia(p.dataPedido)} → Entrega ${formatarDataComDia(p.dataEntrega)}`}
-                              style={{ cursor: 'help' }}
+                              className={styles.nota}
                             >
                               {p.numero}
                             </sup>
-                          </div>
-                        ))}
-                        {coluna.entregas.map((e) => (
-                          <div key={`entrega-${e.chaveCiclo}`} style={{ fontSize: '11px', color: '#2e7d32' }}>
-                            ENTREGA · {e.nome}{' '}
+                          </span>
+                        </div>
+                      ))}
+                      {coluna.entregas.map((e) => (
+                        <div key={`entrega-${e.chaveCiclo}`} className={styles.evento}>
+                          <Badge tom="success">Entrega</Badge>
+                          <span>
+                            {e.nome}{' '}
                             <sup
                               title={`Pedido ${formatarDataComDia(e.dataPedido)} → Entrega ${formatarDataComDia(e.dataEntrega)}`}
-                              style={{ cursor: 'help' }}
+                              className={styles.nota}
                             >
                               {e.numero}
                             </sup>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '11px', color: '#ccc' }}>—</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={styles.diaVazio}>—</div>
+                  )}
+                </>
+              );
 
-          {diarios.length > 0 && (
-            <p style={{ fontSize: '12px', color: '#666', marginTop: '10px', marginBottom: 0 }}>
-              Pedido diário: {diarios.join(' · ')}
-            </p>
-          )}
+              return (
+                <li key={coluna.data} className={styles.diaItem}>
+                  {temEvento ? (
+                    <Link href="/fornecedores" className={cx(styles.dia, coluna.ehHoje && styles.diaHoje)}>
+                      {conteudo}
+                    </Link>
+                  ) : (
+                    <div className={cx(styles.dia, coluna.ehHoje && styles.diaHoje)}>{conteudo}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {diarios.length > 0 && <p className={styles.diarios}>Pedido diário: {diarios.join(' · ')}</p>}
 
           {semanaVazia && diarios.length === 0 && (
-            <p style={{ color: '#999', fontSize: '13px', margin: '10px 0 0 0' }}>
-              Nenhum pedido programado para esta semana.
-            </p>
+            <p className={styles.vazio}>Nenhum pedido programado para esta semana.</p>
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }

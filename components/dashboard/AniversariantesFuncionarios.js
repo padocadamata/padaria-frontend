@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { proximosAniversariantes } from '../../lib/funcionarios/aniversarios';
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '18px 20px',
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-};
+import Card from '../ui/Card';
+import Badge from '../ui/Badge';
+import { cx } from '../../lib/design/cx';
+import styles from './dashboard.module.css';
 
 function formatarDataExibicao(dataYYYYMMDD) {
   const [, mes, dia] = dataYYYYMMDD.split('-');
@@ -23,7 +20,11 @@ function formatarDataExibicao(dataYYYYMMDD) {
 // aparece aqui porque a query já filtra ativo=true -- não existe
 // nenhuma lista separada para "esquecer" de atualizar quando alguém é
 // desligado.
-export default function AniversariantesFuncionarios({ corPrimaria }) {
+// `excluirHoje`: true quando o card "Agenda de hoje" está na tela (quem tem
+// agenda.visualizar) -- o aniversário de HOJE já aparece lá, então aqui ficam só os
+// PRÓXIMOS (dias > 0), evitando repetir a mesma informação. Sem acesso à Agenda o
+// widget segue como sempre foi (inclui "Hoje!"). Dados e permissões não mudam.
+export default function AniversariantesFuncionarios({ excluirHoje = false }) {
   const [aniversariantes, setAniversariantes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -60,21 +61,25 @@ export default function AniversariantesFuncionarios({ corPrimaria }) {
 
   if (carregando) return null;
   if (erro) return null; // widget de baixo risco -- some silenciosamente em vez de poluir o Dashboard com erro
-  if (aniversariantes.length === 0) return null; // sem aniversariante nos próximos 30 dias: widget não ocupa espaço
+  const exibidos = excluirHoje ? aniversariantes.filter((f) => f.diasRestantes > 0) : aniversariantes;
+  if (exibidos.length === 0) return null; // sem aniversariante a exibir: widget não ocupa espaço
 
   return (
-    <section style={caixaEstilo}>
-      <h3 style={{ margin: '0 0 12px 0', color: corPrimaria, fontSize: '16px' }}>🎂 Aniversariantes</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {aniversariantes.map((f) => (
-          <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span>{f.nome}</span>
-            <span style={{ color: f.diasRestantes === 0 ? '#2e7d32' : '#666', fontWeight: f.diasRestantes === 0 ? 'bold' : 'normal' }}>
-              {f.diasRestantes === 0 ? 'Hoje!' : formatarDataExibicao(f.proximaData)} · {f.idadeNoAniversario} anos
+    <Card titulo={excluirHoje ? 'Próximos aniversários' : 'Aniversariantes'} subtitulo="Próximos 30 dias" icone="gift">
+      <ul className={styles.lista}>
+        {exibidos.map((f) => (
+          <li key={f.id} className={cx(styles.item, styles.itemNota)}>
+            <span className={styles.itemTextos}>
+              <span className={styles.itemTitulo}>{f.nome}</span>
+              <span className={styles.itemMeta}>
+                {f.diasRestantes === 0 ? '' : `${formatarDataExibicao(f.proximaData)} · `}
+                {f.idadeNoAniversario} anos
+              </span>
             </span>
-          </div>
+            {f.diasRestantes === 0 && <Badge tom="success">Hoje!</Badge>}
+          </li>
         ))}
-      </div>
-    </section>
+      </ul>
+    </Card>
   );
 }

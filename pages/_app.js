@@ -1,4 +1,8 @@
 import { AuthProvider } from '../hooks/useAuth';
+// Design System (nova base visual). Só declaram variáveis e regras escopadas
+// em .ds / body.ds-body -- páginas ainda não migradas não são afetadas.
+import '../styles/tokens.css';
+import '../styles/base.css';
 
 // Aparência deixou de ser configurável (decisão de negócio 2026-09-12,
 // ver relatório da rodada de branding) -- não há mais nenhuma leitura de

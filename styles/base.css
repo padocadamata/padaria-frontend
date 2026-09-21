@@ -1,0 +1,80 @@
+/* ==========================================================================
+   Base do Design System -- ESCOPADA.
+   --------------------------------------------------------------------------
+   Nada aqui vale para o site inteiro. Tudo só age dentro de um elemento com
+   a classe .ds (o wrapper raiz do PageShell), e a única regra que sai desse
+   escopo é body.ds-body, aplicada pelo PageShell enquanto ele estiver
+   montado (e removida ao desmontar) -- assim as páginas antigas, que ainda
+   não usam o Design System, seguem exatamente como eram.
+
+   Todas as regras usam :where() de propósito: especificidade ZERO, para que
+   qualquer classe de componente (CSS Modules) sempre vença, e para não
+   brigar com o legado. Lembrete: estilo inline continua vencendo CSS -- por
+   isso os componentes novos não usam estilo inline.
+   ========================================================================== */
+
+:where(.ds),
+:where(.ds) *,
+:where(.ds) *::before,
+:where(.ds) *::after {
+  box-sizing: border-box;
+}
+
+:where(.ds) {
+  font-family: var(--ds-font);
+  font-size: var(--ds-fs-body);
+  line-height: var(--ds-lh-body);
+  font-weight: var(--ds-fw-regular);
+  color: var(--ds-text);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.ds) :where(h1, h2, h3, h4, h5, h6, p, ul, ol, figure) {
+  margin: 0;
+}
+
+:where(.ds) :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+:where(.ds) :where(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(.ds) :where(a) {
+  color: inherit;
+  text-decoration: none;
+}
+
+:where(.ds) :where(img, svg) {
+  max-width: 100%;
+}
+
+/* Foco visível (teclado) em todo elemento interativo do DS. */
+:where(.ds) :focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+:where(.ds) :focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.ds) *,
+  :where(.ds) *::before,
+  :where(.ds) *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Aplicada em document.body só enquanto o PageShell está montado. */
+body.ds-body {
+  margin: 0;
+  background-color: var(--ds-bg);
+}

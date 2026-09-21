@@ -1,0 +1,140 @@
+/* ==========================================================================
+   Design tokens -- Padoca da Mata
+   --------------------------------------------------------------------------
+   Este arquivo só declara variáveis CSS em :root -- nenhuma regra de
+   elemento/classe -- então importá-lo globalmente NÃO altera nenhuma página
+   antiga (ninguém as consome ainda).
+
+   AS CORES INSTITUCIONAIS NÃO ESTÃO AQUI. --ds-primary, --ds-secondary,
+   --ds-success, --ds-danger, --ds-bg e --ds-text são geradas a partir de
+   lib/branding/tema.js (fonte única de verdade da marca) por
+   lib/branding/cssVars.js e injetadas em pages/_document.js.
+
+   Abaixo: só tokens COMPLEMENTARES (neutros, superfícies, bordas, tons de
+   status, escalas). Eles NÃO são cores institucionais -- são apoio discreto
+   para a interface, todos com contraste conferido (texto >= 4,5:1; bordas de
+   campos >= 3:1).
+
+   Breakpoints conceituais (CSS não aceita var() em @media, então valem por
+   convenção -- os mesmos números estão em lib/design/breakpoints.js):
+     --bp-mobile   : <= 768px   (shell móvel: header compacto + bottom nav)
+     --bp-desktop  : >= 1024px  (sidebar expandida por padrão)
+   ========================================================================== */
+
+:root {
+  /* ---- Tipografia (stack nativa: nenhuma fonte é baixada) ---- */
+  --ds-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --ds-fs-page: 24px;      /* título de página (20px no mobile, ver abaixo) */
+  --ds-fs-section: 18px;   /* título de seção */
+  --ds-fs-card: 16px;      /* título de card */
+  --ds-fs-body: 14px;      /* texto */
+  --ds-fs-label: 13px;     /* label */
+  --ds-fs-aux: 12px;       /* texto auxiliar */
+  --ds-fs-button: 14px;    /* botão */
+  --ds-fs-th: 12px;        /* cabeçalho de tabela */
+  --ds-fs-td: 14px;        /* célula de tabela */
+  --ds-fs-control: 14px;   /* input/select/textarea (>=16px em touch/mobile) */
+
+  --ds-fw-regular: 400;
+  --ds-fw-semibold: 600;
+  --ds-fw-bold: 700;
+
+  --ds-lh-page: 1.25;
+  --ds-lh-section: 1.3;
+  --ds-lh-card: 1.35;
+  --ds-lh-body: 1.5;
+  --ds-lh-label: 1.3;
+  --ds-lh-aux: 1.4;
+
+  /* ---- Espaçamento ---- */
+  --ds-sp-1: 4px;
+  --ds-sp-2: 8px;
+  --ds-sp-3: 12px;
+  --ds-sp-4: 16px;
+  --ds-sp-5: 24px;
+  --ds-sp-6: 32px;
+  --ds-sp-7: 48px;
+
+  /* ---- Raios, bordas ---- */
+  --ds-radius-sm: 6px;     /* compacto */
+  --ds-radius-md: 8px;     /* controles */
+  --ds-radius-lg: 12px;    /* cards */
+  --ds-radius-pill: 999px; /* badges */
+  --ds-border-w: 1px;
+
+  /* ---- Superfícies e bordas ---- */
+  --ds-surface: #ffffff;
+  --ds-surface-muted: #f5faf4;
+  --ds-border: #d5e0d3;          /* divisórias e bordas de cards (decorativas) */
+  --ds-border-strong: #7d8d8a;   /* bordas de campos (3,4:1 sobre branco) */
+
+  /* ---- Texto ---- */
+  --ds-text-muted: #4d5957;      /* 7,3:1 sobre branco; 6,6:1 sobre o fundo */
+  --ds-text-disabled: #8b9795;   /* só para desabilitado (isento de contraste) */
+
+  /* ---- Marca: derivados de apoio ---- */
+  --ds-primary-hover: #0a2e2c;
+  --ds-primary-soft: #dcebe9;    /* fundo suave (primária 9,8:1 sobre ele) */
+  --ds-secondary-soft: #f6e6dc;
+  --ds-on-primary: #ffffff;
+  --ds-on-primary-muted: #bfd0ce;   /* texto secundário sobre a primária (7,5:1) */
+  --ds-accent-on-dark: #e6b08e;     /* tom claro da secundária p/ indicadores sobre a primária (6,3:1) */
+  --ds-overlay-on-primary-hover: rgba(255, 255, 255, 0.08);
+  --ds-overlay-on-primary-active: rgba(255, 255, 255, 0.14);
+
+  /* ---- Status (aviso, informação, neutro; sucesso/erro vêm da marca) ---- */
+  --ds-success-soft: #e2f1e1;    /* texto success 6,6:1 */
+  --ds-danger-soft: #fbe9e9;     /* texto danger 4,8:1 */
+  --ds-danger-hover: #a91f1f;
+  --ds-danger-border: #ecbcbc;
+  --ds-warning: #8a5300;         /* 6,3:1 sobre branco */
+  --ds-warning-soft: #fcefd3;    /* texto warning 5,6:1 */
+  --ds-warning-border: #e8c77a;
+  --ds-info: #1e5c8a;            /* 7,1:1 sobre branco */
+  --ds-info-soft: #e3eff8;       /* texto info 6,1:1 */
+  --ds-neutral: #38443f;
+  --ds-neutral-soft: #e9eeed;    /* texto neutral 8,7:1 */
+
+  --ds-focus: var(--ds-primary);           /* anel de foco padrão (sobrescrito em fundos escuros) */
+
+  /* ---- Sombras ---- */
+  --ds-shadow-sm: 0 1px 2px rgba(14, 61, 58, 0.06), 0 1px 3px rgba(14, 61, 58, 0.06);
+  --ds-shadow-md: 0 4px 12px rgba(14, 61, 58, 0.12);
+  --ds-shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.24);
+
+  /* ---- Controles ---- */
+  --ds-control-h: 40px;          /* botão/campo padrão (44px no mobile/touch) */
+  --ds-control-h-sm: 32px;       /* compacto (40px no mobile/touch) */
+  --ds-touch-min: 44px;
+
+  /* ---- Layout do shell ---- */
+  --ds-sidebar-w: 248px;
+  --ds-sidebar-w-compact: 72px;
+  --ds-topbar-h: 56px;
+  --ds-mobile-header-h: 52px;
+  --ds-bottomnav-h: 60px;
+  --ds-content-max: 1200px;
+
+  /* ---- z-index ---- */
+  --ds-z-bottomnav: 90;
+  --ds-z-topbar: 100;
+  --ds-z-dropdown: 200;
+  --ds-z-overlay: 1000;
+}
+
+/* Mobile e dispositivos de toque: título menor, alvos de toque maiores e
+   campos com 16px (abaixo disso o Safari/iOS dá zoom automático ao focar). */
+@media (max-width: 768px), (pointer: coarse) {
+  :root {
+    --ds-fs-control: 16px;
+    --ds-control-h: 44px;
+    --ds-control-h-sm: 40px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --ds-fs-page: 20px;
+  }
+}

@@ -1,0 +1,62 @@
+.card {
+  min-width: 0;
+  padding: var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+@media (min-width: 769px) {
+  .card {
+    padding: var(--ds-sp-5);
+  }
+}
+
+.cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.titulos {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  min-width: 0;
+}
+
+.icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+
+.textos {
+  min-width: 0;
+}
+
+.titulo {
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+}
+
+.subtitulo {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.acao {
+  flex-shrink: 0;
+}

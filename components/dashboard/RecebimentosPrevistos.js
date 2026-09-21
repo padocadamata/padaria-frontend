@@ -1,16 +1,13 @@
-import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import Card from '../ui/Card';
+import Badge from '../ui/Badge';
+import { cx } from '../../lib/design/cx';
+import styles from './dashboard.module.css';
 
 const LIMITE_VISIVEL = 5;
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '18px 20px',
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-};
 
 function formatarDataExibicao(dataYYYYMMDD) {
   const [, mes, dia] = dataYYYYMMDD.split('-');
@@ -29,8 +26,7 @@ function formatarDataExibicao(dataYYYYMMDD) {
 //   previsao_entrega >  hoje     -> não entra neste widget (sem urgência)
 //   previsao_entrega === null    -> não entra (não dá pra classificar)
 // recebido/cancelado nunca aparecem (já filtrados na própria query).
-export default function RecebimentosPrevistos({ corPrimaria }) {
-  const router = useRouter();
+export default function RecebimentosPrevistos() {
   const [itens, setItens] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -89,67 +85,45 @@ export default function RecebimentosPrevistos({ corPrimaria }) {
     };
   }, []);
 
-  function irParaPedido(id) {
-    router.push(`/pedidos?id=${id}`);
-  }
-
   const visiveis = itens.slice(0, LIMITE_VISIVEL);
   const restantes = itens.length - visiveis.length;
 
   return (
-    <section style={caixaEstilo}>
-      <h3 style={{ margin: '0 0 12px 0', color: corPrimaria, fontSize: '16px' }}>
-        Recebimentos previstos (pedidos reais)
-      </h3>
-
+    <Card titulo="Recebimentos previstos" subtitulo="Pedidos reais aguardando entrega" icone="package">
       {erro ? (
-        <p style={{ color: '#f44336', fontSize: '13px', margin: 0 }}>{erro}</p>
+        <p className={styles.erro}>{erro}</p>
       ) : carregando ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>Carregando...</p>
+        <p className={styles.vazio}>Carregando...</p>
       ) : itens.length === 0 ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>
-          Nenhum recebimento previsto para hoje nem atrasado.
-        </p>
+        <p className={styles.vazio}>Nenhum recebimento previsto para hoje nem atrasado.</p>
       ) : (
         <>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <ul className={styles.lista}>
             {visiveis.map((item) => (
-              <li
-                key={item.id}
-                onClick={() => irParaPedido(item.id)}
-                style={{
-                  cursor: 'pointer',
-                  padding: '8px 10px',
-                  backgroundColor: item.atrasado ? '#ffebee' : '#fff3e0',
-                  border: item.atrasado ? '1px solid #ef9a9a' : '1px solid #ffcc80',
-                  borderRadius: '5px',
-                  fontSize: '13px',
-                }}
-              >
-                {item.atrasado ? '🔴 Entrega atrasada' : '🟡 Recebimento previsto hoje'} — {item.fornecedorNome} · previsão{' '}
-                {formatarDataExibicao(item.previsaoEntrega)}
+              <li key={item.id}>
+                <Link
+                  href={`/pedidos?id=${item.id}`}
+                  className={cx(styles.item, styles.itemLink, item.atrasado ? styles.itemErro : styles.itemAviso)}
+                >
+                  <span className={styles.itemTextos}>
+                    <span className={styles.itemTitulo}>{item.fornecedorNome}</span>
+                    <span className={styles.itemMeta}>previsão {formatarDataExibicao(item.previsaoEntrega)}</span>
+                  </span>
+                  <Badge tom={item.atrasado ? 'danger' : 'warning'}>
+                    {item.atrasado ? 'Entrega atrasada' : 'Recebimento previsto hoje'}
+                  </Badge>
+                </Link>
               </li>
             ))}
           </ul>
 
           {restantes > 0 && (
-            <p
-              onClick={() => router.push('/pedidos')}
-              style={{
-                cursor: 'pointer',
-                color: corPrimaria,
-                fontSize: '13px',
-                fontWeight: 'bold',
-                marginTop: '8px',
-                marginBottom: 0,
-                textDecoration: 'underline',
-              }}
-            >
+            <Link href="/pedidos" className={styles.mais}>
               + {restantes} outros pedidos
-            </p>
+            </Link>
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }

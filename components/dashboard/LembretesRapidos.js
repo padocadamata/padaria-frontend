@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
-import { BotaoIconeAcao, IconeCheck, IconeLixeira } from '../producao/IconesAcoes';
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '18px 20px',
-  borderRadius: '8px',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-};
+import Card from '../ui/Card';
+import Button from '../ui/Button';
+import IconButton from '../ui/IconButton';
+import Input from '../ui/Input';
+import { cx } from '../../lib/design/cx';
+import styles from './dashboard.module.css';
 
 // Quadro coletivo de lembretes rápidos (post-it digital) — public.
 // dashboard_lembretes (migration 0021). Sem status, sem histórico: a
@@ -15,8 +13,9 @@ const caixaEstilo = {
 // no banco, o mesmo DELETE — a distinção é só de intenção visual (dois
 // ícones diferentes), nenhum comportamento de dado diferente. Sem
 // registrarAuditoria de propósito — não é dado de negócio auditável.
-// Reaproveita BotaoIconeAcao/ícones já usados no Histórico de Produção.
-export default function LembretesRapidos({ corPrimaria }) {
+// Visual do Design System (Card/Input/Button/IconButton); a lógica de dados
+// abaixo não mudou.
+export default function LembretesRapidos() {
   const [lembretes, setLembretes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -91,11 +90,9 @@ export default function LembretesRapidos({ corPrimaria }) {
   }
 
   return (
-    <section style={caixaEstilo}>
-      <h3 style={{ margin: '0 0 12px 0', color: corPrimaria, fontSize: '16px' }}>Lembretes rápidos</h3>
-
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-        <input
+    <Card titulo="Lembretes rápidos" subtitulo="Quadro coletivo da equipe" icone="note">
+      <div className={styles.novoLembrete}>
+        <Input
           type="text"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
@@ -103,69 +100,37 @@ export default function LembretesRapidos({ corPrimaria }) {
             if (e.key === 'Enter') adicionar();
           }}
           placeholder="Ex.: Avisar cliente Maria quando chegar o bolo"
-          style={{
-            flex: 1,
-            padding: '8px 10px',
-            border: '1px solid #ddd',
-            borderRadius: '5px',
-            boxSizing: 'border-box',
-            fontSize: '14px',
-          }}
+          aria-label="Novo lembrete"
         />
-        <button
-          onClick={adicionar}
-          disabled={salvando || !texto.trim()}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: corPrimaria,
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: salvando || !texto.trim() ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold',
-            fontSize: '13px',
-            opacity: salvando || !texto.trim() ? 0.6 : 1,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          + Adicionar
-        </button>
+        <Button variante="primary" icone="plus" onClick={adicionar} disabled={salvando || !texto.trim()}>
+          Adicionar
+        </Button>
       </div>
 
-      {erro && <p style={{ color: '#f44336', fontSize: '13px', margin: '0 0 10px 0' }}>{erro}</p>}
+      {erro && <p className={styles.erro}>{erro}</p>}
 
       {carregando ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>Carregando lembretes...</p>
+        <p className={styles.vazio}>Carregando lembretes...</p>
       ) : lembretes.length === 0 ? (
-        <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>Nenhum lembrete no momento.</p>
+        <p className={styles.vazio}>Nenhum lembrete no momento.</p>
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <ul className={styles.lista}>
           {lembretes.map((lembrete) => (
-            <li
-              key={lembrete.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-                padding: '8px 10px',
-                backgroundColor: '#fffde7',
-                border: '1px solid #fff59d',
-                borderRadius: '5px',
-              }}
-            >
-              <span style={{ fontSize: '14px', wordBreak: 'break-word' }}>{lembrete.texto}</span>
-              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                <BotaoIconeAcao
+            <li key={lembrete.id} className={cx(styles.item, styles.itemNota)}>
+              <span className={styles.itemTexto}>{lembrete.texto}</span>
+              <div className={styles.itemAcoes}>
+                <IconButton
+                  icone="check"
+                  tom="success"
+                  tamanho="sm"
                   rotulo="Concluir lembrete"
-                  icone={IconeCheck}
-                  cor="#4CAF50"
                   onClick={() => remover(lembrete.id)}
                 />
-                <BotaoIconeAcao
+                <IconButton
+                  icone="trash"
+                  tom="danger"
+                  tamanho="sm"
                   rotulo="Excluir lembrete"
-                  icone={IconeLixeira}
-                  destrutivo
                   onClick={() => remover(lembrete.id)}
                 />
               </div>
@@ -173,6 +138,6 @@ export default function LembretesRapidos({ corPrimaria }) {
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
