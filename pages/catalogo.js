@@ -1,16 +1,26 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import { validar as validarProduto, montarPayload as montarPayloadProduto, mensagemErro as mensagemErroProduto, mensagemErroProducao } from '../components/catalogo/DadosProdutoForm';
 import GerenciarClassificacoesModal from '../components/catalogo/GerenciarClassificacoesModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
-import { BotaoIconeAcao, IconeOlho, IconeLapis, IconeCheck, IconeCancelar, IconeLixeira } from '../components/producao/IconesAcoes';
+import PageShell from '../components/shell/PageShell';
+import PageHeader from '../components/ui/PageHeader';
+import AcoesLinha from '../components/ui/AcoesLinha';
+import Alert from '../components/ui/Alert';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import DataTable from '../components/ui/DataTable';
+import EmptyState from '../components/ui/EmptyState';
+import Field from '../components/ui/Field';
+import FilterBar from '../components/ui/FilterBar';
+import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
+import Paginacao, { paginarLista } from '../components/Paginacao';
+import estilos from '../components/catalogo/catalogo.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
-import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 // Lote pequeno e conservador de propósito: fica bem abaixo do db-max-rows
 // padrão do PostgREST/Supabase (tipicamente 1000) mesmo em configurações
@@ -83,21 +93,7 @@ async function buscarTodosProdutos(supabase, filtroStatus) {
 }
 
 function BadgeStatus({ ativo }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: ativo ? '#4CAF50' : '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {ativo ? 'Ativo' : 'Inativo'}
-    </span>
-  );
+  return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
 }
 
 // Só indicador -- nunca um toggle. Ativação/desativação de Produto de
@@ -105,21 +101,7 @@ function BadgeStatus({ ativo }) {
 // /catalogo/[id]), nunca aqui -- ver decisão da rodada de unificação
 // Catálogo x Produção (não criar uma terceira rota de escrita).
 function BadgeProducao({ ativo }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: ativo ? '#2196F3' : '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {ativo ? 'Em Produção' : 'Fora de Produção'}
-    </span>
-  );
+  return <Badge tom={ativo ? 'info' : 'neutral'}>{ativo ? 'Em Produção' : 'Fora de Produção'}</Badge>;
 }
 
 // Comparação de texto para ordenação: vazio/nulo sempre por último,
@@ -159,42 +141,15 @@ function compararProdutos(a, b, ordenacao) {
   return ordenacao.direcao === 'asc' ? resultado : -resultado;
 }
 
-function IndicadorOrdenacao({ ativo, direcao }) {
-  if (!ativo) return null;
-  return <span style={{ marginLeft: '4px' }}>{direcao === 'asc' ? '▲' : '▼'}</span>;
-}
-
-function ThOrdenavel({ campo, label, ordenacao, aoClicar, aparencia }) {
+function CabecalhoOrdenavel({ campo, label, ordenacao, aoClicar }) {
   const ativo = ordenacao.campo === campo;
   return (
-    <th
-      onClick={() => aoClicar(campo)}
-      style={{
-        padding: '12px',
-        textAlign: 'left',
-        color: aparencia.corPrimaria,
-        fontWeight: 'bold',
-        whiteSpace: 'nowrap',
-        cursor: 'pointer',
-        userSelect: 'none',
-      }}
-      title="Clique para ordenar"
-    >
+    <button type="button" className={estilos.cabecalhoOrdenavel} onClick={() => aoClicar(campo)} title="Clique para ordenar">
       {label}
-      <IndicadorOrdenacao ativo={ativo} direcao={ordenacao.direcao} />
-    </th>
+      {ativo && <span aria-hidden="true">{ordenacao.direcao === 'asc' ? ' ▲' : ' ▼'}</span>}
+    </button>
   );
 }
-
-const campoInlineEstilo = {
-  width: '100%',
-  minWidth: '90px',
-  padding: '6px',
-  border: '1px solid #ddd',
-  borderRadius: '4px',
-  boxSizing: 'border-box',
-  fontSize: '13px',
-};
 
 // Mesmo princípio já usado em mensagemErroReaberturaRecebimento (pages/
 // pedidos.js) e mensagemErroExclusaoClassificacao (GerenciarClassificacoesModal.js):
@@ -267,6 +222,9 @@ function CatalogoConteudo() {
   const [filtroSecaoId, setFiltroSecaoId] = useState('todas');
   const [filtroCategoriaId, setFiltroCategoriaId] = useState('todas');
   const [busca, setBusca] = useState('');
+  // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS de
+  // filtros/busca/ordenação -- mesmo padrão de pages/fornecedores.js).
+  const [pagina, setPagina] = useState(1);
 
   const [ordenacao, setOrdenacao] = useState({ campo: 'nome', direcao: 'asc' });
 
@@ -287,8 +245,6 @@ function CatalogoConteudo() {
   const [produtoParaExcluir, setProdutoParaExcluir] = useState(null);
   const [excluindoProduto, setExcluindoProduto] = useState(false);
   const [erroExclusaoProduto, setErroExclusaoProduto] = useState('');
-
-  const aparencia = APARENCIA_FIXA;
 
   // Classificações carregadas UMA vez, independente do filtro de status
   // dos produtos -- alimentam filtros, selects de edição rápida e o
@@ -414,6 +370,43 @@ function CatalogoConteudo() {
   // Ordenação aplicada sobre o resultado JÁ filtrado (não sobre o
   // conjunto bruto) -- funciona em conjunto com os filtros, como pedido.
   const produtosOrdenados = [...produtosFiltrados].sort((a, b) => compararProdutos(a, b, ordenacao));
+
+  // Paginação VISUAL (client-side, 20 por página): a lista já vem inteira
+  // do banco (filtro de Status na consulta; Seção/Categoria/Buscar no
+  // navegador) e aqui só se fatia o resultado já filtrado e ordenado.
+  // Tabela (desktop) e cartões (mobile) recebem exatamente este mesmo
+  // subconjunto -- mesmo padrão de pages/fornecedores.js.
+  const paginacao = paginarLista(produtosOrdenados, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Qualquer mudança de filtro/busca volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
+
+  // Resultado encolheu (filtro, exclusão, recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
+  const quantidadeFiltrosAtivos = [
+    filtroStatus !== 'ativos',
+    filtroSecaoId !== 'todas',
+    filtroCategoriaId !== 'todas',
+    busca !== '',
+  ].filter(Boolean).length;
+
+  // Volta aos valores iniciais da tela (Status = Ativos, demais em "todas"/vazio).
+  function limparFiltros() {
+    setFiltroStatus('ativos');
+    setFiltroSecaoId('todas');
+    setFiltroCategoriaId('todas');
+    setBusca('');
+    setPagina(1);
+  }
 
   const podeEditar = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_EDITAR);
   // Gate SÓ pela permissão -- nunca pelo status ativo/inativo do produto.
@@ -575,311 +568,257 @@ function CatalogoConteudo() {
     setProdutoParaExcluir(null);
   }
 
+  // UMA definição de colunas para a tabela (desktop) e os cartões
+  // (mobile) -- mesmo padrão de pages/fornecedores.js. Cada `render` olha
+  // `edicoes[produto.id]` para decidir entre texto e campo editável: a
+  // MESMA função atende os dois modos, nunca duas implementações
+  // divergentes.
+  const colunas = [
+    {
+      chave: 'nome',
+      rotulo: <CabecalhoOrdenavel campo="nome" label="Produto" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return produto.nome;
+        return (
+          <Input
+            type="text"
+            value={dados.nome}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'nome', e.target.value)}
+            className={estilos.campoInline}
+            aria-label="Nome do produto"
+          />
+        );
+      },
+    },
+    {
+      chave: 'ativo',
+      rotulo: <CabecalhoOrdenavel campo="ativo" label="Status" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      mobile: 'titulo',
+      cartaoOrdem: 1,
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return <BadgeStatus ativo={produto.ativo} />;
+        return (
+          <Select
+            value={dados.ativo ? 'ativo' : 'inativo'}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'ativo', e.target.value === 'ativo')}
+            className={estilos.campoInline}
+            aria-label="Status do produto"
+          >
+            <option value="ativo">Ativo</option>
+            <option value="inativo">Inativo</option>
+          </Select>
+        );
+      },
+    },
+    {
+      chave: 'codigo_g3',
+      rotulo: <CabecalhoOrdenavel campo="codigo_g3" label="Código G3" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      soCartao: true, // some da tabela desktop (simplificação pedida); continua nos cartões mobile, na busca, no cadastro e no detalhe
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return produto.codigo_g3 || '—';
+        return (
+          <Input
+            type="text"
+            value={dados.codigo_g3}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'codigo_g3', e.target.value)}
+            placeholder="Opcional"
+            className={estilos.campoInline}
+            aria-label="Código G3"
+          />
+        );
+      },
+    },
+    {
+      chave: 'codigo_barras',
+      rotulo: <CabecalhoOrdenavel campo="codigo_barras" label="Cód. barras" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      soCartao: true, // some da tabela desktop (simplificação pedida); continua nos cartões mobile, na busca, no cadastro e no detalhe
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return produto.codigo_barras || '—';
+        return (
+          <Input
+            type="text"
+            value={dados.codigo_barras}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'codigo_barras', e.target.value)}
+            placeholder="Opcional"
+            className={estilos.campoInline}
+            aria-label="Código de barras"
+          />
+        );
+      },
+    },
+    {
+      chave: 'secaoNome',
+      rotulo: <CabecalhoOrdenavel campo="secaoNome" label="Seção" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return produto.secaoNome || '—';
+        return (
+          <Select
+            value={dados.secao_id}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'secao_id', e.target.value)}
+            className={estilos.campoInline}
+            aria-label="Seção"
+          >
+            <option value="">— Nenhuma —</option>
+            {secoes.map((s) => (
+              <option key={s.id} value={s.id}>{s.nome}</option>
+            ))}
+          </Select>
+        );
+      },
+    },
+    {
+      chave: 'categoriaNome',
+      rotulo: <CabecalhoOrdenavel campo="categoriaNome" label="Categoria" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return produto.categoriaNome || '—';
+        return (
+          <Select
+            value={dados.categoria_id}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'categoria_id', e.target.value)}
+            className={estilos.campoInline}
+            aria-label="Categoria"
+          >
+            <option value="">— Nenhuma —</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </Select>
+        );
+      },
+    },
+    {
+      chave: 'unidade_medida',
+      rotulo: <CabecalhoOrdenavel campo="unidade_medida" label="Unidade" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      render: (produto) => {
+        const dados = edicoes[produto.id];
+        if (!dados) return produto.unidade_medida || '—';
+        return (
+          <Input
+            type="text"
+            value={dados.unidade_medida}
+            onChange={(e) => atualizarCampoEdicao(produto.id, 'unidade_medida', e.target.value)}
+            placeholder="kg, un, pacote..."
+            className={estilos.campoInline}
+            aria-label="Unidade"
+          />
+        );
+      },
+    },
+    {
+      chave: 'producao',
+      rotulo: 'Produção',
+      render: (produto) => <BadgeProducao ativo={produto.producaoAtiva} />,
+    },
+  ];
+
+  function acoesDaLinha(produto) {
+    const emEdicao = !!edicoes[produto.id];
+    const salvandoEstaLinha = salvandoId === produto.id;
+
+    if (emEdicao) {
+      return [
+        { chave: 'salvar', rotulo: 'Salvar', icone: 'check', desabilitado: salvandoEstaLinha, onClick: () => salvarEdicao(produto.id), primaria: true },
+        { chave: 'cancelar', rotulo: 'Cancelar', icone: 'undo', desabilitado: salvandoEstaLinha, onClick: () => cancelarEdicao(produto.id) },
+      ];
+    }
+
+    return [
+      { chave: 'visualizar', rotulo: 'Visualizar', icone: 'eye', onClick: () => router.push(`/catalogo/${produto.id}`), primaria: true },
+      podeEditar && { chave: 'editar', rotulo: 'Editar', icone: 'pencil', onClick: () => abrirEdicao(produto) },
+      podeExcluir && { chave: 'excluir', rotulo: 'Excluir', icone: 'trash', destrutivo: true, onClick: () => pedirExclusao(produto) },
+    ];
+  }
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Catálogo" />
-
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' }}>
-          <p style={{ color: '#666', margin: 0 }}>
-            Cadastro mestre de produtos comprados — nome, códigos, seção/categoria e unidade-base. Fornecedores e
-            histórico de compras ficam na página de cada produto.
-          </p>
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setModalClassificacoesAberto(true)}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: 'white',
-                color: aparencia.corPrimaria,
-                border: `1px solid ${aparencia.corPrimaria}`,
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                whiteSpace: 'nowrap',
-              }}
-            >
+    <PageShell titulo="Catálogo">
+      <PageHeader
+        titulo="Catálogo"
+        subtitulo="Cadastro mestre de produtos comprados — nome, códigos, seção/categoria e unidade-base. Fornecedores e histórico de compras ficam na página de cada produto."
+        acoes={
+          <>
+            <Button variante="secondary" onClick={() => setModalClassificacoesAberto(true)}>
               Gerenciar classificações
-            </button>
-
+            </Button>
             {podeEditar && (
-              <button
-                onClick={() => router.push('/catalogo/novo')}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: aparencia.corPrimaria,
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                + Novo produto
-              </button>
+              <Button icone="plus" onClick={() => router.push('/catalogo/novo')}>
+                Novo produto
+              </Button>
             )}
-          </div>
+          </>
+        }
+      />
+
+      <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+        <Field label="Buscar">
+          <Input
+            type="text"
+            value={busca}
+            onChange={(e) => alterarFiltro(setBusca)(e.target.value)}
+            placeholder="Nome, código G3 ou código de barras"
+          />
+        </Field>
+        <Field label="Status">
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+            <option value="ativos">Ativos</option>
+            <option value="inativos">Inativos</option>
+            <option value="todos">Todos</option>
+          </Select>
+        </Field>
+        <Field label="Seção">
+          <Select value={filtroSecaoId} onChange={(e) => alterarFiltro(setFiltroSecaoId)(e.target.value)}>
+            <option value="todas">Todas</option>
+            {secoes.map((s) => (
+              <option key={s.id} value={s.id}>{s.nome}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Categoria">
+          <Select value={filtroCategoriaId} onChange={(e) => alterarFiltro(setFiltroCategoriaId)(e.target.value)}>
+            <option value="todas">Todas</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </Select>
+        </Field>
+      </FilterBar>
+
+      {carregando ? (
+        <p role="status">Carregando produtos...</p>
+      ) : erro ? (
+        <Alert tom="danger">{erro}</Alert>
+      ) : produtos.length === 0 ? (
+        <EmptyState>Nenhum produto encontrado.</EmptyState>
+      ) : produtosOrdenados.length === 0 ? (
+        <EmptyState>Nenhum resultado para esta busca/filtro.</EmptyState>
+      ) : (
+        <div className={estilos.superficie}>
+          <DataTable
+            rotulo="Catálogo de produtos"
+            colunas={colunas}
+            linhas={paginacao.itens}
+            chaveLinha={(produto) => produto.id}
+            destaque={(produto) => (produto.ativo ? null : 'inativo')}
+            cartoesAte={1180}
+            linhaExtra={(produto) => (erroPorId[produto.id] ? <p className={estilos.linhaErro}>{erroPorId[produto.id]}</p> : null)}
+            renderAcoes={(produto, { cartao }) => <AcoesLinha acoes={acoesDaLinha(produto)} cartao={cartao} />}
+          />
+
+          <p className={estilos.resumo}>
+            Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+            {paginacao.total === 1 ? 'produto' : 'produtos'}
+            {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+          </p>
+          <Paginacao paginaAtual={paginaAtual} totalPaginas={paginacao.totalPaginas} onMudarPagina={setPagina} />
         </div>
-
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Buscar</label>
-              <input
-                type="text"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Nome, código G3 ou código de barras"
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Status</label>
-              <select
-                value={filtroStatus}
-                onChange={(e) => setFiltroStatus(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}
-              >
-                <option value="ativos">Ativos</option>
-                <option value="inativos">Inativos</option>
-                <option value="todos">Todos</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Seção</label>
-              <select
-                value={filtroSecaoId}
-                onChange={(e) => setFiltroSecaoId(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}
-              >
-                <option value="todas">Todas</option>
-                {secoes.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>Categoria</label>
-              <select
-                value={filtroCategoriaId}
-                onChange={(e) => setFiltroCategoriaId(e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}
-              >
-                <option value="todas">Todas</option>
-                {categorias.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-          {carregando ? (
-            <p>Carregando produtos...</p>
-          ) : erro ? (
-            <p style={{ color: '#f44336' }}>{erro}</p>
-          ) : produtosOrdenados.length === 0 ? (
-            <p style={{ color: '#666' }}>Nenhum produto encontrado.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <ThOrdenavel campo="nome" label="Produto" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <ThOrdenavel campo="codigo_g3" label="Código G3" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <ThOrdenavel campo="codigo_barras" label="Cód. barras" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <ThOrdenavel campo="secaoNome" label="Seção" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <ThOrdenavel campo="categoriaNome" label="Categoria" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <ThOrdenavel campo="unidade_medida" label="Unidade" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <ThOrdenavel campo="ativo" label="Status" ordenacao={ordenacao} aoClicar={alternarOrdenacao} aparencia={aparencia} />
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                    Produção
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {produtosOrdenados.map((produto) => {
-                  const emEdicao = !!edicoes[produto.id];
-                  const dados = edicoes[produto.id];
-                  const erroLinha = erroPorId[produto.id];
-                  const salvandoEstaLinha = salvandoId === produto.id;
-
-                  return (
-                    <Fragment key={produto.id}>
-                      <tr
-                        style={{ borderBottom: erroLinha ? 'none' : '1px solid #ddd', backgroundColor: emEdicao ? '#fff8e1' : 'transparent' }}
-                      >
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <input
-                              type="text"
-                              value={dados.nome}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'nome', e.target.value)}
-                              style={campoInlineEstilo}
-                            />
-                          ) : (
-                            produto.nome
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <input
-                              type="text"
-                              value={dados.codigo_g3}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'codigo_g3', e.target.value)}
-                              placeholder="Opcional"
-                              style={campoInlineEstilo}
-                            />
-                          ) : (
-                            produto.codigo_g3 || '—'
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <input
-                              type="text"
-                              value={dados.codigo_barras}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'codigo_barras', e.target.value)}
-                              placeholder="Opcional"
-                              style={campoInlineEstilo}
-                            />
-                          ) : (
-                            produto.codigo_barras || '—'
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <select
-                              value={dados.secao_id}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'secao_id', e.target.value)}
-                              style={campoInlineEstilo}
-                            >
-                              <option value="">— Nenhuma —</option>
-                              {secoes.map((s) => (
-                                <option key={s.id} value={s.id}>{s.nome}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            produto.secaoNome || '—'
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <select
-                              value={dados.categoria_id}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'categoria_id', e.target.value)}
-                              style={campoInlineEstilo}
-                            >
-                              <option value="">— Nenhuma —</option>
-                              {categorias.map((c) => (
-                                <option key={c.id} value={c.id}>{c.nome}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            produto.categoriaNome || '—'
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <input
-                              type="text"
-                              value={dados.unidade_medida}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'unidade_medida', e.target.value)}
-                              placeholder="kg, un, pacote..."
-                              style={campoInlineEstilo}
-                            />
-                          ) : (
-                            produto.unidade_medida || '—'
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          {emEdicao ? (
-                            <select
-                              value={dados.ativo ? 'ativo' : 'inativo'}
-                              onChange={(e) => atualizarCampoEdicao(produto.id, 'ativo', e.target.value === 'ativo')}
-                              style={campoInlineEstilo}
-                            >
-                              <option value="ativo">Ativo</option>
-                              <option value="inativo">Inativo</option>
-                            </select>
-                          ) : (
-                            <BadgeStatus ativo={produto.ativo} />
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <BadgeProducao ativo={produto.producaoAtiva} />
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {emEdicao ? (
-                              <>
-                                <BotaoIconeAcao
-                                  rotulo="Salvar"
-                                  icone={IconeCheck}
-                                  cor="#4CAF50"
-                                  disabled={salvandoEstaLinha}
-                                  onClick={() => salvarEdicao(produto.id)}
-                                />
-                                <BotaoIconeAcao
-                                  rotulo="Cancelar"
-                                  icone={IconeCancelar}
-                                  disabled={salvandoEstaLinha}
-                                  onClick={() => cancelarEdicao(produto.id)}
-                                />
-                              </>
-                            ) : (
-                              <>
-                                <BotaoIconeAcao
-                                  rotulo="Visualizar"
-                                  icone={IconeOlho}
-                                  onClick={() => router.push(`/catalogo/${produto.id}`)}
-                                />
-                                {podeEditar && (
-                                  <BotaoIconeAcao
-                                    rotulo="Editar"
-                                    icone={IconeLapis}
-                                    cor={aparencia.corPrimaria}
-                                    onClick={() => abrirEdicao(produto)}
-                                  />
-                                )}
-                                {podeExcluir && (
-                                  <BotaoIconeAcao
-                                    rotulo="Excluir"
-                                    icone={IconeLixeira}
-                                    destrutivo
-                                    onClick={() => pedirExclusao(produto)}
-                                  />
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {erroLinha && (
-                        <tr style={{ borderBottom: '1px solid #ddd' }}>
-                          <td colSpan={9} style={{ padding: '0 12px 10px 12px', backgroundColor: '#fff8e1' }}>
-                            <span style={{ color: '#f44336', fontSize: '13px' }}>{erroLinha}</span>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      )}
 
       <GerenciarClassificacoesModal
         aberto={modalClassificacoesAberto}
@@ -887,7 +826,6 @@ function CatalogoConteudo() {
         secoes={secoes}
         categorias={categorias}
         podeEditar={podeEditar}
-        corPrimaria={aparencia.corPrimaria}
         aoAtualizarSecoes={setSecoes}
         aoAtualizarCategorias={setCategorias}
       />
@@ -895,7 +833,6 @@ function CatalogoConteudo() {
       {produtoParaExcluir && (
         <ConfirmarAcaoModal
           titulo="Excluir produto"
-          corPrimaria={aparencia.corPrimaria}
           perigo
           confirmando={excluindoProduto}
           erro={erroExclusaoProduto}
@@ -909,9 +846,10 @@ function CatalogoConteudo() {
           }
           onConfirmar={confirmarExclusaoProduto}
           onCancelar={fecharConfirmarExclusao}
+          modalDS
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 

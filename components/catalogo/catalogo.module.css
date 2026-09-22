@@ -1,0 +1,326 @@
+/* Peças visuais das telas/formulários de Catálogo (só apresentação). */
+
+.superficie {
+  min-width: 0;
+}
+
+/* Desktop: a tabela fica numa superfície; no mobile os cartões são a própria
+   superfície. Mesmo padrão de components/fornecedores/fornecedores.module.css. */
+@media (min-width: 769px) {
+  .superficie {
+    padding: var(--ds-sp-4);
+    background-color: var(--ds-surface);
+    border: var(--ds-border-w) solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  .superficie:has(ul[aria-label]) {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.resumo {
+  margin: var(--ds-sp-4) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* ----------------------------- formulário ----------------------------- */
+
+.secao {
+  margin: 0 0 var(--ds-sp-5);
+}
+
+.tituloSecao {
+  margin: 0 0 var(--ds-sp-3);
+  padding-bottom: var(--ds-sp-2);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+}
+
+.larguraTotal {
+  grid-column: 1 / -1;
+}
+
+.nota {
+  margin: 0 0 var(--ds-sp-4);
+  font-size: var(--ds-fs-label);
+  font-style: italic;
+  color: var(--ds-text-muted);
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 768px) {
+  .rodape {
+    flex-direction: column-reverse;
+  }
+  .rodape > * {
+    width: 100%;
+  }
+}
+
+/* ------------------------- edição em linha (tabela) -------------------- */
+
+.linhaErro {
+  margin: 0;
+  padding: var(--ds-sp-2) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-danger, #b3261e);
+}
+
+/* --------------------------- página de detalhe -------------------------- */
+
+.voltar {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.carregando,
+.erroCarga {
+  padding: var(--ds-sp-6) 0;
+  text-align: center;
+  color: var(--ds-text-muted);
+}
+
+/* ----------------------------- resumo de preços -------------------------- */
+
+.blocosPreco {
+  display: flex;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+}
+
+.blocoPreco {
+  flex: 1 1 220px;
+  background-color: var(--ds-surface-muted);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+}
+
+.blocoPrecoRotulo {
+  font-weight: var(--ds-fw-semibold);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  margin-bottom: var(--ds-sp-2);
+}
+
+.blocoPrecoValor {
+  font-weight: var(--ds-fw-semibold);
+}
+
+.blocoPrecoDetalhe {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  margin-top: var(--ds-sp-1);
+}
+
+.blocoPrecoVazio {
+  color: var(--ds-text-disabled);
+  font-style: italic;
+}
+
+/* --------------------------- configurações comerciais -------------------- */
+
+.listaConfig {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.itemConfig {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+  background-color: var(--ds-surface-muted);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+}
+
+.itemConfigTitulo {
+  font-weight: var(--ds-fw-semibold);
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+}
+
+.itemConfigDetalhe {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  margin-top: var(--ds-sp-1);
+}
+
+.itemConfigObservacao {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  font-style: italic;
+  margin-top: var(--ds-sp-1);
+}
+
+.itemConfigAcoes {
+  display: flex;
+  gap: var(--ds-sp-1);
+}
+
+.mostrarInativas {
+  margin-bottom: var(--ds-sp-3);
+}
+
+/* ---------------------------- classificações ------------------------------ */
+
+.classificacoes {
+  display: flex;
+  gap: var(--ds-sp-5);
+  flex-wrap: wrap;
+}
+
+.blocoClassificacao {
+  flex: 1 1 260px;
+  min-width: 240px;
+}
+
+.blocoClassificacaoTitulo {
+  margin: 0 0 var(--ds-sp-3);
+  color: var(--ds-primary);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.criarClassificacao {
+  display: flex;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+}
+
+.criarClassificacao > :first-child {
+  flex: 1;
+}
+
+.listaClassificacao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.itemClassificacao {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  background-color: var(--ds-surface-muted);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemClassificacaoEmEdicao {
+  background-color: var(--ds-warning-soft);
+}
+
+.itemClassificacaoNome {
+  flex: 1;
+  font-size: var(--ds-fs-body);
+}
+
+.itemClassificacaoAcoes {
+  display: flex;
+  gap: var(--ds-sp-1);
+}
+
+/* ------------------------------ leitura (sem editar) ---------------------- */
+
+.leituraRotulo {
+  font-weight: var(--ds-fw-semibold);
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  margin-bottom: 2px;
+}
+
+.leituraValor {
+  font-size: var(--ds-fs-body);
+}
+
+.producaoControle {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.producaoLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.producaoLabelDesabilitado {
+  color: var(--ds-text-disabled);
+}
+
+.producaoAtualizando {
+  font-size: var(--ds-fs-aux);
+  font-weight: var(--ds-fw-regular);
+  color: var(--ds-text-muted);
+}
+
+.producaoAjuda {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  margin: var(--ds-sp-1) 0 0 26px;
+}
+
+.cabecalhoOrdenavel {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: var(--ds-fw-semibold);
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.campoInline {
+  min-width: 90px;
+}
+
+.avisoPosCriacao {
+  color: var(--ds-warning);
+  background-color: var(--ds-warning-soft);
+  padding: var(--ds-sp-3);
+  border-radius: var(--ds-radius-md);
+  font-weight: var(--ds-fw-semibold);
+}

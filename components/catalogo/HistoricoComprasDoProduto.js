@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import LancarCompraForm from './LancarCompraForm';
-import { BotaoIconeAcao, IconeLapis, IconeLixeira } from '../producao/IconesAcoes';
 import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import DataTable from '../ui/DataTable';
+import EmptyState from '../ui/EmptyState';
+import IconButton from '../ui/IconButton';
+import SectionHeader from '../ui/SectionHeader';
 import { createClient } from '../../lib/supabase/client';
+import estilos from './catalogo.module.css';
 
 function formatarData(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
@@ -32,7 +38,7 @@ const ORIGEM_LABEL = {
 // produtos_historico_compras_protecao) -- a segunda é corrigida
 // exclusivamente via "Editar compra presencial" em /pedidos, nunca por
 // aqui.
-export default function HistoricoComprasDoProduto({ produtoId, lancamentos, configuracoesComerciais, fornecedoresAtivos, podeEditar, corPrimaria = '#8B4513', onRecarregar }) {
+export default function HistoricoComprasDoProduto({ produtoId, lancamentos, configuracoesComerciais, fornecedoresAtivos, podeEditar, onRecarregar }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [lancamentoEmEdicao, setLancamentoEmEdicao] = useState(null);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
@@ -104,87 +110,46 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
     onRecarregar();
   }
 
+  const colunas = [
+    { chave: 'data', rotulo: 'Data', mobile: 'titulo', render: (l) => formatarData(l.data_compra) },
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', render: (l) => l.fornecedorNome },
+    { chave: 'unidade', rotulo: 'Unidade', render: (l) => l.unidade_comercial },
+    { chave: 'quantidade', rotulo: 'Quantidade', render: (l) => l.quantidade_comercial },
+    { chave: 'precoUnitario', rotulo: 'Preço unitário', render: (l) => formatarMoeda(l.preco_unitario_comercial) },
+    { chave: 'precoBase', rotulo: 'Preço-base', render: (l) => (l.preco_unitario_base != null ? formatarMoeda(l.preco_unitario_base) : '—') },
+    { chave: 'origem', rotulo: 'Origem', render: (l) => ORIGEM_LABEL[l.origem] || l.origem },
+  ];
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-        <h3 style={{ margin: 0 }}>Histórico de compras</h3>
+      <SectionHeader
+        titulo="Histórico de compras"
+        acao={podeEditar && <Button tamanho="sm" icone="plus" onClick={abrirNovoLancamento}>Lançar compra</Button>}
+      />
 
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={abrirNovoLancamento}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '13px',
-            }}
-          >
-            + Lançar compra
-          </button>
-        )}
-      </div>
-
-      {mensagemSucesso && <p style={{ color: '#4CAF50', fontWeight: 'bold', marginBottom: '10px' }}>{mensagemSucesso}</p>}
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
       {lancamentos.length === 0 ? (
-        <p style={{ color: '#666' }}>Nenhuma compra registrada para este produto.</p>
+        <EmptyState>Nenhuma compra registrada para este produto.</EmptyState>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #ddd', textAlign: 'left' }}>
-                <th style={{ padding: '8px' }}>Data</th>
-                <th style={{ padding: '8px' }}>Fornecedor</th>
-                <th style={{ padding: '8px' }}>Unidade</th>
-                <th style={{ padding: '8px' }}>Quantidade</th>
-                <th style={{ padding: '8px' }}>Preço unitário</th>
-                <th style={{ padding: '8px' }}>Preço-base</th>
-                <th style={{ padding: '8px' }}>Origem</th>
-                <th style={{ padding: '8px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lancamentos.map((lancamento) => (
-                <tr key={lancamento.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '8px' }}>{formatarData(lancamento.data_compra)}</td>
-                  <td style={{ padding: '8px' }}>{lancamento.fornecedorNome}</td>
-                  <td style={{ padding: '8px' }}>{lancamento.unidade_comercial}</td>
-                  <td style={{ padding: '8px' }}>{lancamento.quantidade_comercial}</td>
-                  <td style={{ padding: '8px' }}>{formatarMoeda(lancamento.preco_unitario_comercial)}</td>
-                  <td style={{ padding: '8px' }}>
-                    {lancamento.preco_unitario_base != null ? formatarMoeda(lancamento.preco_unitario_base) : '—'}
-                  </td>
-                  <td style={{ padding: '8px' }}>
-                    {ORIGEM_LABEL[lancamento.origem] || lancamento.origem}
-                  </td>
-                  <td style={{ padding: '8px' }}>
-                    {podeEditar && lancamento.origem === 'manual' && (
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <BotaoIconeAcao
-                          rotulo="Editar lançamento"
-                          icone={IconeLapis}
-                          cor={corPrimaria}
-                          onClick={() => abrirEdicaoLancamento(lancamento)}
-                        />
-                        <BotaoIconeAcao
-                          rotulo="Excluir lançamento"
-                          icone={IconeLixeira}
-                          destrutivo
-                          onClick={() => pedirExclusao(lancamento)}
-                        />
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rotulo="Histórico de compras"
+          colunas={colunas}
+          linhas={lancamentos}
+          chaveLinha={(l) => l.id}
+          cartoesAte={700}
+          renderAcoes={
+            podeEditar
+              ? (l) =>
+                  l.origem === 'manual' && (
+                    <div className={estilos.itemConfigAcoes}>
+                      <IconButton rotulo="Editar lançamento" icone="pencil" tamanho="sm" onClick={() => abrirEdicaoLancamento(l)} />
+                      <IconButton rotulo="Excluir lançamento" icone="trash" tom="danger" tamanho="sm" onClick={() => pedirExclusao(l)} />
+                    </div>
+                  )
+              : undefined
+          }
+        />
       )}
 
       {modalAberto && (
@@ -193,7 +158,6 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
           fornecedoresAtivos={fornecedoresAtivos}
           configuracoesComerciais={configuracoesComerciais}
           lancamento={lancamentoEmEdicao}
-          corPrimaria={corPrimaria}
           onFechar={fecharModal}
           onSalvo={aoSalvar}
         />
@@ -211,13 +175,13 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
               Esta ação é definitiva e não pode ser desfeita.
             </>
           }
-          corPrimaria={corPrimaria}
           perigo
           textoConfirmar="Excluir"
           confirmando={excluindo}
           erro={erroExclusao}
           onConfirmar={confirmarExclusao}
           onCancelar={cancelarExclusao}
+          modalDS
         />
       )}
     </div>

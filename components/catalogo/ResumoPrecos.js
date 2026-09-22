@@ -1,3 +1,6 @@
+import SectionHeader from '../ui/SectionHeader';
+import estilos from './catalogo.module.css';
+
 function formatarData(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
   return `${dia}/${mes}/${ano}`;
@@ -16,15 +19,6 @@ function formatarPrecoBase(valor, unidadeBase) {
   return unidadeBase ? `${preco} / ${unidadeBase}` : preco;
 }
 
-const blocoEstilo = {
-  backgroundColor: '#f9f9f9',
-  borderRadius: '5px',
-  padding: '12px 15px',
-  flex: '1 1 220px',
-};
-
-const rotuloBlocoEstilo = { fontWeight: 'bold', fontSize: '13px', color: '#555', marginBottom: '6px' };
-
 // Card "Resumo de preços" de /catalogo/[id], consumindo uma linha de
 // public.produtos_resumo_compras (view da migration 0023) + a unidade-base
 // do próprio produto (produto.unidade_medida, já carregado pela página --
@@ -38,8 +32,8 @@ export default function ResumoPrecos({ resumo, fornecedoresPorId, unidadeBase })
   if (!resumo) {
     return (
       <div>
-        <h3 style={{ margin: '0 0 10px 0' }}>Resumo de preços</h3>
-        <p style={{ color: '#666' }}>Nenhuma compra registrada ainda para este produto.</p>
+        <SectionHeader titulo="Resumo de preços" />
+        <p>Nenhuma compra registrada ainda para este produto.</p>
       </div>
     );
   }
@@ -53,59 +47,55 @@ export default function ResumoPrecos({ resumo, fornecedoresPorId, unidadeBase })
 
   return (
     <div>
-      <h3 style={{ margin: '0 0 10px 0' }}>Resumo de preços</h3>
+      <SectionHeader titulo="Resumo de preços" />
 
-      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-        <div style={blocoEstilo}>
-          <div style={rotuloBlocoEstilo}>Última compra</div>
+      <div className={estilos.blocosPreco}>
+        <div className={estilos.blocoPreco}>
+          <div className={estilos.blocoPrecoRotulo}>Última compra</div>
           <div>{formatarData(resumo.ultima_compra_data)} — {nomeFornecedor(resumo.ultima_compra_fornecedor_id)}</div>
-          <div style={{ fontSize: '13px', color: '#666', marginTop: '2px' }}>
+          <div className={estilos.blocoPrecoDetalhe}>
             {formatarMoeda(resumo.ultima_compra_preco_comercial)} / {resumo.ultima_compra_unidade_comercial}
           </div>
-          <div style={{ marginTop: '8px', fontSize: '13px' }}>
+          <div className={estilos.blocoPrecoDetalhe}>
             {resumo.ultima_compra_preco_base != null ? (
               <>
-                <span style={{ color: '#555' }}>Preço-base: </span>
-                <span style={{ fontWeight: 'bold' }}>{formatarPrecoBase(resumo.ultima_compra_preco_base, unidadeBase)}</span>
+                <span>Preço-base: </span>
+                <span className={estilos.blocoPrecoValor}>{formatarPrecoBase(resumo.ultima_compra_preco_base, unidadeBase)}</span>
               </>
             ) : (
-              <span style={{ color: '#999', fontStyle: 'italic' }}>
-                Preço-base não disponível — conversão não informada.
-              </span>
+              <span className={estilos.blocoPrecoVazio}>Preço-base não disponível — conversão não informada.</span>
             )}
           </div>
         </div>
 
-        <div style={blocoEstilo}>
-          <div style={rotuloBlocoEstilo}>Último preço-base comparável</div>
+        <div className={estilos.blocoPreco}>
+          <div className={estilos.blocoPrecoRotulo}>Último preço-base comparável</div>
           {resumo.ultimo_preco_base_valor != null ? (
             <>
-              <div style={{ fontWeight: 'bold' }}>{formatarPrecoBase(resumo.ultimo_preco_base_valor, unidadeBase)}</div>
-              <div style={{ fontSize: '13px', color: '#666' }}>
+              <div className={estilos.blocoPrecoValor}>{formatarPrecoBase(resumo.ultimo_preco_base_valor, unidadeBase)}</div>
+              <div className={estilos.blocoPrecoDetalhe}>
                 {formatarData(resumo.ultimo_preco_base_data)} — {nomeFornecedor(resumo.ultimo_preco_base_fornecedor_id)}
               </div>
               {ultimoPrecoBaseAnteriorAUltimaCompra && (
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                  Anterior à última compra registrada.
-                </div>
+                <div className={estilos.blocoPrecoDetalhe}>Anterior à última compra registrada.</div>
               )}
             </>
           ) : (
-            <div style={{ color: '#999', fontStyle: 'italic' }}>Nenhum registro comparável ainda.</div>
+            <div className={estilos.blocoPrecoVazio}>Nenhum registro comparável ainda.</div>
           )}
         </div>
 
-        <div style={blocoEstilo}>
-          <div style={rotuloBlocoEstilo}>Menor preço-base registrado</div>
+        <div className={estilos.blocoPreco}>
+          <div className={estilos.blocoPrecoRotulo}>Menor preço-base registrado</div>
           {resumo.menor_preco_base_valor != null ? (
             <>
-              <div style={{ fontWeight: 'bold' }}>{formatarPrecoBase(resumo.menor_preco_base_valor, unidadeBase)}</div>
-              <div style={{ fontSize: '13px', color: '#666' }}>
+              <div className={estilos.blocoPrecoValor}>{formatarPrecoBase(resumo.menor_preco_base_valor, unidadeBase)}</div>
+              <div className={estilos.blocoPrecoDetalhe}>
                 {formatarData(resumo.menor_preco_base_data)} — {nomeFornecedor(resumo.menor_preco_base_fornecedor_id)}
               </div>
             </>
           ) : (
-            <div style={{ color: '#999', fontStyle: 'italic' }}>Nenhum registro comparável ainda.</div>
+            <div className={estilos.blocoPrecoVazio}>Nenhum registro comparável ainda.</div>
           )}
         </div>
       </div>

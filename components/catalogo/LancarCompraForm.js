@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import { cx } from '../../lib/design/cx';
+import estilos from './catalogo.module.css';
 
 // Cria um lançamento manual em public.produtos_historico_compras, ou
 // corrige um já existente -- SOMENTE origem='manual' (a página que
@@ -90,42 +99,7 @@ function mensagemErro(error) {
   return 'Não foi possível salvar este lançamento. Tente novamente ou avise um administrador.';
 }
 
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '520px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
-
-const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
-
-const campoEstilo = {
-  width: '100%',
-  padding: '8px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-};
-
-export default function LancarCompraForm({ produtoId, fornecedoresAtivos, configuracoesComerciais, lancamento, corPrimaria = '#8B4513', onFechar, onSalvo }) {
+export default function LancarCompraForm({ produtoId, fornecedoresAtivos, configuracoesComerciais, lancamento, onFechar, onSalvo }) {
   const estaEditando = lancamento != null;
   const [dados, setDados] = useState(() => estadoInicial(lancamento));
   const [salvando, setSalvando] = useState(false);
@@ -181,170 +155,104 @@ export default function LancarCompraForm({ produtoId, fornecedoresAtivos, config
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
-        <h3 style={{ marginTop: 0 }}>{estaEditando ? 'Editar lançamento de compra' : 'Lançar compra'}</h3>
+    <Modal
+      titulo={estaEditando ? 'Editar lançamento de compra' : 'Lançar compra'}
+      onFechar={salvando ? undefined : onFechar}
+      largura="md"
+    >
+      {!estaEditando && configuracoesComerciais.length > 0 && (
+        <Field label="Usar configuração cadastrada (opcional)" dica="Só preenche os campos abaixo — não cria nenhum vínculo entre este lançamento e a configuração." className={estilos.secao}>
+          <Select defaultValue="" onChange={(e) => preencherDeConfiguracao(e.target.value)}>
+            <option value="">Preencher manualmente</option>
+            {configuracoesComerciais.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.fornecedorNome} — {c.unidade_comercial}
+                {c.apresentacao ? ` (${c.apresentacao})` : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
 
-        {!estaEditando && configuracoesComerciais.length > 0 && (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={rotuloEstilo}>Usar configuração cadastrada (opcional)</label>
-            <select
-              defaultValue=""
-              onChange={(e) => preencherDeConfiguracao(e.target.value)}
-              style={campoEstilo}
-            >
-              <option value="">Preencher manualmente</option>
-              {configuracoesComerciais.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.fornecedorNome} — {c.unidade_comercial}
-                  {c.apresentacao ? ` (${c.apresentacao})` : ''}
-                </option>
-              ))}
-            </select>
-            <p style={{ fontSize: '12px', color: '#999', marginTop: '4px', marginBottom: 0 }}>
-              Só preenche os campos abaixo — não cria nenhum vínculo entre este lançamento e a configuração.
-            </p>
-          </div>
+      <Field label={`Fornecedor ${!estaEditando ? '*' : ''}`.trim()} className={estilos.secao}>
+        {estaEditando ? (
+          <p>{lancamento.fornecedorNome}</p>
+        ) : (
+          <Select value={dados.fornecedor_id} onChange={(e) => atualizarCampo('fornecedor_id', e.target.value)}>
+            <option value="">Selecione</option>
+            {fornecedoresAtivos.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </Select>
         )}
+      </Field>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Fornecedor {!estaEditando && '*'}</label>
-          {estaEditando ? (
-            <p style={{ margin: 0, fontSize: '14px' }}>{lancamento.fornecedorNome}</p>
-          ) : (
-            <select
-              value={dados.fornecedor_id}
-              onChange={(e) => atualizarCampo('fornecedor_id', e.target.value)}
-              style={campoEstilo}
-            >
-              <option value="">Selecione</option>
-              {fornecedoresAtivos.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+      <div className={cx(estilos.grade, estilos.secao)}>
+        <Field label="Data da compra *">
+          <Input type="date" value={dados.data_compra} onChange={(e) => atualizarCampo('data_compra', e.target.value)} />
+        </Field>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-          <div>
-            <label style={rotuloEstilo}>Data da compra *</label>
-            <input
-              type="date"
-              value={dados.data_compra}
-              onChange={(e) => atualizarCampo('data_compra', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+        <Field label="Unidade comercial *">
+          <Input
+            type="text"
+            value={dados.unidade_comercial}
+            onChange={(e) => atualizarCampo('unidade_comercial', e.target.value)}
+            placeholder="kg, pacote, caixa..."
+          />
+        </Field>
 
-          <div>
-            <label style={rotuloEstilo}>Unidade comercial *</label>
-            <input
-              type="text"
-              value={dados.unidade_comercial}
-              onChange={(e) => atualizarCampo('unidade_comercial', e.target.value)}
-              placeholder="kg, pacote, caixa..."
-              style={campoEstilo}
-            />
-          </div>
-
-          <div>
-            <label style={rotuloEstilo}>Quantidade *</label>
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={dados.quantidade_comercial}
-              onChange={(e) => atualizarCampo('quantidade_comercial', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
-
-          <div>
-            <label style={rotuloEstilo}>Preço unitário comercial *</label>
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={dados.preco_unitario_comercial}
-              onChange={(e) => atualizarCampo('preco_unitario_comercial', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Fator de conversão p/ unidade-base</label>
-          <input
+        <Field label="Quantidade *">
+          <Input
             type="number"
             min="0"
             step="any"
-            value={dados.fator_conversao_base}
-            onChange={(e) => atualizarCampo('fator_conversao_base', e.target.value)}
-            placeholder="Ex.: caixa com 12 unidades → 12"
-            style={{ ...campoEstilo, maxWidth: '220px' }}
+            value={dados.quantidade_comercial}
+            onChange={(e) => atualizarCampo('quantidade_comercial', e.target.value)}
           />
+        </Field>
 
-          <div style={{ marginTop: '8px', fontSize: '13px', color: '#555', lineHeight: '1.5' }}>
-            <p style={{ margin: '0 0 6px 0' }}>
-              Informe quantas unidades-base existem em 1 unidade comercial.
-            </p>
-            <p style={{ margin: '0 0 6px 0' }}>
-              Ex.: produto em UN, caixa com 12 unidades → fator 12. Uma caixa de R$ 60,00 equivale a R$ 5,00/UN.
-            </p>
-            <p style={{ margin: 0, color: '#888' }}>
-              Se não souber a conversão, deixe em branco. A compra será registrada, mas não participará da
-              comparação de preço-base.
-            </p>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Observação</label>
-          <textarea
-            value={dados.observacao}
-            onChange={(e) => atualizarCampo('observacao', e.target.value)}
-            style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
+        <Field label="Preço unitário comercial *">
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            value={dados.preco_unitario_comercial}
+            onChange={(e) => atualizarCampo('preco_unitario_comercial', e.target.value)}
           />
-        </div>
-
-        {erro && <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>}
-
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={salvando}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#999',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={salvar}
-            disabled={salvando}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
-        </div>
+        </Field>
       </div>
-    </div>
+
+      <Field
+        label="Fator de conversão p/ unidade-base"
+        className={estilos.secao}
+        dica="Informe quantas unidades-base existem em 1 unidade comercial. Ex.: produto em UN, caixa com 12 unidades → fator 12. Uma caixa de R$ 60,00 equivale a R$ 5,00/UN. Se não souber a conversão, deixe em branco: a compra será registrada, mas não participará da comparação de preço-base."
+      >
+        <Input
+          type="number"
+          min="0"
+          step="any"
+          value={dados.fator_conversao_base}
+          onChange={(e) => atualizarCampo('fator_conversao_base', e.target.value)}
+          placeholder="Ex.: caixa com 12 unidades → 12"
+        />
+      </Field>
+
+      <Field label="Observação" className={estilos.secao}>
+        <Textarea value={dados.observacao} onChange={(e) => atualizarCampo('observacao', e.target.value)} rows={3} />
+      </Field>
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <div className={estilos.rodape}>
+        <Button variante="secondary" onClick={onFechar} disabled={salvando}>
+          Cancelar
+        </Button>
+        <Button onClick={salvar} disabled={salvando}>
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </Button>
+      </div>
+    </Modal>
   );
 }

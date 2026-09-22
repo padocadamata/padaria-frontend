@@ -1,5 +1,15 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import { cx } from '../../lib/design/cx';
+import estilos from './catalogo.module.css';
 
 // Cria/edita uma linha de public.produto_fornecedores. Deliberadamente
 // SEM nenhuma checagem de unicidade produto+fornecedor no frontend --
@@ -92,42 +102,7 @@ function mensagemErro(error) {
   return 'Não foi possível salvar esta configuração. Tente novamente ou avise um administrador.';
 }
 
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '500px',
-  width: '100%',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
-
-const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
-
-const campoEstilo = {
-  width: '100%',
-  padding: '8px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-};
-
-export default function ConfiguracaoComercialForm({ produtoId, produtoUnidadeMedida, fornecedoresAtivos, configuracao, corPrimaria = '#8B4513', onFechar, onSalvo }) {
+export default function ConfiguracaoComercialForm({ produtoId, produtoUnidadeMedida, fornecedoresAtivos, configuracao, onFechar, onSalvo }) {
   const estaEditando = configuracao != null;
   const [dados, setDados] = useState(() => estadoInicial(configuracao));
   const [salvando, setSalvando] = useState(false);
@@ -172,178 +147,125 @@ export default function ConfiguracaoComercialForm({ produtoId, produtoUnidadeMed
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
-        <h3 style={{ marginTop: 0 }}>
-          {estaEditando ? 'Editar configuração comercial' : 'Nova configuração comercial'}
-        </h3>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Fornecedor {!estaEditando && '*'}</label>
-          {estaEditando ? (
-            <p style={{ margin: 0, fontSize: '14px' }}>{configuracao.fornecedorNome}</p>
-          ) : (
-            <select
-              value={dados.fornecedor_id}
-              onChange={(e) => atualizarCampo('fornecedor_id', e.target.value)}
-              style={campoEstilo}
-            >
-              <option value="">Selecione</option>
-              {fornecedoresAtivos.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Unidade comercial *</label>
-          <input
-            type="text"
-            value={dados.unidade_comercial}
-            onChange={(e) => atualizarCampo('unidade_comercial', e.target.value)}
-            placeholder="kg, pacote, caixa, fardo, peça..."
-            style={campoEstilo}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Apresentação</label>
-          <input
-            type="text"
-            value={dados.apresentacao}
-            onChange={(e) => atualizarCampo('apresentacao', e.target.value)}
-            placeholder='Opcional — ex.: "Caixa com 12 unidades"'
-            style={campoEstilo}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Quantidade por embalagem</label>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={dados.quantidade_embalagem}
-            onChange={(e) => atualizarCampo('quantidade_embalagem', e.target.value)}
-            placeholder="Opcional — quantas unidades-base equivalem a 1 unidade comercial"
-            style={campoEstilo}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Código do produto no fornecedor</label>
-          <input
-            type="text"
-            value={dados.codigo_produto_fornecedor}
-            onChange={(e) => atualizarCampo('codigo_produto_fornecedor', e.target.value)}
-            placeholder="Opcional"
-            style={campoEstilo}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Observação</label>
-          <textarea
-            value={dados.observacao}
-            onChange={(e) => atualizarCampo('observacao', e.target.value)}
-            style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px', backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '5px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-            <input
-              type="checkbox"
-              checked={dados.controla_sacos_fechados}
-              onChange={(e) => atualizarCampo('controla_sacos_fechados', e.target.checked)}
-            />
-            Controlar sacos fechados
-          </label>
-          <p style={{ fontSize: '12px', color: '#666', marginTop: '6px', marginBottom: dados.controla_sacos_fechados ? '10px' : 0 }}>
-            Sacos Fechados (Produção) só funciona para produtos cuja unidade-base seja KG.
-            {unidadeNaoEhKg && (
-              <strong style={{ color: '#e65100' }}>
-                {' '}
-                Este produto está cadastrado com unidade-base "{produtoUnidadeMedida}" — abrir sacos desta
-                configuração será rejeitado pelo sistema até a unidade do produto ser KG.
-              </strong>
-            )}
-          </p>
-
-          {dados.controla_sacos_fechados && (
-            <div>
-              <label style={rotuloEstilo}>Peso por saco (kg) *</label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={dados.peso_por_saco_kg}
-                onChange={(e) => atualizarCampo('peso_por_saco_kg', e.target.value)}
-                placeholder="Ex.: 8"
-                style={campoEstilo}
-              />
-              {estaEditando && configuracao?.controla_sacos_fechados && (
-                <p style={{ fontSize: '11px', color: '#999', marginTop: '4px', marginBottom: 0 }}>
-                  Se já existir alguma movimentação de sacos fechados para esta configuração, o banco impede
-                  alterar este peso — cadastre uma nova configuração comercial nesse caso.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {estaEditando && (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-              <input
-                type="checkbox"
-                checked={dados.ativo}
-                onChange={(e) => atualizarCampo('ativo', e.target.checked)}
-              />
-              Configuração ativa
-            </label>
-          </div>
+    <Modal
+      titulo={estaEditando ? 'Editar configuração comercial' : 'Nova configuração comercial'}
+      onFechar={salvando ? undefined : onFechar}
+      largura="md"
+    >
+      <Field label={`Fornecedor ${!estaEditando ? '*' : ''}`.trim()} className={estilos.secao}>
+        {estaEditando ? (
+          <p>{configuracao.fornecedorNome}</p>
+        ) : (
+          <Select value={dados.fornecedor_id} onChange={(e) => atualizarCampo('fornecedor_id', e.target.value)}>
+            <option value="">Selecione</option>
+            {fornecedoresAtivos.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </Select>
         )}
+      </Field>
 
-        {erro && <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>}
+      <Field label="Unidade comercial *" className={estilos.secao}>
+        <Input
+          type="text"
+          value={dados.unidade_comercial}
+          onChange={(e) => atualizarCampo('unidade_comercial', e.target.value)}
+          placeholder="kg, pacote, caixa, fardo, peça..."
+        />
+      </Field>
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={salvando}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#999',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={salvar}
-            disabled={salvando}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
-        </div>
+      <Field label="Apresentação" className={estilos.secao}>
+        <Input
+          type="text"
+          value={dados.apresentacao}
+          onChange={(e) => atualizarCampo('apresentacao', e.target.value)}
+          placeholder='Opcional — ex.: "Caixa com 12 unidades"'
+        />
+      </Field>
+
+      <Field label="Quantidade por embalagem" className={estilos.secao}>
+        <Input
+          type="number"
+          min="0"
+          step="any"
+          value={dados.quantidade_embalagem}
+          onChange={(e) => atualizarCampo('quantidade_embalagem', e.target.value)}
+          placeholder="Opcional — quantas unidades-base equivalem a 1 unidade comercial"
+        />
+      </Field>
+
+      <Field label="Código do produto no fornecedor" className={estilos.secao}>
+        <Input
+          type="text"
+          value={dados.codigo_produto_fornecedor}
+          onChange={(e) => atualizarCampo('codigo_produto_fornecedor', e.target.value)}
+          placeholder="Opcional"
+        />
+      </Field>
+
+      <Field label="Observação" className={estilos.secao}>
+        <Textarea value={dados.observacao} onChange={(e) => atualizarCampo('observacao', e.target.value)} rows={3} />
+      </Field>
+
+      <div className={cx(estilos.itemConfig, estilos.secao)}>
+        <Checkbox
+          rotulo="Controlar sacos fechados"
+          checked={dados.controla_sacos_fechados}
+          onChange={(e) => atualizarCampo('controla_sacos_fechados', e.target.checked)}
+        />
+        <p className={estilos.itemConfigDetalhe}>
+          Sacos Fechados (Produção) só funciona para produtos cuja unidade-base seja KG.
+          {unidadeNaoEhKg && (
+            <strong>
+              {' '}
+              Este produto está cadastrado com unidade-base "{produtoUnidadeMedida}" — abrir sacos desta
+              configuração será rejeitado pelo sistema até a unidade do produto ser KG.
+            </strong>
+          )}
+        </p>
+
+        {dados.controla_sacos_fechados && (
+          <Field label="Peso por saco (kg) *">
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={dados.peso_por_saco_kg}
+              onChange={(e) => atualizarCampo('peso_por_saco_kg', e.target.value)}
+              placeholder="Ex.: 8"
+            />
+            {estaEditando && configuracao?.controla_sacos_fechados && (
+              <p className={estilos.itemConfigDetalhe}>
+                Se já existir alguma movimentação de sacos fechados para esta configuração, o banco impede
+                alterar este peso — cadastre uma nova configuração comercial nesse caso.
+              </p>
+            )}
+          </Field>
+        )}
       </div>
-    </div>
+
+      {estaEditando && (
+        <div className={estilos.secao}>
+          <Checkbox
+            rotulo="Configuração ativa"
+            checked={dados.ativo}
+            onChange={(e) => atualizarCampo('ativo', e.target.checked)}
+          />
+        </div>
+      )}
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <div className={estilos.rodape}>
+        <Button variante="secondary" onClick={onFechar} disabled={salvando}>
+          Cancelar
+        </Button>
+        <Button onClick={salvar} disabled={salvando}>
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </Button>
+      </div>
+    </Modal>
   );
 }

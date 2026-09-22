@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { BotaoIconeAcao, IconeLapis, IconeLixeira, IconeCheck, IconeCancelar } from '../producao/IconesAcoes';
 import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
+import Button from '../ui/Button';
+import IconButton from '../ui/IconButton';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import { cx } from '../../lib/design/cx';
 import { createClient } from '../../lib/supabase/client';
+import estilos from './catalogo.module.css';
 
 // Modal "Gerenciar classificações" de /catalogo -- duas áreas
 // independentes (Seções, Categorias), SEM relação/hierarquia entre elas
@@ -60,7 +65,7 @@ function mensagemErroExclusaoClassificacao(error, nomeSingularCapitalizado) {
   return 'Não foi possível excluir esta classificação. Ela pode estar em uso por produtos.';
 }
 
-function BlocoClassificacao({ titulo, nomeSingular, nomeSingularCapitalizado, itens, podeEditar, corPrimaria, tabela, rpcExcluir, campoIdRpc, aoAtualizar }) {
+function BlocoClassificacao({ titulo, nomeSingular, nomeSingularCapitalizado, itens, podeEditar, tabela, rpcExcluir, campoIdRpc, aoAtualizar }) {
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erroCriar, setErroCriar] = useState('');
@@ -174,44 +179,29 @@ function BlocoClassificacao({ titulo, nomeSingular, nomeSingularCapitalizado, it
   }
 
   return (
-    <div style={{ flex: '1 1 260px', minWidth: '260px' }}>
-      <h4 style={{ margin: '0 0 10px 0', color: corPrimaria }}>{titulo}</h4>
+    <div className={estilos.blocoClassificacao}>
+      <h4 className={estilos.blocoClassificacaoTitulo}>{titulo}</h4>
 
       {podeEditar && (
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-          <input
+        <div className={estilos.criarClassificacao}>
+          <Input
             type="text"
             value={novoNome}
             onChange={(e) => setNovoNome(e.target.value)}
             placeholder={`Nova ${nomeSingular}`}
-            style={{ flex: 1, padding: '7px', border: '1px solid #ddd', borderRadius: '5px', fontSize: '13px' }}
+            aria-label={`Nova ${nomeSingular}`}
           />
-          <button
-            type="button"
-            onClick={criar}
-            disabled={criando}
-            style={{
-              padding: '7px 12px',
-              backgroundColor: corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: criando ? 'not-allowed' : 'pointer',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <Button tamanho="sm" onClick={criar} disabled={criando}>
             {criando ? 'Aguarde...' : '+ Nova'}
-          </button>
+          </Button>
         </div>
       )}
-      {erroCriar && <p style={{ color: '#f44336', fontSize: '13px', marginTop: '-4px', marginBottom: '10px' }}>{erroCriar}</p>}
+      {erroCriar && <p className={estilos.linhaErro}>{erroCriar}</p>}
 
       {itens.length === 0 ? (
-        <p style={{ color: '#666', fontSize: '13px' }}>Nenhuma {nomeSingular} cadastrada.</p>
+        <p>Nenhuma {nomeSingular} cadastrada.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '260px', overflowY: 'auto' }}>
+        <div className={estilos.listaClassificacao}>
           {itens.map((item) => {
             const emEdicao = idEmEdicao === item.id;
             const salvandoEsteItem = salvandoId === item.id;
@@ -219,55 +209,48 @@ function BlocoClassificacao({ titulo, nomeSingular, nomeSingularCapitalizado, it
 
             return (
               <div key={item.id}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 8px',
-                    backgroundColor: emEdicao ? '#fff8e1' : '#f9f9f9',
-                    borderRadius: '5px',
-                  }}
-                >
+                <div className={cx(estilos.itemClassificacao, emEdicao && estilos.itemClassificacaoEmEdicao)}>
                   {emEdicao ? (
-                    <input
+                    <Input
                       type="text"
                       value={nomeEditado}
                       onChange={(e) => setNomeEditado(e.target.value)}
-                      style={{ flex: 1, padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '13px' }}
+                      className={estilos.itemClassificacaoNome}
+                      aria-label={`Renomear ${nomeSingular}`}
                     />
                   ) : (
-                    <span style={{ flex: 1, fontSize: '14px' }}>{item.nome}</span>
+                    <span className={estilos.itemClassificacaoNome}>{item.nome}</span>
                   )}
 
                   {podeEditar && (
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className={estilos.itemClassificacaoAcoes}>
                       {emEdicao ? (
                         <>
-                          <BotaoIconeAcao
+                          <IconButton
                             rotulo="Salvar"
-                            icone={IconeCheck}
-                            cor="#4CAF50"
+                            icone="check"
+                            tamanho="sm"
                             disabled={salvandoEsteItem}
                             onClick={() => salvarEdicao(item.id)}
                           />
-                          <BotaoIconeAcao
+                          <IconButton
                             rotulo="Cancelar"
-                            icone={IconeCancelar}
+                            icone="undo"
+                            tamanho="sm"
                             disabled={salvandoEsteItem}
                             onClick={cancelarEdicao}
                           />
                         </>
                       ) : (
                         <>
-                          <BotaoIconeAcao rotulo="Renomear" icone={IconeLapis} cor={corPrimaria} onClick={() => abrirEdicao(item)} />
-                          <BotaoIconeAcao rotulo="Excluir" icone={IconeLixeira} destrutivo onClick={() => pedirExclusao(item)} />
+                          <IconButton rotulo="Renomear" icone="pencil" tamanho="sm" onClick={() => abrirEdicao(item)} />
+                          <IconButton rotulo="Excluir" icone="trash" tom="danger" tamanho="sm" onClick={() => pedirExclusao(item)} />
                         </>
                       )}
                     </div>
                   )}
                 </div>
-                {erroItem && <p style={{ color: '#f44336', fontSize: '12px', margin: '4px 0 0 4px' }}>{erroItem}</p>}
+                {erroItem && <p className={estilos.linhaErro}>{erroItem}</p>}
               </div>
             );
           })}
@@ -282,92 +265,54 @@ function BlocoClassificacao({ titulo, nomeSingular, nomeSingularCapitalizado, it
               Tem certeza que deseja excluir <strong>{itemParaExcluir.nome}</strong>?
             </>
           }
-          corPrimaria={corPrimaria}
           perigo
           textoConfirmar="Excluir"
           confirmando={excluindo}
           erro={erroExclusao}
           onConfirmar={confirmarExclusao}
           onCancelar={cancelarExclusao}
+          modalDS
         />
       )}
     </div>
   );
 }
 
-const overlayEstilo = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-  padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white',
-  padding: '25px',
-  borderRadius: '10px',
-  maxWidth: '640px',
-  width: '100%',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
-
-export default function GerenciarClassificacoesModal({ aberto, onFechar, secoes, categorias, podeEditar, corPrimaria = '#8B4513', aoAtualizarSecoes, aoAtualizarCategorias }) {
+export default function GerenciarClassificacoesModal({ aberto, onFechar, secoes, categorias, podeEditar, aoAtualizarSecoes, aoAtualizarCategorias }) {
   if (!aberto) return null;
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h3 style={{ margin: 0, color: corPrimaria }}>Gerenciar classificações</h3>
-          <button
-            type="button"
-            onClick={onFechar}
-            style={{ padding: '6px 14px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-          >
-            Fechar
-          </button>
-        </div>
+    <Modal titulo="Gerenciar classificações" onFechar={onFechar} largura="lg">
+      {!podeEditar && (
+        <p className={estilos.nota}>
+          Você pode visualizar as classificações existentes. Criar, renomear ou excluir exige a permissão de edição do Catálogo.
+        </p>
+      )}
 
-        {!podeEditar && (
-          <p style={{ color: '#666', fontSize: '13px', marginTop: 0 }}>
-            Você pode visualizar as classificações existentes. Criar, renomear ou excluir exige a permissão de edição do Catálogo.
-          </p>
-        )}
-
-        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-          <BlocoClassificacao
-            titulo="Seções"
-            nomeSingular="seção"
-            nomeSingularCapitalizado="Seção"
-            itens={secoes}
-            podeEditar={podeEditar}
-            corPrimaria={corPrimaria}
-            tabela="catalogo_secoes"
-            rpcExcluir="excluir_catalogo_secao"
-            campoIdRpc="p_secao_id"
-            aoAtualizar={aoAtualizarSecoes}
-          />
-          <BlocoClassificacao
-            titulo="Categorias"
-            nomeSingular="categoria"
-            nomeSingularCapitalizado="Categoria"
-            itens={categorias}
-            podeEditar={podeEditar}
-            corPrimaria={corPrimaria}
-            tabela="catalogo_categorias"
-            rpcExcluir="excluir_catalogo_categoria"
-            campoIdRpc="p_categoria_id"
-            aoAtualizar={aoAtualizarCategorias}
-          />
-        </div>
+      <div className={estilos.classificacoes}>
+        <BlocoClassificacao
+          titulo="Seções"
+          nomeSingular="seção"
+          nomeSingularCapitalizado="Seção"
+          itens={secoes}
+          podeEditar={podeEditar}
+          tabela="catalogo_secoes"
+          rpcExcluir="excluir_catalogo_secao"
+          campoIdRpc="p_secao_id"
+          aoAtualizar={aoAtualizarSecoes}
+        />
+        <BlocoClassificacao
+          titulo="Categorias"
+          nomeSingular="categoria"
+          nomeSingularCapitalizado="Categoria"
+          itens={categorias}
+          podeEditar={podeEditar}
+          tabela="catalogo_categorias"
+          rpcExcluir="excluir_catalogo_categoria"
+          campoIdRpc="p_categoria_id"
+          aoAtualizar={aoAtualizarCategorias}
+        />
       </div>
-    </div>
+    </Modal>
   );
 }

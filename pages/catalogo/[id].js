@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import DadosProdutoForm from '../../components/catalogo/DadosProdutoForm';
 import FornecedoresDoProduto from '../../components/catalogo/FornecedoresDoProduto';
 import HistoricoComprasDoProduto from '../../components/catalogo/HistoricoComprasDoProduto';
 import ResumoPrecos from '../../components/catalogo/ResumoPrecos';
+import PageShell from '../../components/shell/PageShell';
+import PageHeader from '../../components/ui/PageHeader';
+import Alert from '../../components/ui/Alert';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
-import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import estilos from '../../components/catalogo/catalogo.module.css';
 
 // Mesmo critério de nome de exibição já usado em pages/fornecedores.js
 // (nome_fantasia como principal, nome legado como fallback).
@@ -41,8 +44,6 @@ function ProdutoDetalheConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erroCarga, setErroCarga] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
-
-  const aparencia = APARENCIA_FIXA;
 
   useEffect(() => {
     if (!id) return undefined;
@@ -112,20 +113,19 @@ function ProdutoDetalheConteudo() {
   }
 
   if (carregando) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Carregando…</div>;
+    return (
+      <PageShell titulo="Catálogo">
+        <p className={estilos.carregando} role="status">Carregando…</p>
+      </PageShell>
+    );
   }
 
   if (erroCarga || !produto) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        <p style={{ color: '#f44336' }}>{erroCarga || 'Produto não encontrado.'}</p>
-        <button
-          onClick={() => router.push('/catalogo')}
-          style={{ padding: '10px 20px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-        >
-          Voltar
-        </button>
-      </div>
+      <PageShell titulo="Catálogo">
+        <Alert tom="danger" className={estilos.mensagem}>{erroCarga || 'Produto não encontrado.'}</Alert>
+        <Button onClick={() => router.push('/catalogo')}>Voltar</Button>
+      </PageShell>
     );
   }
 
@@ -134,57 +134,48 @@ function ProdutoDetalheConteudo() {
   const configuracoesAtivas = configuracoes.filter((c) => c.ativo);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Catálogo" />
+    <PageShell titulo={produto.nome}>
+      <PageHeader
+        titulo={produto.nome}
+        acoes={
+          <Button variante="secondary" onClick={() => router.push('/catalogo')}>
+            ← Voltar para o catálogo
+          </Button>
+        }
+      />
 
-      <div style={{ maxWidth: '1000px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
+      <div className={estilos.cards}>
+        <Card titulo="Dados do produto">
+          <DadosProdutoForm produto={produto} podeEditar={podeEditar} onSalvo={recarregar} />
+        </Card>
 
-        <button
-          onClick={() => router.push('/catalogo')}
-          style={{ padding: '8px 16px', backgroundColor: 'white', color: aparencia.corPrimaria, border: `1px solid ${aparencia.corPrimaria}`, borderRadius: '5px', cursor: 'pointer', marginBottom: '20px' }}
-        >
-          ← Voltar para o catálogo
-        </button>
-
-        {/* Card: Dados do produto */}
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>{produto.nome}</h2>
-          <DadosProdutoForm produto={produto} corPrimaria={aparencia.corPrimaria} podeEditar={podeEditar} onSalvo={recarregar} />
-        </div>
-
-        {/* Card: Resumo de preços */}
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+        <Card>
           <ResumoPrecos resumo={resumo} fornecedoresPorId={fornecedoresPorId} unidadeBase={produto.unidade_medida} />
-        </div>
+        </Card>
 
-        {/* Card: Fornecedores */}
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
+        <Card>
           <FornecedoresDoProduto
             produtoId={produto.id}
             produtoUnidadeMedida={produto.unidade_medida}
             configuracoes={configuracoes}
             fornecedoresAtivos={fornecedoresAtivos}
             podeEditar={podeEditar}
-            corPrimaria={aparencia.corPrimaria}
             onRecarregar={recarregar}
           />
-        </div>
+        </Card>
 
-        {/* Card: Histórico de compras */}
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+        <Card>
           <HistoricoComprasDoProduto
             produtoId={produto.id}
             lancamentos={lancamentos}
             configuracoesComerciais={configuracoesAtivas}
             fornecedoresAtivos={fornecedoresAtivos}
             podeEditar={podeEditar}
-            corPrimaria={aparencia.corPrimaria}
             onRecarregar={recarregar}
           />
-        </div>
+        </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

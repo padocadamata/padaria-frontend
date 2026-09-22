@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import ConfiguracaoComercialForm from './ConfiguracaoComercialForm';
-import { BotaoIconeAcao, IconeLapis, IconeLixeira } from '../producao/IconesAcoes';
 import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
+import Alert from '../ui/Alert';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import IconButton from '../ui/IconButton';
+import SectionHeader from '../ui/SectionHeader';
 import { createClient } from '../../lib/supabase/client';
+import estilos from './catalogo.module.css';
 
 // Card "Fornecedores" de /catalogo/[id]. Diferente de
 // FornecedorRegras.js (que busca seus próprios dados por fornecedorId),
@@ -11,7 +17,7 @@ import { createClient } from '../../lib/supabase/client';
 // opcional em LancarCompraForm), então a busca fica centralizada em
 // pages/catalogo/[id].js para não duplicar a query nem arriscar as duas
 // listas ficarem dessincronizadas entre si.
-export default function FornecedoresDoProduto({ produtoId, produtoUnidadeMedida, configuracoes, fornecedoresAtivos, podeEditar, corPrimaria = '#8B4513', onRecarregar }) {
+export default function FornecedoresDoProduto({ produtoId, produtoUnidadeMedida, configuracoes, fornecedoresAtivos, podeEditar, onRecarregar }) {
   const [mostrarInativas, setMostrarInativas] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [configEmEdicao, setConfigEmEdicao] = useState(null);
@@ -84,112 +90,60 @@ export default function FornecedoresDoProduto({ produtoId, produtoUnidadeMedida,
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-        <h3 style={{ margin: 0 }}>Fornecedores</h3>
+      <SectionHeader
+        titulo="Fornecedores"
+        acao={podeEditar && <Button tamanho="sm" icone="plus" onClick={abrirNovaConfiguracao}>Nova configuração</Button>}
+      />
 
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={abrirNovaConfiguracao}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '13px',
-            }}
-          >
-            + Nova configuração
-          </button>
-        )}
-      </div>
+      <Checkbox
+        rotulo="Mostrar configurações inativas"
+        checked={mostrarInativas}
+        onChange={(e) => setMostrarInativas(e.target.checked)}
+        className={estilos.mostrarInativas}
+      />
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '14px' }}>
-        <input type="checkbox" checked={mostrarInativas} onChange={(e) => setMostrarInativas(e.target.checked)} />
-        Mostrar configurações inativas
-      </label>
-
-      {mensagemSucesso && <p style={{ color: '#4CAF50', fontWeight: 'bold', marginBottom: '10px' }}>{mensagemSucesso}</p>}
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
       {configuracoesVisiveis.length === 0 ? (
-        <p style={{ color: '#666' }}>Nenhum fornecedor cadastrado para este produto.</p>
+        <p>Nenhum fornecedor cadastrado para este produto.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className={estilos.listaConfig}>
           {configuracoesVisiveis.map((config) => (
-            <div
-              key={config.id}
-              style={{
-                backgroundColor: '#f9f9f9',
-                padding: '10px 15px',
-                borderRadius: '5px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: '10px',
-                flexWrap: 'wrap',
-              }}
-            >
+            <div key={config.id} className={estilos.itemConfig}>
               <div>
-                <div style={{ fontWeight: 'bold' }}>
+                <div className={estilos.itemConfigTitulo}>
                   {config.fornecedorNome} — {config.unidade_comercial}
                   {config.apresentacao ? ` (${config.apresentacao})` : ''}
-                  {!config.ativo && (
-                    <span
-                      style={{
-                        marginLeft: '8px',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        color: 'white',
-                        backgroundColor: '#9e9e9e',
-                      }}
-                    >
-                      Inativa
-                    </span>
-                  )}
+                  {!config.ativo && <Badge tom="neutral">Inativa</Badge>}
                 </div>
 
                 {config.quantidade_embalagem != null && (
-                  <div style={{ fontSize: '13px', color: '#666' }}>
+                  <div className={estilos.itemConfigDetalhe}>
                     1 {config.unidade_comercial} = {config.quantidade_embalagem} unidade(s)-base
                   </div>
                 )}
 
                 {config.controla_sacos_fechados && (
-                  <div style={{ fontSize: '13px', color: '#8B4513' }}>
+                  <div className={estilos.itemConfigDetalhe}>
                     Controla sacos fechados — {config.peso_por_saco_kg} kg/saco
                   </div>
                 )}
 
                 {config.codigo_produto_fornecedor && (
-                  <div style={{ fontSize: '13px', color: '#666' }}>
+                  <div className={estilos.itemConfigDetalhe}>
                     Código no fornecedor: {config.codigo_produto_fornecedor}
                   </div>
                 )}
 
                 {config.observacao && (
-                  <div style={{ fontSize: '13px', color: '#666', fontStyle: 'italic' }}>{config.observacao}</div>
+                  <div className={estilos.itemConfigObservacao}>{config.observacao}</div>
                 )}
               </div>
 
               {podeEditar && (
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <BotaoIconeAcao
-                    rotulo="Editar configuração"
-                    icone={IconeLapis}
-                    cor={corPrimaria}
-                    onClick={() => abrirEdicaoConfiguracao(config)}
-                  />
-                  <BotaoIconeAcao
-                    rotulo="Excluir configuração"
-                    icone={IconeLixeira}
-                    destrutivo
-                    onClick={() => pedirExclusao(config)}
-                  />
+                <div className={estilos.itemConfigAcoes}>
+                  <IconButton rotulo="Editar configuração" icone="pencil" tamanho="sm" onClick={() => abrirEdicaoConfiguracao(config)} />
+                  <IconButton rotulo="Excluir configuração" icone="trash" tom="danger" tamanho="sm" onClick={() => pedirExclusao(config)} />
                 </div>
               )}
             </div>
@@ -203,7 +157,6 @@ export default function FornecedoresDoProduto({ produtoId, produtoUnidadeMedida,
           produtoUnidadeMedida={produtoUnidadeMedida}
           fornecedoresAtivos={fornecedoresAtivos}
           configuracao={configEmEdicao}
-          corPrimaria={corPrimaria}
           onFechar={fecharModal}
           onSalvo={aoSalvar}
         />
@@ -220,13 +173,13 @@ export default function FornecedoresDoProduto({ produtoId, produtoUnidadeMedida,
               Esta ação é definitiva e não pode ser desfeita.
             </>
           }
-          corPrimaria={corPrimaria}
           perigo
           textoConfirmar="Excluir"
           confirmando={excluindo}
           erro={erroExclusao}
           onConfirmar={confirmarExclusao}
           onCancelar={cancelarExclusao}
+          modalDS
         />
       )}
     </div>

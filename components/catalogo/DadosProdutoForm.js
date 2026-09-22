@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Select from '../ui/Select';
+import { cx } from '../../lib/design/cx';
+import estilos from './catalogo.module.css';
 
 // Mesmo componente para /catalogo/novo (produto=null) e para o Card
 // "Dados do produto" de /catalogo/[id] (produto preenchido) — mesmo
@@ -138,16 +146,6 @@ export function mensagemErroProducao(error) {
   return 'Não foi possível atualizar o estado de Produto de Produção. Tente novamente ou avise um administrador.';
 }
 
-const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' };
-
-const campoEstilo = {
-  width: '100%',
-  padding: '8px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-};
-
 // Controle "Produto de Produção" -- usado tanto na criação (estado local,
 // ainda sem produto_id) quanto na edição (estado real vindo do banco via
 // catalogo_produto_id). Nunca um terceiro estado inventado: em edição,
@@ -155,16 +153,8 @@ const campoEstilo = {
 // da leitura inicial), nunca um valor otimista não confirmado.
 function ControleProducao({ checked, disabled, processando, motivoDesabilitado, onChange }) {
   return (
-    <div style={{ marginBottom: '15px' }}>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontWeight: 'bold',
-          color: disabled ? '#999' : '#000',
-        }}
-      >
+    <div className={estilos.producaoControle}>
+      <label className={cx(estilos.producaoLabel, disabled && estilos.producaoLabelDesabilitado)}>
         <input
           type="checkbox"
           checked={checked}
@@ -172,9 +162,9 @@ function ControleProducao({ checked, disabled, processando, motivoDesabilitado, 
           onChange={(e) => onChange(e.target.checked)}
         />
         Produto de Produção
-        {processando && <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#666' }}>Atualizando...</span>}
+        {processando && <span className={estilos.producaoAtualizando}>Atualizando...</span>}
       </label>
-      <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 26px' }}>
+      <p className={estilos.producaoAjuda}>
         {disabled && motivoDesabilitado
           ? motivoDesabilitado
           : 'Quando marcado, o produto passa a ter uma extensão em Produção > Produtos, onde a ficha técnica e os parâmetros operacionais são configurados.'}
@@ -183,7 +173,7 @@ function ControleProducao({ checked, disabled, processando, motivoDesabilitado, 
   );
 }
 
-export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', podeEditar, onCriado, onSalvo }) {
+export default function DadosProdutoForm({ produto, podeEditar, onCriado, onSalvo }) {
   const estaEditando = produto != null;
   const [dados, setDados] = useState(() => estadoInicial(produto));
   const [salvando, setSalvando] = useState(false);
@@ -409,7 +399,7 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
     const secaoNome = secoes.find((s) => s.id === produto.secao_id)?.nome;
     const categoriaNome = categorias.find((c) => c.id === produto.categoria_id)?.nome;
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+      <div className={estilos.grade}>
         <CampoLeitura rotulo="Nome" valor={produto.nome} />
         <CampoLeitura rotulo="Código G3" valor={produto.codigo_g3} />
         <CampoLeitura rotulo="Código de barras" valor={produto.codigo_barras} />
@@ -428,25 +418,9 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
   if (avisoPosCriacao) {
     return (
       <div>
-        <p style={{ color: '#a15c00', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '5px', fontWeight: 'bold' }}>
-          {avisoPosCriacao.mensagem}
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={() => onCriado(avisoPosCriacao.novoId)}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: corPrimaria,
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            Continuar para o produto
-          </button>
+        <p className={estilos.avisoPosCriacao}>{avisoPosCriacao.mensagem}</p>
+        <div className={estilos.rodape}>
+          <Button onClick={() => onCriado(avisoPosCriacao.novoId)}>Continuar para o produto</Button>
         </div>
       </div>
     );
@@ -464,93 +438,67 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '15px' }}>
-        <div>
-          <label style={rotuloEstilo}>Nome *</label>
-          <input
-            type="text"
-            value={dados.nome}
-            onChange={(e) => atualizarCampo('nome', e.target.value)}
-            style={campoEstilo}
-          />
-        </div>
+      <div className={cx(estilos.grade, estilos.secao)}>
+        <Field label="Nome *">
+          <Input type="text" value={dados.nome} onChange={(e) => atualizarCampo('nome', e.target.value)} />
+        </Field>
 
-        <div>
-          <label style={rotuloEstilo}>Código G3</label>
-          <input
+        <Field label="Código G3">
+          <Input
             type="text"
             value={dados.codigo_g3}
             onChange={(e) => atualizarCampo('codigo_g3', e.target.value)}
             placeholder="Opcional"
-            style={campoEstilo}
           />
-        </div>
+        </Field>
 
-        <div>
-          <label style={rotuloEstilo}>Código de barras</label>
-          <input
+        <Field label="Código de barras">
+          <Input
             type="text"
             value={dados.codigo_barras}
             onChange={(e) => atualizarCampo('codigo_barras', e.target.value)}
             placeholder="Opcional"
-            style={campoEstilo}
           />
-        </div>
+        </Field>
 
-        <div>
-          <label style={rotuloEstilo}>Seção</label>
-          <select
-            value={dados.secao_id}
-            onChange={(e) => atualizarCampo('secao_id', e.target.value)}
-            style={campoEstilo}
-          >
+        <Field label="Seção">
+          <Select value={dados.secao_id} onChange={(e) => atualizarCampo('secao_id', e.target.value)}>
             <option value="">— Nenhuma —</option>
             {secoes.map((s) => (
               <option key={s.id} value={s.id}>{s.nome}</option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
 
-        <div>
-          <label style={rotuloEstilo}>Categoria</label>
-          <select
-            value={dados.categoria_id}
-            onChange={(e) => atualizarCampo('categoria_id', e.target.value)}
-            style={campoEstilo}
-          >
+        <Field label="Categoria">
+          <Select value={dados.categoria_id} onChange={(e) => atualizarCampo('categoria_id', e.target.value)}>
             <option value="">— Nenhuma —</option>
             {categorias.map((c) => (
               <option key={c.id} value={c.id}>{c.nome}</option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
 
-        <div>
-          <label style={rotuloEstilo}>Unidade-base</label>
-          <input
+        <Field
+          label="Unidade-base"
+          dica="Unidade usada para comparar preços deste produto — não precisa coincidir com a unidade de compra de nenhum fornecedor específico."
+        >
+          <Input
             type="text"
             value={dados.unidade_medida}
             onChange={(e) => atualizarCampo('unidade_medida', e.target.value)}
             placeholder="kg, un, pacote..."
-            style={campoEstilo}
           />
-          <p style={{ fontSize: '12px', color: '#999', marginTop: '4px', marginBottom: 0 }}>
-            Unidade usada para comparar preços deste produto — não precisa coincidir com a unidade de compra de
-            nenhum fornecedor específico.
-          </p>
-        </div>
+        </Field>
       </div>
 
       {estaEditando && (
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-            <input
-              type="checkbox"
-              checked={dados.ativo}
-              onChange={(e) => atualizarAtivo(e.target.checked)}
-            />
-            Produto ativo
-          </label>
+        <div className={estilos.secao}>
+          <Checkbox
+            rotulo="Produto ativo"
+            checked={dados.ativo}
+            onChange={(e) => atualizarAtivo(e.target.checked)}
+          />
         </div>
       )}
 
@@ -577,29 +525,14 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
         />
       )}
 
-      {producaoErro && (
-        <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{producaoErro}</p>
-      )}
+      {producaoErro && <Alert tom="danger" className={estilos.mensagem}>{producaoErro}</Alert>}
 
-      {erro && <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>}
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          type="button"
-          onClick={salvar}
-          disabled={salvando}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: corPrimaria,
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: salvando ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold',
-          }}
-        >
+      <div className={estilos.rodape}>
+        <Button onClick={salvar} disabled={salvando}>
           {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : 'Criar produto'}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -608,8 +541,8 @@ export default function DadosProdutoForm({ produto, corPrimaria = '#8B4513', pod
 function CampoLeitura({ rotulo, valor }) {
   return (
     <div>
-      <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#666', marginBottom: '2px' }}>{rotulo}</div>
-      <div>{valor || '—'}</div>
+      <div className={estilos.leituraRotulo}>{rotulo}</div>
+      <div className={estilos.leituraValor}>{valor || '—'}</div>
     </div>
   );
 }
