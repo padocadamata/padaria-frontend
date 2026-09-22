@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import FornecedorRegraForm from './FornecedorRegraForm';
+import Alert from '../ui/Alert';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import EmptyState from '../ui/EmptyState';
+import estilos from './fornecedores.module.css';
 
 const DIAS_SEMANA_LABEL = {
   1: 'Segunda-feira',
@@ -127,143 +133,58 @@ export default function FornecedorRegras({ fornecedorId, permissoes }) {
   const regrasVisiveis = mostrarInativas ? regras : regras.filter((regra) => regra.ativo);
 
   return (
-    <div
-      style={{
-        marginTop: '20px',
-        paddingTop: '20px',
-        borderTop: '1px solid #ddd',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '10px',
-          marginBottom: '10px',
-        }}
-      >
-        <h4 style={{ margin: 0 }}>Regras de pedido e entrega</h4>
+    <section className={estilos.regras} aria-label="Regras de pedido e entrega">
+      <div className={estilos.cabecalhoRegras}>
+        <h3>Regras de pedido e entrega</h3>
 
         {hasPermissao(permissoes, PERMISSOES.FORNECEDORES_INSERIR) && (
-          <button
-            type="button"
-            onClick={abrirNovaRegra}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#8B4513',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '13px',
-            }}
-          >
-            + Nova regra
-          </button>
+          <Button tamanho="sm" icone="plus" onClick={abrirNovaRegra}>
+            Nova regra
+          </Button>
         )}
       </div>
 
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          marginBottom: '10px',
-          fontSize: '14px',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={mostrarInativas}
-          onChange={(e) => setMostrarInativas(e.target.checked)}
-        />
-        Mostrar regras inativas
-      </label>
+      <Checkbox
+        rotulo="Mostrar regras inativas"
+        checked={mostrarInativas}
+        onChange={(e) => setMostrarInativas(e.target.checked)}
+      />
 
-      {mensagemSucesso && (
-        <p style={{ color: '#4CAF50', fontWeight: 'bold', marginBottom: '10px' }}>
-          {mensagemSucesso}
-        </p>
-      )}
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
       {carregando ? (
-        <p>Carregando regras...</p>
+        <p role="status">Carregando regras...</p>
       ) : erro ? (
-        <p style={{ color: '#f44336' }}>{erro}</p>
+        <Alert tom="danger">{erro}</Alert>
       ) : regrasVisiveis.length === 0 ? (
-        <p style={{ color: '#666' }}>Nenhuma regra ativa cadastrada.</p>
+        <EmptyState>Nenhuma regra ativa cadastrada.</EmptyState>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <ul className={estilos.listaRegras}>
           {regrasVisiveis.map((regra) => (
-            <div
-              key={regra.id}
-              style={{
-                backgroundColor: '#f9f9f9',
-                padding: '10px 15px',
-                borderRadius: '5px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: '10px',
-                flexWrap: 'wrap',
-              }}
-            >
+            <li key={regra.id} className={estilos.regra}>
               <div>
-                <div style={{ fontWeight: 'bold' }}>
-                  {descreverPedido(regra.dia_pedido)} → {descreverEntrega(regra)}
-                  {!regra.ativo && (
-                    <span
-                      style={{
-                        marginLeft: '8px',
-                        padding: '2px 8px',
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        color: 'white',
-                        backgroundColor: '#9e9e9e',
-                      }}
-                    >
-                      Inativa
-                    </span>
-                  )}
+                <div className={estilos.regraTitulo}>
+                  <span>
+                    {descreverPedido(regra.dia_pedido)} → {descreverEntrega(regra)}
+                  </span>
+                  {!regra.ativo && <Badge tom="neutral">Inativa</Badge>}
                 </div>
 
                 {formatarHorario(regra.horario_limite) && (
-                  <div style={{ fontSize: '13px', color: '#666' }}>
-                    Pedido até {formatarHorario(regra.horario_limite)}
-                  </div>
+                  <p className={estilos.regraDetalhe}>Pedido até {formatarHorario(regra.horario_limite)}</p>
                 )}
 
-                {regra.observacao && (
-                  <div style={{ fontSize: '13px', color: '#666', fontStyle: 'italic' }}>
-                    {regra.observacao}
-                  </div>
-                )}
+                {regra.observacao && <p className={estilos.regraObservacao}>{regra.observacao}</p>}
               </div>
 
               {hasPermissao(permissoes, PERMISSOES.FORNECEDORES_EDITAR) && (
-                <button
-                  type="button"
-                  onClick={() => abrirEdicaoRegra(regra)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                  }}
-                >
+                <Button variante="secondary" tamanho="sm" icone="pencil" onClick={() => abrirEdicaoRegra(regra)}>
                   Editar
-                </button>
+                </Button>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {modalRegraAberto && (
@@ -275,6 +196,6 @@ export default function FornecedorRegras({ fornecedorId, permissoes }) {
           onSalvo={aoSalvarRegra}
         />
       )}
-    </div>
+    </section>
   );
 }

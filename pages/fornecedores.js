@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react';
-import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import FornecedorForm from '../components/fornecedores/FornecedorForm';
+import PageShell from '../components/shell/PageShell';
+import PageHeader from '../components/ui/PageHeader';
+import Alert from '../components/ui/Alert';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import DataTable from '../components/ui/DataTable';
+import EmptyState from '../components/ui/EmptyState';
+import Field from '../components/ui/Field';
+import FilterBar from '../components/ui/FilterBar';
+import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
+import Paginacao, { paginarLista } from '../components/Paginacao';
+import estilos from '../components/fornecedores/fornecedores.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
-import { APARENCIA_FIXA } from '../lib/branding/tema';
 
 function apenasDigitos(valor) {
   return (valor || '').replace(/\D/g, '');
@@ -57,41 +67,13 @@ function formatarModalidade(modalidade) {
 }
 
 function BadgeStatus({ ativo }) {
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: ativo ? '#4CAF50' : '#9e9e9e',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {ativo ? 'Ativo' : 'Inativo'}
-    </span>
-  );
+  return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
 }
 
 function BadgeModalidade({ modalidade }) {
   const presencial = modalidade === 'compra_presencial';
 
-  return (
-    <span
-      style={{
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        color: 'white',
-        backgroundColor: presencial ? '#FF9800' : '#2196F3',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {formatarModalidade(modalidade)}
-    </span>
-  );
+  return <Badge tom={presencial ? 'warning' : 'info'}>{formatarModalidade(modalidade)}</Badge>;
 }
 
 function FornecedoresConteudo() {
@@ -104,13 +86,14 @@ function FornecedoresConteudo() {
   const [filtroStatus, setFiltroStatus] = useState('ativos');
   const [filtroModalidade, setFiltroModalidade] = useState('todas');
   const [busca, setBusca] = useState('');
+  // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS da
+  // busca/filtros -- ver `paginacao` abaixo).
+  const [pagina, setPagina] = useState(1);
 
   const [modalAberto, setModalAberto] = useState(false);
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
-
-  const aparencia = APARENCIA_FIXA;
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -254,6 +237,86 @@ function FornecedoresConteudo() {
     }
   );
 
+  // Paginação VISUAL (client-side, 20 por página): a lista já vem inteira do
+  // banco (filtro de Status na consulta; Modalidade e Buscar no navegador) e
+  // aqui só se fatia o resultado já filtrado e ordenado. Tabela (desktop) e
+  // cartões (mobile) recebem exatamente este mesmo subconjunto.
+  const paginacao = paginarLista(fornecedoresFiltrados, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Qualquer mudança de filtro/busca volta para a página 1.
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
+
+  // Resultado encolheu (filtro, recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
+  const quantidadeFiltrosAtivos = [
+    filtroStatus !== 'ativos',
+    filtroModalidade !== 'todas',
+    busca !== '',
+  ].filter(Boolean).length;
+
+  // Volta aos valores iniciais da tela (Status = Ativos, demais em "todas"/vazio).
+  function limparFiltros() {
+    setFiltroStatus('ativos');
+    setFiltroModalidade('todas');
+    setBusca('');
+    setPagina(1);
+  }
+
+  const podeEditar = hasPermissao(permissoes, PERMISSOES.FORNECEDORES_EDITAR);
+  const podeInserir = hasPermissao(permissoes, PERMISSOES.FORNECEDORES_INSERIR);
+
+  // UMA definição de colunas para a tabela (desktop) e os cartões (mobile).
+  const colunas = [
+    {
+      chave: 'nome',
+      rotulo: 'Nome',
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      render: (fornecedor) =>
+        fornecedor.nome_fantasia || fornecedor.razao_social || fornecedor.nome || '-',
+    },
+    {
+      chave: 'status',
+      rotulo: 'Status',
+      mobile: 'titulo',
+      cartaoOrdem: 1,
+      render: (fornecedor) => <BadgeStatus ativo={fornecedor.ativo} />,
+    },
+    {
+      chave: 'documento',
+      rotulo: 'Documento',
+      semQuebra: true,
+      render: (fornecedor) => formatarDocumento(fornecedor.documento, fornecedor.tipo_documento),
+    },
+    {
+      chave: 'contato',
+      rotulo: 'Contato',
+      soCartao: true, // some da tabela desktop (comprimia as demais); continua nos cartões mobile
+      render: (fornecedor) => (
+        <span className={estilos.contato}>{formatarContato(fornecedor.telefone, fornecedor.whatsapp)}</span>
+      ),
+    },
+    { chave: 'pagamento', rotulo: 'Forma de pagamento', render: (fornecedor) => fornecedor.forma_pagamento || '-' },
+    {
+      chave: 'modalidade',
+      rotulo: 'Modalidade',
+      render: (fornecedor) => <BadgeModalidade modalidade={fornecedor.modalidade_compra} />,
+    },
+  ];
+
+  // Ordem das colunas na tabela (como antes): Nome, Documento, Contato,
+  // Forma de pagamento, Modalidade, Status.
+  const colunasTabela = [colunas[0], colunas[2], colunas[3], colunas[4], colunas[5], colunas[1]];
+
   function abrirNovoFornecedor() {
     setFornecedorEmEdicao(null);
     setModalAberto(true);
@@ -284,430 +347,81 @@ function FornecedoresConteudo() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        backgroundColor: aparencia.corFundo,
-      }}
-    >
-      <CabecalhoPrincipal modulo="Fornecedores" />
+    <PageShell titulo="Fornecedores">
+      <PageHeader
+        titulo="Fornecedores"
+        acoes={
+          podeInserir && (
+            <Button icone="plus" onClick={abrirNovoFornecedor}>
+              Novo fornecedor
+            </Button>
+          )
+        }
+      />
 
-      <div
-        style={{
-          maxWidth: '1200px',
-          margin: '30px auto',
-          padding: '0 20px',
-        }}
-      >
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '10px',
-          }}
-        >
-          <h2
-            style={{
-              color: aparencia.corPrimaria,
-              margin: 0,
-            }}
-          >
-            Fornecedores
-          </h2>
+      <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+        <Field label="Buscar">
+          <Input
+            type="text"
+            value={busca}
+            onChange={(e) => alterarFiltro(setBusca)(e.target.value)}
+            placeholder="Nome, razão social, documento, telefone..."
+          />
+        </Field>
+        <Field label="Status">
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+            <option value="ativos">Ativos</option>
+            <option value="inativos">Inativos</option>
+            <option value="todos">Todos</option>
+          </Select>
+        </Field>
+        <Field label="Modalidade">
+          <Select value={filtroModalidade} onChange={(e) => alterarFiltro(setFiltroModalidade)(e.target.value)}>
+            <option value="todas">Todas</option>
+            <option value="pedido_com_entrega">Pedido com entrega</option>
+            <option value="compra_presencial">Compra presencial</option>
+          </Select>
+        </Field>
+      </FilterBar>
 
-          {hasPermissao(permissoes, PERMISSOES.FORNECEDORES_INSERIR) && (
-            <button
-              onClick={abrirNovoFornecedor}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: aparencia.corPrimaria,
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-            >
-              + Novo fornecedor
-            </button>
-          )}
-        </div>
-
-        {mensagemSucesso && (
-          <p
-            style={{
-              color: '#4CAF50',
-              fontWeight: 'bold',
-              marginTop: '10px',
-            }}
-          >
-            {mensagemSucesso}
-          </p>
-        )}
-
-        <div
-          style={{
-            backgroundColor: '#f9f9f9',
-            padding: '15px',
-            borderRadius: '5px',
-            marginBottom: '20px',
-            marginTop: '15px',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns:
-                'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '15px',
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  fontWeight: 'bold',
-                  display: 'block',
-                  marginBottom: '5px',
-                }}
-              >
-                Status
-              </label>
-
-              <select
-                value={filtroStatus}
-                onChange={(e) =>
-                  setFiltroStatus(e.target.value)
-                }
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="ativos">
-                  Ativos
-                </option>
-                <option value="inativos">
-                  Inativos
-                </option>
-                <option value="todos">
-                  Todos
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  fontWeight: 'bold',
-                  display: 'block',
-                  marginBottom: '5px',
-                }}
-              >
-                Modalidade
-              </label>
-
-              <select
-                value={filtroModalidade}
-                onChange={(e) =>
-                  setFiltroModalidade(e.target.value)
-                }
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="todas">
-                  Todas
-                </option>
-                <option value="pedido_com_entrega">
-                  Pedido com entrega
-                </option>
-                <option value="compra_presencial">
-                  Compra presencial
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  fontWeight: 'bold',
-                  display: 'block',
-                  marginBottom: '5px',
-                }}
-              >
-                Buscar
-              </label>
-
-              <input
-                type="text"
-                value={busca}
-                onChange={(e) =>
-                  setBusca(e.target.value)
-                }
-                placeholder="Nome, razão social, documento, telefone..."
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {carregando ? (
-          <p>Carregando fornecedores...</p>
-        ) : erro ? (
-          <p style={{ color: '#f44336' }}>
-            {erro}
-          </p>
-        ) : fornecedores.length === 0 ? (
-          <p>Nenhum fornecedor encontrado.</p>
-        ) : fornecedoresFiltrados.length === 0 ? (
-          <p>
-            Nenhum resultado para esta busca/filtro.
-          </p>
-        ) : (
-          <div
-            style={{
-              backgroundColor: 'white',
-              padding: '20px',
-              borderRadius: '5px',
-              boxShadow:
-                '0 2px 5px rgba(0,0,0,0.1)',
-              overflowX: 'auto',
-            }}
-          >
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    borderBottom:
-                      '2px solid #ddd',
-                  }}
-                >
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Nome
-                  </th>
-
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Documento
-                  </th>
-
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Contato
-                  </th>
-
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Forma de pagamento
-                  </th>
-
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Modalidade
-                  </th>
-
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Status
-                  </th>
-
-                  <th
-                    style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      color:
-                        aparencia.corPrimaria,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {fornecedoresFiltrados.map(
-                  (fornecedor) => (
-                    <tr
-                      key={fornecedor.id}
-                      style={{
-                        borderBottom:
-                          '1px solid #ddd',
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: '12px',
-                        }}
-                      >
-                        {fornecedor.nome_fantasia ||
-                          fornecedor.razao_social ||
-                          fornecedor.nome ||
-                          '-'}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '12px',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {formatarDocumento(
-                          fornecedor.documento,
-                          fornecedor.tipo_documento
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '12px',
-                        }}
-                      >
-                        {formatarContato(
-                          fornecedor.telefone,
-                          fornecedor.whatsapp
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '12px',
-                        }}
-                      >
-                        {fornecedor.forma_pagamento ||
-                          '-'}
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '12px',
-                        }}
-                      >
-                        <BadgeModalidade
-                          modalidade={
-                            fornecedor.modalidade_compra
-                          }
-                        />
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '12px',
-                        }}
-                      >
-                        <BadgeStatus
-                          ativo={fornecedor.ativo}
-                        />
-                      </td>
-
-                      <td
-                        style={{
-                          padding: '12px',
-                        }}
-                      >
-                        {hasPermissao(permissoes, PERMISSOES.FORNECEDORES_EDITAR) && (
-                          <button
-                            onClick={() => abrirEdicao(fornecedor)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#2196F3',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '3px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                            }}
-                          >
-                            Editar
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+      {carregando ? (
+        <p role="status">Carregando fornecedores...</p>
+      ) : erro ? (
+        <Alert tom="danger">{erro}</Alert>
+      ) : fornecedores.length === 0 ? (
+        <EmptyState>Nenhum fornecedor encontrado.</EmptyState>
+      ) : fornecedoresFiltrados.length === 0 ? (
+        <EmptyState>Nenhum resultado para esta busca/filtro.</EmptyState>
+      ) : (
+        <div className={estilos.superficie}>
+          <DataTable
+            rotulo="Fornecedores"
+            colunas={colunasTabela}
+            linhas={paginacao.itens}
+            chaveLinha={(fornecedor) => fornecedor.id}
+            destaque={(fornecedor) => (fornecedor.ativo ? null : 'inativo')}
+            cartoesAte={1180}
+            renderAcoes={
+              podeEditar
+                ? (fornecedor) => (
+                    <Button variante="secondary" tamanho="sm" icone="pencil" onClick={() => abrirEdicao(fornecedor)}>
+                      Editar
+                    </Button>
                   )
-                )}
-              </tbody>
-            </table>
+                : undefined
+            }
+          />
 
-            <p
-              style={{
-                marginTop: '15px',
-                color: '#666',
-                fontSize: '14px',
-              }}
-            >
-              Total de fornecedores:{' '}
-              <strong>
-                {fornecedoresFiltrados.length}
-              </strong>
-            </p>
-          </div>
-        )}
-      </div>
+          <p className={estilos.resumo}>
+            Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+            {paginacao.total === 1 ? 'fornecedor' : 'fornecedores'}
+            {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+          </p>
+          <Paginacao paginaAtual={paginaAtual} totalPaginas={paginacao.totalPaginas} onMudarPagina={setPagina} />
+        </div>
+      )}
 
       {modalAberto && (
         <FornecedorForm
@@ -717,7 +431,7 @@ function FornecedoresConteudo() {
           permissoes={permissoes}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 

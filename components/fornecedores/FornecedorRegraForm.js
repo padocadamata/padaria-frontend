@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import estilos from './fornecedores.module.css';
 
 // rotuloEstilo/campoEstilo duplicados intencionalmente de FornecedorForm.js
 // (e DIAS_SEMANA é específico deste arquivo) — mesmo raciocínio de
@@ -67,21 +76,6 @@ function montarPayload(dados, fornecedorId, estaEditando) {
   return payload;
 }
 
-const rotuloEstilo = {
-  fontWeight: 'bold',
-  display: 'block',
-  marginBottom: '5px',
-  fontSize: '14px',
-};
-
-const campoEstilo = {
-  width: '100%',
-  padding: '8px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-};
-
 export default function FornecedorRegraForm({ regra, fornecedorId, onFechar, onSalvo, permissoes }) {
   const estaEditando = regra != null;
   const [dados, setDados] = useState(() => estadoInicial(regra));
@@ -131,165 +125,74 @@ export default function FornecedorRegraForm({ regra, fornecedorId, onFechar, onS
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1001,
-        padding: '20px',
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'white',
-          padding: '30px',
-          borderRadius: '10px',
-          maxWidth: '500px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>
-          {estaEditando ? 'Editar regra' : 'Nova regra'}
-        </h3>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Dia do pedido</label>
-          <select
-            value={dados.dia_pedido}
-            onChange={(e) => atualizarCampo('dia_pedido', e.target.value)}
-            style={campoEstilo}
-          >
+    <Modal titulo={estaEditando ? 'Editar regra' : 'Nova regra'} onFechar={salvando ? undefined : onFechar} largura="md">
+      <div className={estilos.grade}>
+        <Field label="Dia do pedido">
+          <Select value={dados.dia_pedido} onChange={(e) => atualizarCampo('dia_pedido', e.target.value)}>
             <option value="">Diário</option>
             {DIAS_SEMANA.map((dia) => (
               <option key={dia.valor} value={dia.valor}>
                 {dia.rotulo}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Tipo de entrega</label>
-          <select
-            value={dados.tipo_entrega}
-            onChange={(e) => atualizarCampo('tipo_entrega', e.target.value)}
-            style={campoEstilo}
-          >
+        <Field label="Tipo de entrega">
+          <Select value={dados.tipo_entrega} onChange={(e) => atualizarCampo('tipo_entrega', e.target.value)}>
             <option value="prazo_dias">Prazo em dias</option>
             <option value="dia_fixo">Dia fixo</option>
-          </select>
-        </div>
+          </Select>
+        </Field>
 
         {dados.tipo_entrega === 'prazo_dias' ? (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={rotuloEstilo}>Dias de prazo (D+N)</label>
-            <input
+          <Field label="Dias de prazo (D+N)">
+            <Input
               type="number"
               min="0"
               value={dados.dias_prazo}
               onChange={(e) => atualizarCampo('dias_prazo', e.target.value)}
               placeholder="Ex.: 1"
-              style={campoEstilo}
             />
-          </div>
+          </Field>
         ) : (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={rotuloEstilo}>Dia fixo de entrega</label>
-            <select
-              value={dados.dia_entrega}
-              onChange={(e) => atualizarCampo('dia_entrega', e.target.value)}
-              style={campoEstilo}
-            >
+          <Field label="Dia fixo de entrega">
+            <Select value={dados.dia_entrega} onChange={(e) => atualizarCampo('dia_entrega', e.target.value)}>
               <option value="">Selecione</option>
               {DIAS_SEMANA.map((dia) => (
                 <option key={dia.valor} value={dia.valor}>
                   {dia.rotulo}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         )}
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Horário limite do pedido</label>
-          <input
-            type="time"
-            value={dados.horario_limite}
-            onChange={(e) => atualizarCampo('horario_limite', e.target.value)}
-            style={campoEstilo}
-          />
-        </div>
+        <Field label="Horário limite do pedido">
+          <Input type="time" value={dados.horario_limite} onChange={(e) => atualizarCampo('horario_limite', e.target.value)} />
+        </Field>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={rotuloEstilo}>Observação</label>
-          <textarea
-            value={dados.observacao}
-            onChange={(e) => atualizarCampo('observacao', e.target.value)}
-            style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
-          />
-        </div>
+        <Field label="Observação" className={estilos.larguraTotal}>
+          <Textarea value={dados.observacao} onChange={(e) => atualizarCampo('observacao', e.target.value)} rows={2} />
+        </Field>
 
         {estaEditando && (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-              <input
-                type="checkbox"
-                checked={dados.ativo}
-                onChange={(e) => atualizarCampo('ativo', e.target.checked)}
-              />
-              Regra ativa
-            </label>
+          <div className={estilos.larguraTotal}>
+            <Checkbox rotulo="Regra ativa" checked={dados.ativo} onChange={(e) => atualizarCampo('ativo', e.target.checked)} />
           </div>
         )}
-
-        {erro && (
-          <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>
-        )}
-
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={salvando}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#999',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={salvar}
-            disabled={salvando || !permitido}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#8B4513',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando || !permitido ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
-        </div>
       </div>
-    </div>
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <div className={estilos.rodape}>
+        <Button variante="secondary" onClick={onFechar} disabled={salvando}>
+          Cancelar
+        </Button>
+        <Button onClick={salvar} disabled={salvando || !permitido}>
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </Button>
+      </div>
+    </Modal>
   );
 }

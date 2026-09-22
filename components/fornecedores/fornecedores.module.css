@@ -1,0 +1,156 @@
+/* Peças visuais das telas/formulários de Fornecedores (só apresentação). */
+
+.superficie {
+  min-width: 0;
+}
+
+/* Desktop: a tabela fica numa superfície; no mobile os cartões são a própria
+   superfície. Lista em cartões (tablet / desktop estreito): sem "cartão dentro
+   de cartão". */
+@media (min-width: 769px) {
+  .superficie {
+    padding: var(--ds-sp-4);
+    background-color: var(--ds-surface);
+    border: var(--ds-border-w) solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  .superficie:has(ul[aria-label]) {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.resumo {
+  margin: var(--ds-sp-4) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* ----------------------------- formulário ----------------------------- */
+
+.secao {
+  margin: 0 0 var(--ds-sp-5);
+}
+
+.tituloSecao {
+  margin: 0 0 var(--ds-sp-3);
+  padding-bottom: var(--ds-sp-2);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+}
+
+.larguraTotal {
+  grid-column: 1 / -1;
+}
+
+.nota {
+  margin: 0 0 var(--ds-sp-4);
+  font-size: var(--ds-fs-label);
+  font-style: italic;
+  color: var(--ds-text-muted);
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 768px) {
+  .rodape {
+    flex-direction: column-reverse;
+  }
+  .rodape > * {
+    width: 100%;
+  }
+}
+
+/* ------------------------------- regras ------------------------------- */
+
+.regras {
+  margin: var(--ds-sp-5) 0;
+  padding-top: var(--ds-sp-4);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+.cabecalhoRegras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-2);
+}
+
+.cabecalhoRegras h3 {
+  margin: 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+}
+
+.listaRegras {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  margin: var(--ds-sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.regra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-3);
+  background-color: var(--ds-surface-muted);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.regraTitulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.regraDetalhe {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.regraObservacao {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-label);
+  font-style: italic;
+  color: var(--ds-text-muted);
+}
+
+.contato {
+  overflow-wrap: anywhere;
+}

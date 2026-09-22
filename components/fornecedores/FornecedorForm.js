@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import FornecedorRegras from './FornecedorRegras';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import estilos from './fornecedores.module.css';
 
 // Duplicado intencionalmente de pages/fornecedores.js: é uma função de
 // 1 linha, e criar um módulo compartilhado só para isso seria mais
@@ -102,21 +111,6 @@ function montarPayload(dados) {
 
   return payload;
 }
-
-const rotuloEstilo = {
-  fontWeight: 'bold',
-  display: 'block',
-  marginBottom: '5px',
-  fontSize: '14px',
-};
-
-const campoEstilo = {
-  width: '100%',
-  padding: '8px',
-  border: '1px solid #ddd',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-};
 
 export default function FornecedorForm({ fornecedor, onFechar, onSalvo, permissoes }) {
   const estaEditando = fornecedor != null;
@@ -261,237 +255,123 @@ export default function FornecedorForm({ fornecedor, onFechar, onSalvo, permisso
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '20px',
-      }}
+    // Sem Esc: é um formulário longo (dados digitados se perderiam). O X do
+    // cabeçalho some enquanto salva -- mesmo comportamento do "Cancelar".
+    <Modal
+      titulo={estaEditando ? 'Editar fornecedor' : 'Novo fornecedor'}
+      onFechar={salvando ? undefined : onFechar}
+      largura="lg"
+      fecharComEsc={false}
     >
-      <div
-        style={{
-          backgroundColor: 'white',
-          padding: '30px',
-          borderRadius: '10px',
-          maxWidth: '700px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>
-          {estaEditando ? 'Editar fornecedor' : 'Novo fornecedor'}
-        </h3>
+      <section className={estilos.secao} aria-label="Identificação">
+        <h3 className={estilos.tituloSecao}>Identificação</h3>
+        <div className={estilos.grade}>
+          <Field label="Nome fantasia">
+            <Input type="text" value={dados.nome_fantasia} onChange={(e) => atualizarCampo('nome_fantasia', e.target.value)} />
+          </Field>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '15px',
-            marginBottom: '15px',
-          }}
-        >
-          <div>
-            <label style={rotuloEstilo}>Nome fantasia</label>
-            <input
-              type="text"
-              value={dados.nome_fantasia}
-              onChange={(e) => atualizarCampo('nome_fantasia', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+          <Field label="Razão social">
+            <Input type="text" value={dados.razao_social} onChange={(e) => atualizarCampo('razao_social', e.target.value)} />
+          </Field>
 
-          <div>
-            <label style={rotuloEstilo}>Razão social</label>
-            <input
-              type="text"
-              value={dados.razao_social}
-              onChange={(e) => atualizarCampo('razao_social', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
-
-          <div>
-            <label style={rotuloEstilo}>Tipo de documento</label>
-            <select
-              value={dados.tipo_documento}
-              onChange={(e) => atualizarCampo('tipo_documento', e.target.value)}
-              style={campoEstilo}
-            >
+          <Field label="Tipo de documento">
+            <Select value={dados.tipo_documento} onChange={(e) => atualizarCampo('tipo_documento', e.target.value)}>
               <option value="">Selecione</option>
               <option value="CNPJ">CNPJ</option>
               <option value="CPF">CPF</option>
-            </select>
-          </div>
+            </Select>
+          </Field>
 
-          <div>
-            <label style={rotuloEstilo}>
-              Documento {!estaEditando && '*'}
-            </label>
-            <input
+          <Field label={`Documento ${!estaEditando ? '*' : ''}`.trim()}>
+            <Input
               type="text"
+              inputMode="numeric"
               value={dados.documento}
               onChange={(e) => atualizarCampo('documento', apenasDigitos(e.target.value))}
               placeholder="Somente números"
-              style={campoEstilo}
             />
-          </div>
+          </Field>
+        </div>
+      </section>
 
-          <div>
-            <label style={rotuloEstilo}>Nome do contato</label>
-            <input
-              type="text"
-              value={dados.contato_nome}
-              onChange={(e) => atualizarCampo('contato_nome', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+      <section className={estilos.secao} aria-label="Contato">
+        <h3 className={estilos.tituloSecao}>Contato</h3>
+        <div className={estilos.grade}>
+          <Field label="Nome do contato">
+            <Input type="text" value={dados.contato_nome} onChange={(e) => atualizarCampo('contato_nome', e.target.value)} />
+          </Field>
 
-          <div>
-            <label style={rotuloEstilo}>Telefone</label>
-            <input
-              type="text"
-              value={dados.telefone}
-              onChange={(e) => atualizarCampo('telefone', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+          <Field label="Telefone">
+            <Input type="text" value={dados.telefone} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
+          </Field>
 
-          <div>
-            <label style={rotuloEstilo}>WhatsApp</label>
-            <input
-              type="text"
-              value={dados.whatsapp}
-              onChange={(e) => atualizarCampo('whatsapp', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+          <Field label="WhatsApp">
+            <Input type="text" value={dados.whatsapp} onChange={(e) => atualizarCampo('whatsapp', e.target.value)} />
+          </Field>
 
-          <div>
-            <label style={rotuloEstilo}>E-mail</label>
-            <input
-              type="email"
-              value={dados.email}
-              onChange={(e) => atualizarCampo('email', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+          <Field label="E-mail">
+            <Input type="email" value={dados.email} onChange={(e) => atualizarCampo('email', e.target.value)} />
+          </Field>
+        </div>
+      </section>
 
-          <div>
-            <label style={rotuloEstilo}>Forma de pagamento</label>
-            <input
-              type="text"
-              value={dados.forma_pagamento}
-              onChange={(e) => atualizarCampo('forma_pagamento', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
+      <section className={estilos.secao} aria-label="Compra e pagamento">
+        <h3 className={estilos.tituloSecao}>Compra e pagamento</h3>
+        <div className={estilos.grade}>
+          <Field label="Forma de pagamento">
+            <Input type="text" value={dados.forma_pagamento} onChange={(e) => atualizarCampo('forma_pagamento', e.target.value)} />
+          </Field>
 
-          <div>
-            <label style={rotuloEstilo}>Modalidade de compra</label>
-            <select
-              value={dados.modalidade_compra}
-              onChange={(e) => atualizarCampo('modalidade_compra', e.target.value)}
-              style={campoEstilo}
-            >
+          <Field label="Modalidade de compra">
+            <Select value={dados.modalidade_compra} onChange={(e) => atualizarCampo('modalidade_compra', e.target.value)}>
               <option value="pedido_com_entrega">Pedido com entrega</option>
               <option value="compra_presencial">Compra presencial</option>
-            </select>
-          </div>
-
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={rotuloEstilo}>Endereço</label>
-            <input
-              type="text"
-              value={dados.endereco}
-              onChange={(e) => atualizarCampo('endereco', e.target.value)}
-              style={campoEstilo}
-            />
-          </div>
-
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={rotuloEstilo}>Observações</label>
-            <textarea
-              value={dados.observacoes}
-              onChange={(e) => atualizarCampo('observacoes', e.target.value)}
-              style={{ ...campoEstilo, minHeight: '70px', fontFamily: 'Arial' }}
-            />
-          </div>
+            </Select>
+          </Field>
         </div>
+      </section>
 
-        {estaEditando && dados.modalidade_compra === 'pedido_com_entrega' && (
-          <FornecedorRegras
-            fornecedorId={fornecedor.id}
-            permissoes={permissoes}
+      <section className={estilos.secao} aria-label="Endereço e observações">
+        <h3 className={estilos.tituloSecao}>Endereço e observações</h3>
+        <div className={estilos.grade}>
+          <Field label="Endereço" className={estilos.larguraTotal}>
+            <Input type="text" value={dados.endereco} onChange={(e) => atualizarCampo('endereco', e.target.value)} />
+          </Field>
+
+          <Field label="Observações" className={estilos.larguraTotal}>
+            <Textarea value={dados.observacoes} onChange={(e) => atualizarCampo('observacoes', e.target.value)} rows={3} />
+          </Field>
+        </div>
+      </section>
+
+      {estaEditando && dados.modalidade_compra === 'pedido_com_entrega' && (
+        <FornecedorRegras fornecedorId={fornecedor.id} permissoes={permissoes} />
+      )}
+
+      {dados.modalidade_compra === 'compra_presencial' && (
+        <p className={estilos.nota}>Compra presencial — sem pedido programado.</p>
+      )}
+
+      {estaEditando && (
+        <div className={estilos.secao}>
+          <Checkbox
+            rotulo="Fornecedor ativo"
+            checked={dados.ativo}
+            onChange={(e) => atualizarCampo('ativo', e.target.checked)}
           />
-        )}
-
-        {dados.modalidade_compra === 'compra_presencial' && (
-          <p style={{ color: '#666', fontSize: '13px', fontStyle: 'italic', marginBottom: '15px' }}>
-            Compra presencial — sem pedido programado.
-          </p>
-        )}
-
-        {estaEditando && (
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-              <input
-                type="checkbox"
-                checked={dados.ativo}
-                onChange={(e) => atualizarCampo('ativo', e.target.checked)}
-              />
-              Fornecedor ativo
-            </label>
-          </div>
-        )}
-
-        {erro && (
-          <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>
-        )}
-
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={salvando}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#999',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={salvar}
-            disabled={salvando || !permitido}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#8B4513',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: salvando || !permitido ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
         </div>
+      )}
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <div className={estilos.rodape}>
+        <Button variante="secondary" onClick={onFechar} disabled={salvando}>
+          Cancelar
+        </Button>
+        <Button onClick={salvar} disabled={salvando || !permitido}>
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </Button>
       </div>
-    </div>
+    </Modal>
   );
 }

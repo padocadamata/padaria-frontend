@@ -18,6 +18,7 @@ import styles from './DataTable.module.css';
 //   semQuebra,         // impede quebra de linha na tabela
 //   cartaoOrdem,       // ordem entre as colunas 'titulo' do cartão (padrão: ordem das colunas)
 //   minLargura,        // largura mínima (px) da coluna na tabela (evita colunas espremidas)
+//   soCartao,          // true: a coluna aparece só nos cartões (mobile), não na tabela (desktop)
 // }]
 // renderAcoes(linha, { cartao }): conteúdo da coluna "Ações" / rodapé do cartão.
 // linhaExtra(linha): nó exibido logo abaixo da linha (ex.: mensagem de erro da linha).
@@ -43,6 +44,8 @@ export default function DataTable({
   rotulo,
   className,
 }) {
+  // Colunas exibidas na TABELA (as marcadas soCartao ficam só nos cartões).
+  const colunasTabela = colunas.filter((c) => !c.soCartao);
   const modoCartoes = useMediaQuery(`(max-width: ${cartoesAte}px)`);
 
   if (modoCartoes) {
@@ -102,7 +105,7 @@ export default function DataTable({
       <table className={cx(styles.tabela, denso && styles.densa)} aria-label={rotulo}>
         <thead>
           <tr>
-            {colunas.map((c) => (
+            {colunasTabela.map((c) => (
               <th
                 key={c.chave}
                 className={cx(c.alinhar === 'direita' && styles.dir, c.alinhar === 'centro' && styles.centro)}
@@ -122,7 +125,7 @@ export default function DataTable({
             return (
               <Fragment key={chaveLinha(linha)}>
               <tr className={cx(marca === 'aviso' && styles.linhaAviso, marca === 'inativo' && styles.linhaInativa, novoGrupo && styles.inicioGrupo)}>
-                {colunas.map((c) => (
+                {colunasTabela.map((c) => (
                   <td
                     key={c.chave}
                     className={cx(c.alinhar === 'direita' && styles.dir, c.alinhar === 'centro' && styles.centro, c.semQuebra && styles.semQuebra)}
@@ -134,7 +137,7 @@ export default function DataTable({
               </tr>
               {extra && (
                 <tr className={styles.linhaExtra}>
-                  <td colSpan={colunas.length + (renderAcoes ? 1 : 0)}>{extra}</td>
+                  <td colSpan={colunasTabela.length + (renderAcoes ? 1 : 0)}>{extra}</td>
                 </tr>
               )}
               </Fragment>
