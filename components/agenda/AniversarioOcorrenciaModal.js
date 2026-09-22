@@ -1,19 +1,12 @@
 import { calcularIdade } from '../../lib/funcionarios/aniversarios';
+import Button from '../ui/Button';
+import Modal from '../ui/Modal';
+import estilos from './agenda.module.css';
 
 function formatarDataExibicao(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
   return `${dia}/${mes}/${ano}`;
 }
-
-const overlayEstilo = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-  justifyContent: 'center', zIndex: 1000, padding: '20px',
-};
-const caixaEstilo = {
-  backgroundColor: 'white', padding: '25px', borderRadius: '10px',
-  maxWidth: '380px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
 
 // Contraparte de AgendaItemDetalheModal.js só para ocorrências sintéticas
 // de aniversário (item.tipo === 'aniversario', ver
@@ -29,26 +22,20 @@ export default function AniversarioOcorrenciaModal({ ocorrencia, onFechar }) {
   const idadeCompleta = calcularIdade(item.data_inicio, dataExibicao);
 
   return (
-    <div style={overlayEstilo} onClick={onFechar}>
-      <div style={caixaEstilo} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0 }}>🎂 Aniversário</h3>
-        <p style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>{item.funcionarioNome}</p>
-        <p style={{ fontSize: '14px', color: '#444', margin: 0 }}>
-          {formatarDataExibicao(dataExibicao)} · completa {idadeCompleta} anos
-        </p>
-        <p style={{ fontSize: '12px', color: '#999', marginTop: '14px' }}>
-          Gerado automaticamente a partir do cadastro de funcionários (data de nascimento) — não é um evento da
-          Agenda e não pode ser editado ou excluído por aqui. Some automaticamente se o funcionário for inativado.
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-          <button
-            onClick={onFechar}
-            style={{ padding: '8px 14px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-          >
-            Fechar
-          </button>
-        </div>
+    <Modal titulo="🎂 Aniversário" onFechar={onFechar} largura="sm" fecharAoClicarFora>
+      <p style={{ fontSize: 'var(--ds-fs-card)', fontWeight: 'var(--ds-fw-semibold)', margin: '0 0 6px' }}>
+        {item.funcionarioNome}
+      </p>
+      <p className={estilos.detalheMeta}>
+        {formatarDataExibicao(dataExibicao)} · completa {idadeCompleta} anos
+      </p>
+      <p className={estilos.detalheConcluidoPor}>
+        Gerado automaticamente a partir do cadastro de funcionários (data de nascimento) — não é um evento da
+        Agenda e não pode ser editado ou excluído por aqui. Some automaticamente se o funcionário for inativado.
+      </p>
+      <div className={estilos.detalheFechar}>
+        <Button variante="secondary" onClick={onFechar}>Fechar</Button>
       </div>
-    </div>
+    </Modal>
   );
 }

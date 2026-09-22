@@ -1,5 +1,13 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import Alert from '../ui/Alert';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Textarea from '../ui/Textarea';
+import estilos from './agenda.module.css';
 
 function mensagemErro(error) {
   if (!error) return '';
@@ -24,25 +32,6 @@ function formatarDataExibicao(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
   return `${dia}/${mes}/${ano}`;
 }
-
-const overlayEstilo = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-  justifyContent: 'center', zIndex: 1000, padding: '20px',
-};
-const caixaEstilo = {
-  backgroundColor: 'white', padding: '25px', borderRadius: '10px',
-  maxWidth: '440px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
-const botaoEstilo = (cor) => ({
-  padding: '8px 14px', backgroundColor: cor, color: 'white', border: 'none',
-  borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
-});
-const campoEstilo = {
-  width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '5px',
-  boxSizing: 'border-box', fontSize: '14px', marginBottom: '12px',
-};
 
 // Detalhe de uma ocorrência (já expandida por lib/agenda/expandirRecorrencia.js)
 // com as ações disponíveis conforme o tipo/recorrência do item pai.
@@ -141,153 +130,134 @@ export default function AgendaItemDetalheModal({
 
   if (acao === 'cancelar') {
     return (
-      <div style={overlayEstilo}>
-        <div style={caixaEstilo}>
-          <h3 style={{ marginTop: 0 }}>Cancelar ocorrência — {formatarDataExibicao(dataOcorrencia)}</h3>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Motivo *</label>
-          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} style={{ ...campoEstilo, minHeight: '60px' }} autoFocus />
-          {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setAcao(null)} style={botaoEstilo('#999')}>Voltar</button>
-            <button onClick={confirmarCancelar} disabled={processando} style={botaoEstilo('#f44336')}>
-              {processando ? 'Cancelando...' : 'Confirmar cancelamento'}
-            </button>
-          </div>
+      <Modal titulo={`Cancelar ocorrência — ${formatarDataExibicao(dataOcorrencia)}`} onFechar={processando ? undefined : () => setAcao(null)} largura="sm">
+        <Field label="Motivo *">
+          <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} autoFocus />
+        </Field>
+        {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+        <div className={estilos.rodape}>
+          <Button variante="secondary" onClick={() => setAcao(null)} disabled={processando}>Voltar</Button>
+          <Button variante="danger" onClick={confirmarCancelar} disabled={processando}>
+            {processando ? 'Cancelando...' : 'Confirmar cancelamento'}
+          </Button>
         </div>
-      </div>
+      </Modal>
     );
   }
 
   if (acao === 'excluir') {
     return (
-      <div style={overlayEstilo}>
-        <div style={caixaEstilo}>
-          <h3 style={{ color: '#f44336', marginTop: 0 }}>
-            Excluir {recorrente ? 'toda a série' : 'definitivamente'}
-          </h3>
-          <p style={{ fontSize: '13px', color: '#666' }}>
-            {recorrente
-              ? 'Isso remove a série inteira e todas as exceções já registradas. Não pode ser desfeito.'
-              : 'Esta ação não pode ser desfeita.'}
-          </p>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Motivo *</label>
-          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} style={{ ...campoEstilo, minHeight: '60px' }} autoFocus />
-          {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setAcao(null)} style={botaoEstilo('#999')}>Voltar</button>
-            <button onClick={confirmarExcluir} disabled={processando} style={botaoEstilo('#f44336')}>
-              {processando ? 'Excluindo...' : 'Excluir definitivamente'}
-            </button>
-          </div>
+      <Modal titulo={recorrente ? 'Excluir toda a série' : 'Excluir definitivamente'} onFechar={processando ? undefined : () => setAcao(null)} largura="sm">
+        <p className={estilos.detalheMeta}>
+          {recorrente
+            ? 'Isso remove a série inteira e todas as exceções já registradas. Não pode ser desfeito.'
+            : 'Esta ação não pode ser desfeita.'}
+        </p>
+        <Field label="Motivo *">
+          <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} autoFocus />
+        </Field>
+        {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+        <div className={estilos.rodape}>
+          <Button variante="secondary" onClick={() => setAcao(null)} disabled={processando}>Voltar</Button>
+          <Button variante="danger" onClick={confirmarExcluir} disabled={processando}>
+            {processando ? 'Excluindo...' : 'Excluir definitivamente'}
+          </Button>
         </div>
-      </div>
+      </Modal>
     );
   }
 
   if (acao === 'alterar') {
     return (
-      <div style={overlayEstilo}>
-        <div style={caixaEstilo}>
-          <h3 style={{ marginTop: 0 }}>Alterar esta ocorrência</h3>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Título</label>
-          <input type="text" value={tituloAlt} onChange={(e) => setTituloAlt(e.target.value)} style={campoEstilo} autoFocus />
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Data</label>
-          <input type="date" value={dataAlt} onChange={(e) => setDataAlt(e.target.value)} style={campoEstilo} />
-          {!diaInteiro && (
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Hora início</label>
-                <input type="time" value={horaInicioAlt} onChange={(e) => setHoraInicioAlt(e.target.value)} style={campoEstilo} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Hora fim</label>
-                <input type="time" value={horaFimAlt} onChange={(e) => setHoraFimAlt(e.target.value)} style={campoEstilo} />
-              </div>
-            </div>
-          )}
-          {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setAcao(null)} style={botaoEstilo('#999')}>Voltar</button>
-            <button onClick={confirmarAlterar} disabled={processando} style={botaoEstilo('#2196F3')}>
-              {processando ? 'Salvando...' : 'Salvar'}
-            </button>
+      <Modal titulo="Alterar esta ocorrência" onFechar={processando ? undefined : () => setAcao(null)} largura="sm">
+        <Field label="Título">
+          <Input type="text" value={tituloAlt} onChange={(e) => setTituloAlt(e.target.value)} autoFocus />
+        </Field>
+        <Field label="Data">
+          <Input type="date" value={dataAlt} onChange={(e) => setDataAlt(e.target.value)} />
+        </Field>
+        {!diaInteiro && (
+          <div className={estilos.grade}>
+            <Field label="Hora início">
+              <Input type="time" value={horaInicioAlt} onChange={(e) => setHoraInicioAlt(e.target.value)} />
+            </Field>
+            <Field label="Hora fim">
+              <Input type="time" value={horaFimAlt} onChange={(e) => setHoraFimAlt(e.target.value)} />
+            </Field>
           </div>
+        )}
+        {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+        <div className={estilos.rodape}>
+          <Button variante="secondary" onClick={() => setAcao(null)} disabled={processando}>Voltar</Button>
+          <Button onClick={confirmarAlterar} disabled={processando}>
+            {processando ? 'Salvando...' : 'Salvar'}
+          </Button>
         </div>
-      </div>
+      </Modal>
     );
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
-        <h3 style={{ marginTop: 0 }}>{titulo}</h3>
-        <p style={{ fontSize: '13px', color: '#666' }}>
-          {item.tipo === 'evento' ? 'Evento' : 'Tarefa'} · {item.categoria}
-          {!categoriaAtiva && ' (inativa)'}
-          {recorrente && ' · série recorrente'}
-        </p>
-        <p style={{ fontSize: '14px' }}>
-          {formatarDataExibicao(ocorrencia.dataExibicao)}
-          {!diaInteiro && horaInicio && ` às ${horaInicio}${horaFim ? `–${horaFim}` : ''}`}
-          {diaInteiro && ' (dia inteiro)'}
-        </p>
-        {descricao && <p style={{ fontSize: '13px', color: '#444', whiteSpace: 'pre-wrap' }}>{descricao}</p>}
-        {cancelada && <p style={{ color: '#999', fontWeight: 'bold' }}>Cancelada</p>}
-        {concluida && (
-          <div style={{ marginTop: '4px' }}>
-            <p style={{ color: '#4CAF50', fontWeight: 'bold', margin: 0 }}>Concluída</p>
-            {ocorrencia.observacaoConclusao && (
-              <p style={{ fontSize: '13px', color: '#444', margin: '2px 0 0' }}>
-                <strong>Concluída por:</strong> {ocorrencia.observacaoConclusao}
-              </p>
-            )}
-          </div>
+    <Modal titulo={titulo} onFechar={onFechar} largura="sm">
+      <p className={estilos.detalheMeta}>
+        {item.tipo === 'evento' ? 'Evento' : 'Tarefa'} · {item.categoria}
+        {!categoriaAtiva && ' (inativa)'}
+        {recorrente && ' · série recorrente'}
+      </p>
+      <p className={estilos.detalheData}>
+        {formatarDataExibicao(ocorrencia.dataExibicao)}
+        {!diaInteiro && horaInicio && ` às ${horaInicio}${horaFim ? `–${horaFim}` : ''}`}
+        {diaInteiro && ' (dia inteiro)'}
+      </p>
+      {descricao && <p className={estilos.detalheDescricao}>{descricao}</p>}
+
+      {cancelada && <Badge tom="neutral">Cancelada</Badge>}
+      {concluida && (
+        <div className={estilos.mensagem}>
+          <Badge tom="success">Concluída</Badge>
+          {ocorrencia.observacaoConclusao && (
+            <p className={estilos.detalheConcluidoPor}>
+              <strong>Concluída por:</strong> {ocorrencia.observacaoConclusao}
+            </p>
+          )}
+        </div>
+      )}
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <div className={estilos.detalheAcoes}>
+        {podeEditar && item.tipo === 'tarefa' && !cancelada && !concluida && (
+          <Button tamanho="sm" onClick={() => onAbrirConclusao(ocorrencia)}>Concluir</Button>
         )}
-
-        {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '15px' }}>
-          {podeEditar && item.tipo === 'tarefa' && !cancelada && !concluida && (
-            <button onClick={() => onAbrirConclusao(ocorrencia)} style={botaoEstilo('#4CAF50')}>
-              Concluir
-            </button>
-          )}
-          {podeEditar && item.tipo === 'tarefa' && !cancelada && concluida && (
-            <button onClick={() => onAbrirReabertura(ocorrencia)} style={botaoEstilo('#9e9e9e')}>
-              Reabrir
-            </button>
-          )}
-          {podeEditar && recorrente && !cancelada && (
-            <button onClick={() => setAcao('alterar')} style={botaoEstilo('#2196F3')}>
-              Alterar esta ocorrência
-            </button>
-          )}
-          {podeEditar && recorrente && !cancelada && !concluida && (
-            <button onClick={() => setAcao('cancelar')} style={botaoEstilo('#FF9800')}>
-              Cancelar esta ocorrência
-            </button>
-          )}
-          {podeEditar && (
-            <button onClick={() => onEditarSerie(item)} style={botaoEstilo('#607D8B')}>
-              Editar {recorrente ? 'toda a série' : 'item'}
-            </button>
-          )}
-          {podeEditar && recorrente && (
-            <button onClick={() => onEditarEstaEProximas(item, dataOcorrencia)} style={botaoEstilo('#607D8B')}>
-              Editar esta e as próximas
-            </button>
-          )}
-          {podeExcluir && (
-            <button onClick={() => setAcao('excluir')} style={botaoEstilo('#f44336')}>
-              Excluir {recorrente ? 'série' : 'definitivamente'}
-            </button>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-          <button onClick={onFechar} style={botaoEstilo('#999')}>Fechar</button>
-        </div>
+        {podeEditar && item.tipo === 'tarefa' && !cancelada && concluida && (
+          <Button tamanho="sm" variante="secondary" onClick={() => onAbrirReabertura(ocorrencia)}>Reabrir</Button>
+        )}
+        {podeEditar && recorrente && !cancelada && (
+          <Button tamanho="sm" variante="secondary" onClick={() => setAcao('alterar')}>Alterar esta ocorrência</Button>
+        )}
+        {podeEditar && recorrente && !cancelada && !concluida && (
+          <Button tamanho="sm" variante="dangerOutline" onClick={() => setAcao('cancelar')}>Cancelar esta ocorrência</Button>
+        )}
+        {podeEditar && (
+          <Button tamanho="sm" variante="secondary" onClick={() => onEditarSerie(item)}>
+            Editar {recorrente ? 'toda a série' : 'item'}
+          </Button>
+        )}
+        {podeEditar && recorrente && (
+          <Button tamanho="sm" variante="secondary" onClick={() => onEditarEstaEProximas(item, dataOcorrencia)}>
+            Editar esta e as próximas
+          </Button>
+        )}
+        {podeExcluir && (
+          <Button tamanho="sm" variante="danger" onClick={() => setAcao('excluir')}>
+            Excluir {recorrente ? 'série' : 'definitivamente'}
+          </Button>
+        )}
       </div>
-    </div>
+
+      <div className={estilos.detalheFechar}>
+        <Button variante="secondary" onClick={onFechar}>Fechar</Button>
+      </div>
+    </Modal>
   );
 }

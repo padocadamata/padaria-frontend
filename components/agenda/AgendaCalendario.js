@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
+import IconButton from '../ui/IconButton';
+import Button from '../ui/Button';
+import estilos from './agenda.module.css';
 
 // Categorias são dados mestres persistidos em MAIÚSCULAS (regra global
 // do projeto) — chaves aqui espelham exatamente o que fica gravado em
@@ -37,8 +40,14 @@ function somarUmDia(dataYYYYMMDD) {
 // recorrência: o plugin @fullcalendar/rrule NÃO é usado de propósito
 // (decisão aprovada — recorrência é sempre controlada pela nossa
 // modelagem/lógica, nunca pela lib de calendário).
+//
+// headerToolbar nativo desligado (right:'' já removia os botões de view,
+// left/center continuam existindo só na API) -- cabeçalho próprio do DS
+// (Anterior/Hoje/Próximo + título) comanda a MESMA api do FullCalendar
+// via calendarioRef, sem nenhuma lógica de data nova.
 export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, onClicarOcorrencia, onClicarData, onClicarCheckboxTarefa }) {
   const calendarioRef = useRef(null);
+  const [titulo, setTitulo] = useState('');
 
   const eventos = useMemo(
     () =>
@@ -50,7 +59,7 @@ export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, on
           allDay: oc.diaInteiro,
           backgroundColor: oc.cancelada ? '#bbb' : cor,
           borderColor: oc.cancelada ? '#bbb' : cor,
-          classNames: oc.concluida ? ['agenda-ocorrencia-concluida'] : [],
+          classNames: oc.concluida ? [estilos.agendaOcorrenciaConcluida] : [],
           // extendedProps (seção 12 da evolução aprovada) -- só o
           // essencial para o eventContent decidir se/como desenhar o
           // checkbox sem precisar reconstruir a ocorrência inteira ali.
@@ -145,16 +154,30 @@ export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, on
     );
   }
 
+  function irPara(acao) {
+    const api = calendarioRef.current?.getApi();
+    if (!api) return;
+    api[acao]();
+  }
+
   return (
-    <>
-      <style>{`
-        .agenda-ocorrencia-concluida { opacity: 0.55; }
-      `}</style>
+    <div className={estilos.envolucroCalendario}>
+      <div className={estilos.cabecalhoCalendario}>
+        <div className={estilos.navCalendario}>
+          <IconButton rotulo="Anterior" icone="chevronRight" tamanho="sm" onClick={() => irPara('prev')} style={{ transform: 'rotate(180deg)' }} />
+          <Button variante="secondary" tamanho="sm" onClick={() => irPara('today')}>
+            Hoje
+          </Button>
+          <IconButton rotulo="Próximo" icone="chevronRight" tamanho="sm" onClick={() => irPara('next')} />
+        </div>
+        <div className={estilos.tituloCalendario}>{titulo}</div>
+      </div>
+
       <FullCalendar
         ref={calendarioRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={visao}
-        headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+        headerToolbar={false}
         locale={ptBrLocale}
         height="auto"
         selectable
@@ -163,8 +186,11 @@ export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, on
         eventClick={aoClicarEvento}
         dateClick={(info) => onClicarData(info.dateStr)}
         select={(info) => onClicarData(info.startStr)}
-        datesSet={(info) => onMudarJanela(info.startStr.slice(0, 10), info.endStr.slice(0, 10))}
+        datesSet={(info) => {
+          setTitulo(info.view.title);
+          onMudarJanela(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
+        }}
       />
-    </>
+    </div>
   );
 }

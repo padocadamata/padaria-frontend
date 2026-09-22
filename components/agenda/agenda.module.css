@@ -1,0 +1,278 @@
+/* Peças visuais das telas/formulários da Agenda (só apresentação). */
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* --------------------------- alternador de visão -------------------------- */
+
+.visoes {
+  display: flex;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* -------------------------------- calendário ------------------------------ */
+
+.superficieCalendario {
+  padding: var(--ds-sp-4);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.carregandoCalendario {
+  margin: 0 0 var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.cabecalhoCalendario {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.navCalendario {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.tituloCalendario {
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  text-transform: capitalize;
+  min-width: 160px;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .cabecalhoCalendario {
+    justify-content: center;
+  }
+  .tituloCalendario {
+    min-width: 0;
+    order: -1;
+    width: 100%;
+  }
+}
+
+/* Normalização leve do FullCalendar para acompanhar a tipografia do DS,
+   sem mexer em nenhuma lógica de data/layout da própria lib. */
+.envolucroCalendario :global(.fc) {
+  font-family: var(--ds-font);
+  font-size: var(--ds-fs-body);
+  --fc-border-color: var(--ds-border);
+  --fc-today-bg-color: var(--ds-primary-soft);
+  --fc-neutral-bg-color: var(--ds-surface-muted);
+}
+
+.envolucroCalendario :global(.fc .fc-col-header-cell-cushion),
+.envolucroCalendario :global(.fc .fc-daygrid-day-number) {
+  color: var(--ds-text-muted);
+  font-weight: var(--ds-fw-semibold);
+  text-decoration: none;
+}
+
+.envolucroCalendario :global(.fc .fc-day-today .fc-daygrid-day-number) {
+  color: var(--ds-primary);
+}
+
+.envolucroCalendario :global(.fc-event) {
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-fs-aux);
+  padding: 1px 2px;
+}
+
+.agendaOcorrenciaConcluida {
+  opacity: 0.55;
+}
+
+/* --------------------------------- formulário ------------------------------ */
+
+.secao {
+  margin: 0 0 var(--ds-sp-5);
+}
+
+.tituloSecao {
+  margin: 0 0 var(--ds-sp-3);
+  padding-bottom: var(--ds-sp-2);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+}
+
+.larguraTotal {
+  grid-column: 1 / -1;
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 768px) {
+  .rodape {
+    flex-direction: column-reverse;
+  }
+  .rodape > * {
+    width: 100%;
+  }
+}
+
+.tipoRadios {
+  display: flex;
+  gap: var(--ds-sp-4);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.tipoRadio {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-body);
+}
+
+.recorrenciaBloco {
+  background-color: var(--ds-surface-muted);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.diasSemana {
+  display: flex;
+  gap: var(--ds-sp-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--ds-sp-3);
+}
+
+.diaChip {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border: var(--ds-border-w) solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  background-color: var(--ds-surface);
+  color: var(--ds-text);
+  cursor: pointer;
+}
+
+.diaChipAtivo {
+  background-color: var(--ds-primary);
+  color: var(--ds-on-primary);
+  border-color: var(--ds-primary);
+}
+
+.diaChipInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------ detalhe ------------------------------- */
+
+.detalheMeta {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  margin: 0 0 var(--ds-sp-2);
+}
+
+.detalheData {
+  font-size: var(--ds-fs-body);
+  margin: 0 0 var(--ds-sp-3);
+}
+
+.detalheDescricao {
+  font-size: var(--ds-fs-body);
+  color: var(--ds-text);
+  white-space: pre-wrap;
+  margin: 0 0 var(--ds-sp-3);
+}
+
+.detalheConcluidoPor {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  margin: var(--ds-sp-1) 0 0;
+}
+
+.detalheAcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+.detalheFechar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--ds-sp-4);
+}
+
+/* -------------------------------- categorias --------------------------------- */
+
+.listaCategorias {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--ds-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.itemCategoria {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) 0;
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  flex-wrap: wrap;
+}
+
+.itemCategoriaNome {
+  flex: 1;
+  font-size: var(--ds-fs-body);
+}
+
+.itemCategoriaInativa {
+  color: var(--ds-text-disabled);
+  text-decoration: line-through;
+}
+
+.itemCategoriaUso {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.criarCategoria {
+  display: flex;
+  gap: var(--ds-sp-2);
+}
+
+.criarCategoria > :first-child {
+  flex: 1;
+}
+
+.notaCategorias {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  margin-top: var(--ds-sp-3);
+}

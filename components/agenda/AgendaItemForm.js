@@ -1,5 +1,15 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import { cx } from '../../lib/design/cx';
+import estilos from './agenda.module.css';
 
 const DIAS_SEMANA_OPCOES = [
   { value: 0, label: 'Dom' },
@@ -23,24 +33,6 @@ function mensagemErro(error) {
   return 'Não foi possível salvar. Confira os campos e tente novamente.';
 }
 
-const overlayEstilo = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-  justifyContent: 'center', zIndex: 1000, padding: '20px',
-};
-
-const caixaEstilo = {
-  backgroundColor: 'white', padding: '25px', borderRadius: '10px',
-  maxWidth: '480px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
-  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-};
-
-const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '13px' };
-const campoEstilo = {
-  width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '5px',
-  boxSizing: 'border-box', fontSize: '14px', marginBottom: '15px',
-};
-
 // Formulário único de criar/editar evento ou tarefa. modo:
 //   'criar'               -- INSERT simples em agenda_itens;
 //   'editar_serie'        -- UPDATE simples (toda a série/o item avulso);
@@ -51,13 +43,16 @@ const campoEstilo = {
 // marcado -- e fica sempre oculta em editar_esta_e_proximas (a
 // frequência da nova série é herdada/editável, mas a interface aqui
 // simplifica para V1: mesma frequência da série original).
+//
+// Sem Esc (fecharComEsc=false): formulário com dados digitados, mesmo
+// padrão adotado nas fases anteriores para não perder o que já foi
+// preenchido com uma tecla acidental.
 export default function AgendaItemForm({
   modo,
   item,
   dataCorte,
   dataInicialSugerida,
   categorias,
-  corPrimaria,
   onSalvo,
   onCancelar,
 }) {
@@ -183,164 +178,129 @@ export default function AgendaItemForm({
   }
 
   return (
-    <div style={overlayEstilo}>
-      <div style={caixaEstilo}>
-        <h3 style={{ color: corPrimaria, marginTop: 0 }}>
-          {ehCriacao ? 'Novo item da Agenda' : ehEstaEProximas ? 'Editar esta e as próximas' : 'Editar item'}
-        </h3>
+    <Modal
+      titulo={ehCriacao ? 'Novo item da Agenda' : ehEstaEProximas ? 'Editar esta e as próximas' : 'Editar item'}
+      onFechar={salvando ? undefined : onCancelar}
+      largura="md"
+      fecharComEsc={false}
+    >
+      {podeMudarTipo && (
+        <div className={estilos.tipoRadios}>
+          <label className={estilos.tipoRadio}>
+            <input type="radio" checked={tipo === 'evento'} onChange={() => setTipo('evento')} /> Evento
+          </label>
+          <label className={estilos.tipoRadio}>
+            <input type="radio" checked={tipo === 'tarefa'} onChange={() => setTipo('tarefa')} /> Tarefa
+          </label>
+        </div>
+      )}
 
-        {podeMudarTipo && (
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
-            <label style={{ fontSize: '14px' }}>
-              <input type="radio" checked={tipo === 'evento'} onChange={() => setTipo('evento')} /> Evento
-            </label>
-            <label style={{ fontSize: '14px' }}>
-              <input type="radio" checked={tipo === 'tarefa'} onChange={() => setTipo('tarefa')} /> Tarefa
-            </label>
-          </div>
-        )}
+      <div className={cx(estilos.grade, estilos.secao)}>
+        <Field label="Título *" className={estilos.larguraTotal}>
+          <Input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+        </Field>
 
-        <label style={rotuloEstilo}>Título *</label>
-        <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} style={campoEstilo} autoFocus />
+        <Field label="Descrição" className={estilos.larguraTotal}>
+          <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+        </Field>
 
-        <label style={rotuloEstilo}>Descrição</label>
-        <textarea
-          value={descricao}
-          onChange={(e) => setDescricao(e.target.value)}
-          style={{ ...campoEstilo, minHeight: '60px', fontFamily: 'Arial' }}
-        />
+        <Field label="Categoria">
+          <Select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+            {categorias.map((c) => (
+              <option key={c.valor} value={c.valor}>
+                {c.valor}
+                {!c.ativo ? ' (inativa)' : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-        <label style={rotuloEstilo}>Categoria</label>
-        <select value={categoria} onChange={(e) => setCategoria(e.target.value)} style={campoEstilo}>
-          {categorias.map((c) => (
-            <option key={c.valor} value={c.valor}>
-              {c.valor}
-              {!c.ativo ? ' (inativa)' : ''}
-            </option>
-          ))}
-        </select>
-
-        <label style={rotuloEstilo}>{repetir ? 'A partir de' : 'Data'} *</label>
-        <input
-          type="date"
-          value={dataInicio}
-          onChange={(e) => setDataInicio(e.target.value)}
-          disabled={ehEstaEProximas}
-          style={campoEstilo}
-        />
+        <Field label={`${repetir ? 'A partir de' : 'Data'} *`}>
+          <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} disabled={ehEstaEProximas} />
+        </Field>
 
         {tipo === 'evento' && !repetir && (
-          <>
-            <label style={rotuloEstilo}>Data final (evento de vários dias — opcional)</label>
-            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} style={campoEstilo} />
-          </>
+          <Field label="Data final (evento de vários dias — opcional)">
+            <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+          </Field>
         )}
 
-        <label style={{ ...rotuloEstilo, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input type="checkbox" checked={diaInteiro} onChange={(e) => setDiaInteiro(e.target.checked)} /> Dia inteiro
-        </label>
+        <Field className={estilos.larguraTotal}>
+          <Checkbox rotulo="Dia inteiro" checked={diaInteiro} onChange={(e) => setDiaInteiro(e.target.checked)} />
+        </Field>
 
         {!diaInteiro && (
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={rotuloEstilo}>Hora início *</label>
-              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} style={campoEstilo} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={rotuloEstilo}>Hora fim</label>
-              <input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} style={campoEstilo} />
-            </div>
-          </div>
+          <>
+            <Field label="Hora início *">
+              <Input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
+            </Field>
+            <Field label="Hora fim">
+              <Input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} />
+            </Field>
+          </>
         )}
-
-        {podeMudarRepeticao && (
-          <label style={{ ...rotuloEstilo, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} /> Repetir
-          </label>
-        )}
-
-        {repetir && podeMudarRepeticao && (
-          <div style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '5px', marginBottom: '15px' }}>
-            <label style={rotuloEstilo}>Frequência</label>
-            <select
-              value={tipoRecorrencia}
-              onChange={(e) => setTipoRecorrencia(e.target.value)}
-              style={campoEstilo}
-            >
-              <option value="diaria">Diária</option>
-              <option value="semanal">Semanal</option>
-              <option value="mensal">Mensal</option>
-              <option value="anual">Anual</option>
-            </select>
-
-            <label style={rotuloEstilo}>A cada</label>
-            <input
-              type="number"
-              min="1"
-              value={intervalo}
-              onChange={(e) => setIntervalo(e.target.value)}
-              style={campoEstilo}
-            />
-
-            {tipoRecorrencia === 'semanal' && (
-              <>
-                <label style={rotuloEstilo}>Dias da semana</label>
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                  {DIAS_SEMANA_OPCOES.map((d) => (
-                    <label
-                      key={d.value}
-                      style={{
-                        padding: '6px 10px',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px',
-                        fontSize: '12px',
-                        backgroundColor: diasSemana.has(d.value) ? corPrimaria : 'white',
-                        color: diasSemana.has(d.value) ? 'white' : '#333',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={diasSemana.has(d.value)}
-                        onChange={() => alternarDiaSemana(d.value)}
-                        style={{ display: 'none' }}
-                      />
-                      {d.label}
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <label style={rotuloEstilo}>Termina em (opcional)</label>
-            <input
-              type="date"
-              value={dataFimSerie}
-              onChange={(e) => setDataFimSerie(e.target.value)}
-              style={{ ...campoEstilo, marginBottom: 0 }}
-            />
-          </div>
-        )}
-
-        {erro && <p style={{ color: '#f44336', marginTop: '5px' }}>{erro}</p>}
-
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
-          <button
-            onClick={onCancelar}
-            disabled={salvando}
-            style={{ padding: '10px 20px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={confirmar}
-            disabled={salvando}
-            style={{ padding: '10px 20px', backgroundColor: corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-          >
-            {salvando ? 'Salvando...' : 'Salvar'}
-          </button>
-        </div>
       </div>
-    </div>
+
+      {podeMudarRepeticao && (
+        <div className={estilos.secao}>
+          <Checkbox rotulo="Repetir" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} />
+        </div>
+      )}
+
+      {repetir && podeMudarRepeticao && (
+        <div className={estilos.recorrenciaBloco}>
+          <div className={estilos.grade}>
+            <Field label="Frequência">
+              <Select value={tipoRecorrencia} onChange={(e) => setTipoRecorrencia(e.target.value)}>
+                <option value="diaria">Diária</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensal">Mensal</option>
+                <option value="anual">Anual</option>
+              </Select>
+            </Field>
+
+            <Field label="A cada">
+              <Input type="number" min="1" value={intervalo} onChange={(e) => setIntervalo(e.target.value)} />
+            </Field>
+          </div>
+
+          {tipoRecorrencia === 'semanal' && (
+            <div style={{ marginTop: 'var(--ds-sp-3)' }}>
+              <span className={estilos.tituloSecao} style={{ border: 'none', padding: 0, fontSize: 'var(--ds-fs-label)' }}>
+                Dias da semana
+              </span>
+              <div className={estilos.diasSemana}>
+                {DIAS_SEMANA_OPCOES.map((d) => (
+                  <label key={d.value} className={cx(estilos.diaChip, diasSemana.has(d.value) && estilos.diaChipAtivo)}>
+                    <input
+                      type="checkbox"
+                      className={estilos.diaChipInput}
+                      checked={diasSemana.has(d.value)}
+                      onChange={() => alternarDiaSemana(d.value)}
+                    />
+                    {d.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Field label="Termina em (opcional)" className={estilos.larguraTotal}>
+            <Input type="date" value={dataFimSerie} onChange={(e) => setDataFimSerie(e.target.value)} />
+          </Field>
+        </div>
+      )}
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <div className={estilos.rodape}>
+        <Button variante="secondary" onClick={onCancelar} disabled={salvando}>
+          Cancelar
+        </Button>
+        <Button onClick={confirmar} disabled={salvando}>
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </Button>
+      </div>
+    </Modal>
   );
 }

@@ -1,7 +1,9 @@
+import Button from '../ui/Button';
+import estilos from './agenda.module.css';
+
 // Alternador de visão da Agenda (Mês/Semana/Dia) — botões externos ao
-// FullCalendar, no mesmo estilo visual das abas já usadas em
-// NavegacaoProducao.js, em vez de depender só da barra de ferramentas
-// nativa da lib. `visao` usa os nomes de view do próprio FullCalendar
+// FullCalendar, em vez de depender só da barra de ferramentas nativa da
+// lib. `visao` usa os nomes de view do próprio FullCalendar
 // (dayGridMonth/timeGridWeek/timeGridDay) para repassar direto à
 // referência do calendário, sem tradução.
 const OPCOES = [
@@ -10,31 +12,21 @@ const OPCOES = [
   { chave: 'timeGridDay', label: 'Dia' },
 ];
 
-export default function NavegacaoAgenda({ visao, onMudarVisao, corPrimaria }) {
+export default function NavegacaoAgenda({ visao, onMudarVisao }) {
   return (
-    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-      {OPCOES.map((opcao) => {
-        const ativa = opcao.chave === visao;
-        return (
-          <button
-            key={opcao.chave}
-            type="button"
-            onClick={() => onMudarVisao(opcao.chave)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: ativa ? corPrimaria : 'white',
-              color: ativa ? 'white' : corPrimaria,
-              border: `1px solid ${corPrimaria}`,
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: ativa ? 'bold' : 'normal',
-              fontSize: '14px',
-            }}
-          >
-            {opcao.label}
-          </button>
-        );
-      })}
+    <div className={estilos.visoes} role="tablist" aria-label="Visão da agenda">
+      {OPCOES.map((opcao) => (
+        <Button
+          key={opcao.chave}
+          tamanho="sm"
+          variante={opcao.chave === visao ? 'primary' : 'secondary'}
+          role="tab"
+          aria-selected={opcao.chave === visao}
+          onClick={() => onMudarVisao(opcao.chave)}
+        >
+          {opcao.label}
+        </Button>
+      ))}
     </div>
   );
 }

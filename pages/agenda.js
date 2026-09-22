@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import NavegacaoAgenda from '../components/agenda/NavegacaoAgenda';
 import AgendaFiltros from '../components/agenda/AgendaFiltros';
@@ -10,13 +8,18 @@ import AgendaItemDetalheModal from '../components/agenda/AgendaItemDetalheModal'
 import GerenciarCategoriasAgendaModal from '../components/agenda/GerenciarCategoriasAgendaModal';
 import ConcluirTarefaModal from '../components/agenda/ConcluirTarefaModal';
 import AniversarioOcorrenciaModal from '../components/agenda/AniversarioOcorrenciaModal';
+import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
+import PageShell from '../components/shell/PageShell';
+import PageHeader from '../components/ui/PageHeader';
+import Alert from '../components/ui/Alert';
+import Button from '../components/ui/Button';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
 import { buscarItensDaAgenda, buscarNascimentosParaAgenda } from '../lib/agenda/consultasAgenda';
 import { itemAgendaAniversario } from '../lib/funcionarios/aniversarios';
-import { APARENCIA_FIXA } from '../lib/branding/tema';
+import estilos from '../components/agenda/agenda.module.css';
 
 // FullCalendar manipula o DOM diretamente -- client-only, sem SSR
 // (mesmo padrão recomendado pela própria lib para Next.js).
@@ -37,8 +40,6 @@ function AgendaConteudo() {
   // aqui (RLS de public.funcionarios bloquearia de qualquer forma, mas
   // o gate aqui evita até tentar e mostrar um estado de erro confuso).
   const podeVerFuncionarios = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_VISUALIZAR);
-
-  const aparencia = APARENCIA_FIXA;
 
   const [visao, setVisao] = useState('dayGridMonth');
   const [janela, setJanela] = useState(null); // { inicio, fim }
@@ -246,54 +247,49 @@ function AgendaConteudo() {
     setRecarregarTick((t) => t + 1);
   }
 
+  function fecharReabertura() {
+    setOcorrenciaParaReabrir(null);
+    setErroReabertura('');
+  }
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Agenda" />
-
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Agenda</h2>
-          <div style={{ display: 'flex', gap: '10px' }}>
+    <PageShell titulo="Agenda">
+      <PageHeader
+        titulo="Agenda"
+        acoes={
+          <>
             {podeEditar && (
-              <button
-                onClick={() => setMostrarCategorias(true)}
-                style={{ padding: '10px 16px', backgroundColor: 'white', color: aparencia.corPrimaria, border: `1px solid ${aparencia.corPrimaria}`, borderRadius: '5px', cursor: 'pointer' }}
-              >
+              <Button variante="secondary" onClick={() => setMostrarCategorias(true)}>
                 Gerenciar categorias
-              </button>
+              </Button>
             )}
             {podeInserir && (
-              <button
-                onClick={() => setModalForm({ modo: 'criar', dataInicialSugerida: undefined })}
-                style={{ padding: '10px 20px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                + Novo
-              </button>
+              <Button icone="plus" onClick={() => setModalForm({ modo: 'criar', dataInicialSugerida: undefined })}>
+                Novo
+              </Button>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <NavegacaoAgenda visao={visao} onMudarVisao={setVisao} corPrimaria={aparencia.corPrimaria} />
+      <NavegacaoAgenda visao={visao} onMudarVisao={setVisao} />
 
-        <AgendaFiltros categorias={categorias} filtro={filtro} onMudarFiltro={setFiltro} />
+      <AgendaFiltros categorias={categorias} filtro={filtro} onMudarFiltro={setFiltro} />
 
-        {erro && <p style={{ color: '#f44336' }}>{erro}</p>}
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-          {carregando && <p style={{ margin: '0 0 10px 0', color: '#999', fontSize: '13px' }}>Carregando...</p>}
-          <AgendaCalendario
-            visao={visao}
-            ocorrencias={ocorrencias}
-            onMudarJanela={onMudarJanela}
-            onClicarOcorrencia={(oc) => (oc.item.tipo === 'aniversario' ? setAniversarioDetalhe(oc) : setOcorrenciaDetalhe(oc))}
-            onClicarData={(data) => {
-              if (podeInserir) setModalForm({ modo: 'criar', dataInicialSugerida: data });
-            }}
-            onClicarCheckboxTarefa={podeEditar ? aoClicarCheckboxTarefa : () => {}}
-          />
-        </div>
+      <div className={estilos.superficieCalendario}>
+        {carregando && <p className={estilos.carregandoCalendario} role="status">Carregando...</p>}
+        <AgendaCalendario
+          visao={visao}
+          ocorrencias={ocorrencias}
+          onMudarJanela={onMudarJanela}
+          onClicarOcorrencia={(oc) => (oc.item.tipo === 'aniversario' ? setAniversarioDetalhe(oc) : setOcorrenciaDetalhe(oc))}
+          onClicarData={(data) => {
+            if (podeInserir) setModalForm({ modo: 'criar', dataInicialSugerida: data });
+          }}
+          onClicarCheckboxTarefa={podeEditar ? aoClicarCheckboxTarefa : () => {}}
+        />
       </div>
 
       {modalForm && (
@@ -303,7 +299,6 @@ function AgendaConteudo() {
           dataCorte={modalForm.dataCorte}
           dataInicialSugerida={modalForm.dataInicialSugerida}
           categorias={categorias.filter((c) => c.ativo || c.valor === modalForm.item?.categoria)}
-          corPrimaria={aparencia.corPrimaria}
           onSalvo={aoSalvarForm}
           onCancelar={fecharModalForm}
         />
@@ -350,38 +345,16 @@ function AgendaConteudo() {
       )}
 
       {ocorrenciaParaReabrir && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', zIndex: 1000, padding: '20px',
-        }}>
-          <div style={{
-            backgroundColor: 'white', padding: '25px', borderRadius: '10px',
-            maxWidth: '380px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          }}>
-            <h3 style={{ marginTop: 0 }}>Reabrir tarefa</h3>
-            <p style={{ fontSize: '13px', color: '#666' }}>
-              Reabrir "{ocorrenciaParaReabrir.titulo}"? Ela voltará para pendente.
-            </p>
-            {erroReabertura && <p style={{ color: '#f44336' }}>{erroReabertura}</p>}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setOcorrenciaParaReabrir(null)}
-                disabled={processandoReabertura}
-                style={{ padding: '8px 14px', backgroundColor: '#999', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarReaberturaTarefa}
-                disabled={processandoReabertura}
-                style={{ padding: '8px 14px', backgroundColor: '#9e9e9e', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-              >
-                {processandoReabertura ? 'Reabrindo...' : 'Reabrir'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmarAcaoModal
+          titulo="Reabrir tarefa"
+          mensagem={<>Reabrir "{ocorrenciaParaReabrir.titulo}"? Ela voltará para pendente.</>}
+          textoConfirmar="Reabrir"
+          confirmando={processandoReabertura}
+          erro={erroReabertura}
+          onConfirmar={confirmarReaberturaTarefa}
+          onCancelar={fecharReabertura}
+          modalDS
+        />
       )}
 
       {mostrarCategorias && (
@@ -393,7 +366,7 @@ function AgendaConteudo() {
           onAtualizar={() => setRecarregarTick((t) => t + 1)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 

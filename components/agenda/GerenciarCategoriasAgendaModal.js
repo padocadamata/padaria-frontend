@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
+import Alert from '../ui/Alert';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import { cx } from '../../lib/design/cx';
+import estilos from './agenda.module.css';
 
 const MAX_LEN = 50;
 
@@ -212,126 +219,107 @@ export default function GerenciarCategoriasAgendaModal({ aberto, onFechar, categ
   if (!aberto) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      }}
-      onClick={onFechar}
-    >
-      <div
-        style={{ background: '#fff', borderRadius: 8, padding: 20, width: 420, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Gerenciar categorias</h2>
-          <button type="button" onClick={onFechar} style={{ fontSize: 13 }}>Fechar</button>
-        </div>
+    <Modal titulo="Gerenciar categorias" onFechar={onFechar} largura="sm">
+      {carregandoUso && <p className={estilos.detalheMeta}>Carregando informações de uso...</p>}
 
-        {carregandoUso && <p style={{ fontSize: 11, color: '#888', marginTop: 0 }}>Carregando informações de uso...</p>}
-
-        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px 0' }}>
-          {categorias.length === 0 && <li style={{ color: '#888', fontSize: 13, padding: '4px 0' }}>Nenhuma cadastrada.</li>}
-          {categorias.map((item) => {
-            const emEdicao = editando === item.valor;
-            const usoQtd = usoPorValor.get(item.valor) || 0;
-            return (
-              <li key={item.valor} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                {emEdicao ? (
-                  <>
-                    <input
-                      type="text"
-                      value={valorEditado}
-                      maxLength={MAX_LEN}
-                      onChange={(e) => setValorEditado(e.target.value)}
-                      style={{ flex: 1, padding: '4px 8px', fontSize: 13 }}
-                      autoFocus
-                    />
-                    <button type="button" onClick={() => salvarEdicao(item.valor)} disabled={salvandoEdicao || carregandoUso} style={{ fontSize: 12 }}>
-                      Salvar
-                    </button>
-                    <button type="button" onClick={cancelarEdicao} style={{ fontSize: 12 }}>Cancelar</button>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ flex: 1, fontSize: 13, color: item.ativo ? '#111' : '#999', textDecoration: item.ativo ? 'none' : 'line-through' }}>
-                      {item.valor}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11, padding: '2px 6px', borderRadius: 4,
-                        background: item.ativo ? '#e6f4ea' : '#f1f1f1', color: item.ativo ? '#1e7e34' : '#777',
-                      }}
-                    >
-                      {item.ativo ? 'Ativa' : 'Inativa'}
-                    </span>
-                    {usoQtd > 0 && <span style={{ fontSize: 11, color: '#888' }}>{usoQtd} em uso</span>}
-                    {podeGerenciar && (
-                      <>
-                        <button type="button" onClick={() => iniciarEdicao(item)} style={{ fontSize: 12 }}>Renomear</button>
-                        <button
-                          type="button"
-                          onClick={() => alternarAtivo(item)}
-                          disabled={alternandoAtivo === item.valor || carregandoUso}
-                          style={{ fontSize: 12 }}
-                        >
-                          {item.ativo ? 'Inativar' : 'Ativar'}
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        {podeGerenciar && (
-          <form onSubmit={criar} style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              placeholder="Nova categoria"
-              value={novoValor}
-              maxLength={MAX_LEN}
-              onChange={(e) => setNovoValor(e.target.value)}
-              style={{ flex: 1, padding: '4px 8px', fontSize: 13 }}
-            />
-            <button type="submit" disabled={salvandoNovo} style={{ fontSize: 12 }}>Adicionar</button>
-          </form>
-        )}
-
-        {erro && <p style={{ color: '#c0392b', fontSize: 12, marginTop: 6 }}>{erro}</p>}
-
-        <p style={{ fontSize: 11, color: '#888', marginTop: 12 }}>
-          Não é possível excluir categorias — apenas inativá-las. Uma categoria inativa continua aparecendo nos
-          itens já cadastrados, mas deixa de ser oferecida para itens novos.
-        </p>
-
-        {acaoPendente && (
-          <ConfirmarAcaoModal
-            titulo={acaoPendente.tipo === 'renomear' ? 'Renomear categoria' : 'Inativar categoria'}
-            mensagem={
-              acaoPendente.tipo === 'renomear' ? (
+      <ul className={estilos.listaCategorias}>
+        {categorias.length === 0 && <li className={estilos.detalheMeta}>Nenhuma cadastrada.</li>}
+        {categorias.map((item) => {
+          const emEdicao = editando === item.valor;
+          const usoQtd = usoPorValor.get(item.valor) || 0;
+          return (
+            <li key={item.valor} className={estilos.itemCategoria}>
+              {emEdicao ? (
                 <>
-                  Esta categoria está sendo utilizada por <strong>{textoQtdItens(acaoPendente.usoQtd)}</strong>. Ao
-                  renomeá-la, a categoria será atualizada {acaoPendente.usoQtd === 1 ? 'nesse item' : 'nesses itens'}.
-                  Deseja continuar?
+                  <Input
+                    type="text"
+                    value={valorEditado}
+                    maxLength={MAX_LEN}
+                    onChange={(e) => setValorEditado(e.target.value)}
+                    className={estilos.itemCategoriaNome}
+                    aria-label="Renomear categoria"
+                    autoFocus
+                  />
+                  <Button tamanho="sm" onClick={() => salvarEdicao(item.valor)} disabled={salvandoEdicao || carregandoUso}>
+                    Salvar
+                  </Button>
+                  <Button tamanho="sm" variante="secondary" onClick={cancelarEdicao}>
+                    Cancelar
+                  </Button>
                 </>
               ) : (
                 <>
-                  Esta categoria está sendo utilizada por <strong>{textoQtdItens(acaoPendente.usoQtd)}</strong>. Ela
-                  continuará vinculada, mas não ficará disponível para itens novos. Deseja inativar?
+                  <span className={cx(estilos.itemCategoriaNome, !item.ativo && estilos.itemCategoriaInativa)}>
+                    {item.valor}
+                  </span>
+                  <Badge tom={item.ativo ? 'success' : 'neutral'}>{item.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                  {usoQtd > 0 && <span className={estilos.itemCategoriaUso}>{usoQtd} em uso</span>}
+                  {podeGerenciar && (
+                    <>
+                      <Button tamanho="sm" variante="secondary" onClick={() => iniciarEdicao(item)}>Renomear</Button>
+                      <Button
+                        tamanho="sm"
+                        variante="secondary"
+                        onClick={() => alternarAtivo(item)}
+                        disabled={alternandoAtivo === item.valor || carregandoUso}
+                      >
+                        {item.ativo ? 'Inativar' : 'Ativar'}
+                      </Button>
+                    </>
+                  )}
                 </>
-              )
-            }
-            textoConfirmar={acaoPendente.tipo === 'renomear' ? 'Renomear' : 'Inativar'}
-            confirmando={confirmando}
-            erro={erroConfirmacao}
-            onConfirmar={confirmarAcaoPendente}
-            onCancelar={cancelarAcaoPendente}
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {podeGerenciar && (
+        <form onSubmit={criar} className={estilos.criarCategoria}>
+          <Input
+            type="text"
+            placeholder="Nova categoria"
+            value={novoValor}
+            maxLength={MAX_LEN}
+            onChange={(e) => setNovoValor(e.target.value)}
+            aria-label="Nova categoria"
           />
-        )}
-      </div>
-    </div>
+          <Button type="submit" disabled={salvandoNovo}>Adicionar</Button>
+        </form>
+      )}
+
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+
+      <p className={estilos.notaCategorias}>
+        Não é possível excluir categorias — apenas inativá-las. Uma categoria inativa continua aparecendo nos
+        itens já cadastrados, mas deixa de ser oferecida para itens novos.
+      </p>
+
+      {acaoPendente && (
+        <ConfirmarAcaoModal
+          titulo={acaoPendente.tipo === 'renomear' ? 'Renomear categoria' : 'Inativar categoria'}
+          mensagem={
+            acaoPendente.tipo === 'renomear' ? (
+              <>
+                Esta categoria está sendo utilizada por <strong>{textoQtdItens(acaoPendente.usoQtd)}</strong>. Ao
+                renomeá-la, a categoria será atualizada {acaoPendente.usoQtd === 1 ? 'nesse item' : 'nesses itens'}.
+                Deseja continuar?
+              </>
+            ) : (
+              <>
+                Esta categoria está sendo utilizada por <strong>{textoQtdItens(acaoPendente.usoQtd)}</strong>. Ela
+                continuará vinculada, mas não ficará disponível para itens novos. Deseja inativar?
+              </>
+            )
+          }
+          textoConfirmar={acaoPendente.tipo === 'renomear' ? 'Renomear' : 'Inativar'}
+          confirmando={confirmando}
+          erro={erroConfirmacao}
+          onConfirmar={confirmarAcaoPendente}
+          onCancelar={cancelarAcaoPendente}
+          modalDS
+        />
+      )}
+    </Modal>
   );
 }

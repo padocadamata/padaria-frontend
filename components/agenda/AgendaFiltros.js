@@ -1,61 +1,53 @@
-// Filtros V1 da Agenda: categoria, tipo (evento/tarefa) e status
-// (pendente/concluída — só relevante para tarefa, mas não desabilitado
-// quando "evento" está selecionado, para manter o controle simples).
+import Field from '../ui/Field';
+import FilterBar from '../ui/FilterBar';
+import Select from '../ui/Select';
+
+const FILTRO_PADRAO = { categoria: 'todas', tipo: 'todos', status: 'todos' };
+
+// Filtros V1 da Agenda: categoria, tipo (evento/tarefa/aniversário) e
+// status (pendente/concluída — só relevante para tarefa, mas não
+// desabilitado quando "evento" está selecionado, para manter o controle
+// simples). Mesma semântica de antes -- só a moldura virou FilterBar.
 export default function AgendaFiltros({ categorias, filtro, onMudarFiltro }) {
+  const ativos = [
+    filtro.categoria !== FILTRO_PADRAO.categoria,
+    filtro.tipo !== FILTRO_PADRAO.tipo,
+    filtro.status !== FILTRO_PADRAO.status,
+  ].filter(Boolean).length;
+
+  function limpar() {
+    onMudarFiltro({ ...FILTRO_PADRAO });
+  }
+
   return (
-    <div
-      style={{
-        backgroundColor: '#f9f9f9',
-        padding: '15px',
-        borderRadius: '5px',
-        marginBottom: '20px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: '15px',
-      }}
-    >
-      <div>
-        <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Categoria</label>
-        <select
-          value={filtro.categoria}
-          onChange={(e) => onMudarFiltro({ ...filtro, categoria: e.target.value })}
-          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-        >
+    <FilterBar ativos={ativos} onLimpar={limpar}>
+      <Field label="Categoria">
+        <Select value={filtro.categoria} onChange={(e) => onMudarFiltro({ ...filtro, categoria: e.target.value })}>
           <option value="todas">Todas</option>
           {categorias.map((c) => (
             <option key={c.valor} value={c.valor}>
               {c.valor}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div>
-        <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Tipo</label>
-        <select
-          value={filtro.tipo}
-          onChange={(e) => onMudarFiltro({ ...filtro, tipo: e.target.value })}
-          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-        >
+      <Field label="Tipo">
+        <Select value={filtro.tipo} onChange={(e) => onMudarFiltro({ ...filtro, tipo: e.target.value })}>
           <option value="todos">Todos</option>
           <option value="evento">Evento</option>
           <option value="tarefa">Tarefa</option>
           <option value="aniversario">Aniversário</option>
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div>
-        <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Status</label>
-        <select
-          value={filtro.status}
-          onChange={(e) => onMudarFiltro({ ...filtro, status: e.target.value })}
-          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box' }}
-        >
+      <Field label="Status">
+        <Select value={filtro.status} onChange={(e) => onMudarFiltro({ ...filtro, status: e.target.value })}>
           <option value="todos">Todos</option>
           <option value="pendente">Pendente</option>
           <option value="concluida">Concluída</option>
-        </select>
-      </div>
-    </div>
+        </Select>
+      </Field>
+    </FilterBar>
   );
 }
