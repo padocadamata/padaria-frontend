@@ -8,6 +8,15 @@ import {
   cpfValido,
   UNIDADES_FEDERATIVAS,
 } from '../../lib/funcionarios/normalizacao';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Checkbox from '../ui/Checkbox';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import { cx } from '../../lib/design/cx';
+import estilos from './funcionarios.module.css';
 
 // Mesmo componente para /funcionarios/novo (funcionario=null) e para a
 // aba "Dados pessoais/profissionais" de /funcionarios/[id] (funcionario
@@ -110,31 +119,7 @@ export function mensagemErro(error) {
   return 'Não foi possível salvar o funcionário. Tente novamente ou avise um administrador.';
 }
 
-const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '13px', color: '#444' };
-const campoEstilo = { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box', fontSize: '14px' };
-const linhaEstilo = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '14px' };
-
-function Campo({ label, children }) {
-  return (
-    <div>
-      <label style={rotuloEstilo}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Secao({ titulo, corPrimaria, children }) {
-  return (
-    <div style={{ marginBottom: '22px' }}>
-      <h4 style={{ color: corPrimaria, fontSize: '14px', margin: '0 0 10px 0', borderBottom: `1px solid ${corPrimaria}33`, paddingBottom: '4px' }}>
-        {titulo}
-      </h4>
-      {children}
-    </div>
-  );
-}
-
-export default function DadosFuncionarioForm({ funcionario, corPrimaria = '#8B4513', podeEditar, onCriado, onSalvo }) {
+export default function DadosFuncionarioForm({ funcionario, podeEditar, onCriado, onSalvo }) {
   const estaEditando = funcionario != null;
   const [dados, setDados] = useState(() => estadoInicial(funcionario));
   const [salvando, setSalvando] = useState(false);
@@ -214,138 +199,136 @@ export default function DadosFuncionarioForm({ funcionario, corPrimaria = '#8B45
 
   return (
     <form onSubmit={salvar}>
-      <Secao titulo="Identificação" corPrimaria={corPrimaria}>
-        <div style={linhaEstilo}>
-          <Campo label="Nome *">
-            <input type="text" value={dados.nome} disabled={!podeEditar} onChange={(e) => atualizarCampo('nome', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="CPF">
-            <input type="text" value={dados.cpf} disabled={!podeEditar} placeholder="000.000.000-00" onChange={(e) => atualizarCampo('cpf', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="RG / Documento">
-            <input type="text" value={dados.rg} disabled={!podeEditar} onChange={(e) => atualizarCampo('rg', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Data de nascimento">
-            <input type="date" value={dados.data_nascimento} disabled={!podeEditar} onChange={(e) => atualizarCampo('data_nascimento', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Telefone">
-            <input type="text" value={dados.telefone} disabled={!podeEditar} onChange={(e) => atualizarCampo('telefone', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="E-mail">
-            <input type="email" value={dados.email} disabled={!podeEditar} onChange={(e) => atualizarCampo('email', e.target.value)} style={campoEstilo} />
-          </Campo>
+      <div className={estilos.secao}>
+        <h3 className={estilos.tituloSecao}>Identificação</h3>
+        <div className={estilos.grade}>
+          <Field label="Nome *">
+            <Input type="text" value={dados.nome} disabled={!podeEditar} onChange={(e) => atualizarCampo('nome', e.target.value)} />
+          </Field>
+          <Field label="CPF">
+            <Input type="text" value={dados.cpf} disabled={!podeEditar} placeholder="000.000.000-00" onChange={(e) => atualizarCampo('cpf', e.target.value)} />
+          </Field>
+          <Field label="RG / Documento">
+            <Input type="text" value={dados.rg} disabled={!podeEditar} onChange={(e) => atualizarCampo('rg', e.target.value)} />
+          </Field>
+          <Field label="Data de nascimento">
+            <Input type="date" value={dados.data_nascimento} disabled={!podeEditar} onChange={(e) => atualizarCampo('data_nascimento', e.target.value)} />
+          </Field>
+          <Field label="Telefone">
+            <Input type="text" value={dados.telefone} disabled={!podeEditar} onChange={(e) => atualizarCampo('telefone', e.target.value)} />
+          </Field>
+          <Field label="E-mail">
+            <Input type="email" value={dados.email} disabled={!podeEditar} onChange={(e) => atualizarCampo('email', e.target.value)} />
+          </Field>
+          <Field label="Observações" className={estilos.larguraTotal}>
+            <Textarea value={dados.observacoes} disabled={!podeEditar} onChange={(e) => atualizarCampo('observacoes', e.target.value)} rows={2} />
+          </Field>
         </div>
-        <Campo label="Observações">
-          <textarea value={dados.observacoes} disabled={!podeEditar} onChange={(e) => atualizarCampo('observacoes', e.target.value)} rows={2} style={{ ...campoEstilo, resize: 'vertical' }} />
-        </Campo>
-      </Secao>
+      </div>
 
-      <Secao titulo="Endereço" corPrimaria={corPrimaria}>
-        <div style={linhaEstilo}>
-          <Campo label="CEP">
-            <input type="text" value={dados.cep} disabled={!podeEditar} onChange={(e) => atualizarCampo('cep', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Logradouro">
-            <input type="text" value={dados.logradouro} disabled={!podeEditar} onChange={(e) => atualizarCampo('logradouro', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Número">
-            <input type="text" value={dados.numero} disabled={!podeEditar} onChange={(e) => atualizarCampo('numero', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Complemento">
-            <input type="text" value={dados.complemento} disabled={!podeEditar} onChange={(e) => atualizarCampo('complemento', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Bairro">
-            <input type="text" value={dados.bairro} disabled={!podeEditar} onChange={(e) => atualizarCampo('bairro', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Cidade">
-            <input type="text" value={dados.cidade} disabled={!podeEditar} onChange={(e) => atualizarCampo('cidade', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Estado (UF)">
-            <select value={dados.estado} disabled={!podeEditar} onChange={(e) => atualizarCampo('estado', e.target.value)} style={campoEstilo}>
+      <div className={estilos.secao}>
+        <h3 className={estilos.tituloSecao}>Endereço</h3>
+        <div className={estilos.grade}>
+          <Field label="CEP">
+            <Input type="text" value={dados.cep} disabled={!podeEditar} onChange={(e) => atualizarCampo('cep', e.target.value)} />
+          </Field>
+          <Field label="Logradouro">
+            <Input type="text" value={dados.logradouro} disabled={!podeEditar} onChange={(e) => atualizarCampo('logradouro', e.target.value)} />
+          </Field>
+          <Field label="Número">
+            <Input type="text" value={dados.numero} disabled={!podeEditar} onChange={(e) => atualizarCampo('numero', e.target.value)} />
+          </Field>
+          <Field label="Complemento">
+            <Input type="text" value={dados.complemento} disabled={!podeEditar} onChange={(e) => atualizarCampo('complemento', e.target.value)} />
+          </Field>
+          <Field label="Bairro">
+            <Input type="text" value={dados.bairro} disabled={!podeEditar} onChange={(e) => atualizarCampo('bairro', e.target.value)} />
+          </Field>
+          <Field label="Cidade">
+            <Input type="text" value={dados.cidade} disabled={!podeEditar} onChange={(e) => atualizarCampo('cidade', e.target.value)} />
+          </Field>
+          <Field label="Estado (UF)">
+            <Select value={dados.estado} disabled={!podeEditar} onChange={(e) => atualizarCampo('estado', e.target.value)}>
               <option value="">—</option>
               {UNIDADES_FEDERATIVAS.map((uf) => (
                 <option key={uf} value={uf}>{uf}</option>
               ))}
-            </select>
-          </Campo>
+            </Select>
+          </Field>
         </div>
-      </Secao>
+      </div>
 
-      <Secao titulo="Contato de emergência" corPrimaria={corPrimaria}>
-        <div style={linhaEstilo}>
-          <Campo label="Nome">
-            <input type="text" value={dados.nome_contato_emergencia} disabled={!podeEditar} onChange={(e) => atualizarCampo('nome_contato_emergencia', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Telefone">
-            <input type="text" value={dados.telefone_contato_emergencia} disabled={!podeEditar} onChange={(e) => atualizarCampo('telefone_contato_emergencia', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Parentesco">
-            <input type="text" value={dados.parentesco_contato_emergencia} disabled={!podeEditar} onChange={(e) => atualizarCampo('parentesco_contato_emergencia', e.target.value)} style={campoEstilo} />
-          </Campo>
+      <div className={estilos.secao}>
+        <h3 className={estilos.tituloSecao}>Contato de emergência</h3>
+        <div className={estilos.grade}>
+          <Field label="Nome">
+            <Input type="text" value={dados.nome_contato_emergencia} disabled={!podeEditar} onChange={(e) => atualizarCampo('nome_contato_emergencia', e.target.value)} />
+          </Field>
+          <Field label="Telefone">
+            <Input type="text" value={dados.telefone_contato_emergencia} disabled={!podeEditar} onChange={(e) => atualizarCampo('telefone_contato_emergencia', e.target.value)} />
+          </Field>
+          <Field label="Parentesco">
+            <Input type="text" value={dados.parentesco_contato_emergencia} disabled={!podeEditar} onChange={(e) => atualizarCampo('parentesco_contato_emergencia', e.target.value)} />
+          </Field>
         </div>
-      </Secao>
+      </div>
 
-      <Secao titulo="Dados profissionais" corPrimaria={corPrimaria}>
-        <div style={linhaEstilo}>
-          <Campo label="Cargo/Função">
-            <select value={dados.cargo_id} disabled={!podeEditar} onChange={(e) => atualizarCampo('cargo_id', e.target.value)} style={campoEstilo}>
+      <div className={estilos.secao}>
+        <h3 className={estilos.tituloSecao}>Dados profissionais</h3>
+        <div className={cx(estilos.grade, estilos.larguraTotal)} style={{ marginBottom: 'var(--ds-sp-4)' }}>
+          <Field label="Cargo/Função">
+            <Select value={dados.cargo_id} disabled={!podeEditar} onChange={(e) => atualizarCampo('cargo_id', e.target.value)}>
               <option value="">—</option>
               {cargos.map((c) => (
                 <option key={c.id} value={c.id} disabled={!c.ativo}>
                   {c.nome}{!c.ativo ? ' (inativo)' : ''}
                 </option>
               ))}
-            </select>
-          </Campo>
-          <Campo label="Data de admissão">
-            <input type="date" value={dados.data_admissao} disabled={!podeEditar} onChange={(e) => atualizarCampo('data_admissao', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Data de demissão">
-            <input type="date" value={dados.data_demissao} disabled={!podeEditar} onChange={(e) => atualizarCampo('data_demissao', e.target.value)} style={campoEstilo} />
-          </Campo>
-          <Campo label="Usuário do sistema vinculado (opcional)">
-            <select
+            </Select>
+          </Field>
+          <Field label="Data de admissão">
+            <Input type="date" value={dados.data_admissao} disabled={!podeEditar} onChange={(e) => atualizarCampo('data_admissao', e.target.value)} />
+          </Field>
+          <Field label="Data de demissão">
+            <Input type="date" value={dados.data_demissao} disabled={!podeEditar} onChange={(e) => atualizarCampo('data_demissao', e.target.value)} />
+          </Field>
+          <Field label="Usuário do sistema vinculado (opcional)">
+            <Select
               value={dados.usuario_id}
               disabled={!podeEditar || carregandoAuxiliares}
               onChange={(e) => atualizarCampo('usuario_id', e.target.value)}
-              style={campoEstilo}
             >
               <option value="">— Sem login no sistema —</option>
               {usuariosDisponiveis.map((u) => (
                 <option key={u.id} value={u.id}>{u.nome} ({u.email})</option>
               ))}
-            </select>
-          </Campo>
+            </Select>
+          </Field>
         </div>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: dados.data_demissao ? '#999' : '#333', fontSize: '14px' }}>
-          <input
-            type="checkbox"
-            checked={dados.data_demissao ? false : dados.ativo}
-            disabled={!podeEditar || !!dados.data_demissao}
-            onChange={(e) => atualizarCampo('ativo', e.target.checked)}
-          />
-          Funcionário ativo
-        </label>
+        <Checkbox
+          rotulo="Funcionário ativo"
+          checked={dados.data_demissao ? false : dados.ativo}
+          disabled={!podeEditar || !!dados.data_demissao}
+          onChange={(e) => atualizarCampo('ativo', e.target.checked)}
+        />
         {dados.data_demissao && (
-          <p style={{ fontSize: '12px', color: '#b26a00', margin: '4px 0 0 24px', fontWeight: 'bold' }}>
+          <p className={estilos.avisoDemissao}>
             Enquanto a data de demissão estiver preenchida, o funcionário fica inativo e esta caixa fica bloqueada
             — o banco força isso automaticamente, mesmo que você tente marcar. Para reativar: (1) limpe a data de
             demissão acima e (2) marque "Funcionário ativo" manualmente.
           </p>
         )}
-      </Secao>
+      </div>
 
-      {erro && <p style={{ color: '#f44336', fontSize: '14px' }}>{erro}</p>}
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
       {podeEditar && (
-        <button
-          type="submit"
-          disabled={salvando}
-          style={{ padding: '10px 24px', backgroundColor: corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px' }}
-        >
-          {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : 'Cadastrar funcionário'}
-        </button>
+        <div className={estilos.rodape}>
+          <Button type="submit" disabled={salvando}>
+            {salvando ? 'Salvando...' : estaEditando ? 'Salvar alterações' : 'Cadastrar funcionário'}
+          </Button>
+        </div>
       )}
     </form>
   );

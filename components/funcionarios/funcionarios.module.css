@@ -1,0 +1,217 @@
+/* Peças visuais das telas/formulários de Funcionários (só apresentação). */
+
+.superficie {
+  min-width: 0;
+}
+
+@media (min-width: 769px) {
+  .superficie {
+    padding: var(--ds-sp-4);
+    background-color: var(--ds-surface);
+    border: var(--ds-border-w) solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  .superficie:has(ul[aria-label]) {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.resumo {
+  margin: var(--ds-sp-4) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* ----------------------------- formulário ----------------------------- */
+
+.secao {
+  margin: 0 0 var(--ds-sp-5);
+}
+
+.tituloSecao {
+  margin: 0 0 var(--ds-sp-3);
+  padding-bottom: var(--ds-sp-2);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+}
+
+.larguraTotal {
+  grid-column: 1 / -1;
+}
+
+.nota {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.avisoDemissao {
+  margin: var(--ds-sp-2) 0 0 26px;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-warning);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 768px) {
+  .rodape {
+    flex-direction: column-reverse;
+  }
+  .rodape > * {
+    width: 100%;
+  }
+}
+
+/* --------------------------- página de detalhe -------------------------- */
+
+.cabecalhoDetalhe {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+}
+
+.abas {
+  display: flex;
+  gap: var(--ds-sp-1);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+  margin-bottom: var(--ds-sp-4);
+  overflow-x: auto;
+}
+
+.aba {
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  border: none;
+  background: none;
+  border-bottom: 3px solid transparent;
+  color: var(--ds-text-muted);
+  font-weight: var(--ds-fw-semibold);
+  font-size: var(--ds-fs-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.abaAtiva {
+  color: var(--ds-primary);
+  border-bottom-color: var(--ds-primary);
+}
+
+.carregando,
+.erroCarga {
+  padding: var(--ds-sp-6) 0;
+  text-align: center;
+  color: var(--ds-text-muted);
+}
+
+/* ------------------------- dependentes / benefícios --------------------- */
+
+.listaItens {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  background-color: var(--ds-surface-muted);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemInativo {
+  opacity: 0.7;
+}
+
+.itemTitulo {
+  font-weight: var(--ds-fw-semibold);
+}
+
+.itemDetalhe {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.itemAcoes {
+  display: flex;
+  gap: var(--ds-sp-1);
+  flex-shrink: 0;
+}
+
+.vazio {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-body);
+  margin: 0 0 var(--ds-sp-3);
+}
+
+/* ------------------------------ cargos ----------------------------------- */
+
+.listaCargos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: var(--ds-sp-3);
+}
+
+.itemCargo {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  background-color: var(--ds-surface-muted);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemCargoEmEdicao {
+  background-color: var(--ds-warning-soft);
+}
+
+.itemCargoNome {
+  flex: 1;
+  font-size: var(--ds-fs-body);
+}
+
+.itemCargoInativo {
+  color: var(--ds-text-disabled);
+  text-decoration: line-through;
+}
+
+.criarCargo {
+  display: flex;
+  gap: var(--ds-sp-2);
+}
+
+.criarCargo > :first-child {
+  flex: 1;
+}

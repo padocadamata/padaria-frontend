@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
+import Alert from '../ui/Alert';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
+import Select from '../ui/Select';
+import Textarea from '../ui/Textarea';
+import { cx } from '../../lib/design/cx';
+import estilos from './funcionarios.module.css';
 
 const PERIODICIDADE_LABEL = {
   diaria: 'Diária',
@@ -31,9 +41,7 @@ function mensagemErro(error) {
   return 'Não foi possível salvar o benefício. Tente novamente ou avise um administrador.';
 }
 
-const campoEstilo = { width: '100%', padding: '7px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box', fontSize: '13px' };
-
-export default function BeneficiosTab({ funcionarioId, corPrimaria = '#8B4513', podeEditar }) {
+export default function BeneficiosTab({ funcionarioId, podeEditar }) {
   const [beneficios, setBeneficios] = useState([]);
   const [tipos, setTipos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -142,39 +150,31 @@ export default function BeneficiosTab({ funcionarioId, corPrimaria = '#8B4513', 
     carregar();
   }
 
-  if (carregando) return <p style={{ color: '#999', fontSize: '13px' }}>Carregando benefícios...</p>;
-  if (erro) return <p style={{ color: '#f44336', fontSize: '13px' }}>{erro}</p>;
+  if (carregando) return <p className={estilos.vazio}>Carregando benefícios...</p>;
+  if (erro) return <Alert tom="danger">{erro}</Alert>;
 
   return (
     <div>
-      {beneficios.length === 0 && !mostrarForm && (
-        <p style={{ color: '#666', fontSize: '13px' }}>Este funcionário ainda não possui benefícios/condições recorrentes cadastradas.</p>
-      )}
-
-      {beneficios.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+      {beneficios.length === 0 ? (
+        <p className={estilos.vazio}>Este funcionário ainda não possui benefícios/condições recorrentes cadastradas.</p>
+      ) : (
+        <div className={estilos.listaItens}>
           {beneficios.map((ben) => (
-            <div
-              key={ben.id}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderRadius: '5px',
-                backgroundColor: ben.ativo ? '#f9f9f9' : '#f1f1f1', opacity: ben.ativo ? 1 : 0.7,
-              }}
-            >
+            <div key={ben.id} className={cx(estilos.item, !ben.ativo && estilos.itemInativo)}>
               <div style={{ flex: 1 }}>
-                <strong style={{ fontSize: '14px' }}>{ben.funcionarios_beneficios_tipos?.nome || '—'}</strong>{' '}
-                <span style={{ fontSize: '12px', color: '#666' }}>
-                  {ben.valor != null ? ` · R$ ${Number(ben.valor).toFixed(2)}` : ''}
+                <span className={estilos.itemTitulo}>{ben.funcionarios_beneficios_tipos?.nome || '—'}</span>{' '}
+                <span className={estilos.itemDetalhe}>
+                  {ben.valor != null ? `· R$ ${Number(ben.valor).toFixed(2)}` : ''}
                   {ben.periodicidade ? ` · ${PERIODICIDADE_LABEL[ben.periodicidade] || ben.periodicidade}` : ''}
-                </span>
-                {!ben.ativo && <span style={{ fontSize: '11px', color: '#999', marginLeft: '6px' }}>(inativo)</span>}
+                </span>{' '}
+                <Badge tom={ben.ativo ? 'success' : 'neutral'}>{ben.ativo ? 'Ativo' : 'Inativo'}</Badge>
               </div>
               {podeEditar && (
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button type="button" onClick={() => abrirEdicao(ben)} style={{ fontSize: '12px' }}>Editar</button>
-                  <button type="button" onClick={() => alternarAtivo(ben)} style={{ fontSize: '12px' }}>
+                <div className={estilos.itemAcoes}>
+                  <Button tamanho="sm" variante="secondary" onClick={() => abrirEdicao(ben)}>Editar</Button>
+                  <Button tamanho="sm" variante="secondary" onClick={() => alternarAtivo(ben)}>
                     {ben.ativo ? 'Encerrar' : 'Reativar'}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -182,65 +182,53 @@ export default function BeneficiosTab({ funcionarioId, corPrimaria = '#8B4513', 
         </div>
       )}
 
-      {podeEditar && !mostrarForm && (
-        <button
-          type="button"
-          onClick={abrirNovo}
-          style={{ padding: '8px 16px', backgroundColor: corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-        >
-          + Adicionar benefício
-        </button>
+      {podeEditar && (
+        <Button tamanho="sm" icone="plus" onClick={abrirNovo}>Adicionar benefício</Button>
       )}
 
       {mostrarForm && (
-        <form onSubmit={salvar} style={{ border: '1px solid #eee', borderRadius: '5px', padding: '14px', marginTop: '10px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '10px' }}>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Tipo *</label>
-              <select value={form.tipo_id} onChange={(e) => setForm((f) => ({ ...f, tipo_id: e.target.value }))} style={campoEstilo}>
-                <option value="">—</option>
-                {tipos.map((t) => (
-                  <option key={t.id} value={t.id} disabled={!t.ativo}>{t.nome}{!t.ativo ? ' (inativo)' : ''}</option>
-                ))}
-              </select>
+        <Modal titulo={editandoId ? 'Editar benefício' : 'Novo benefício'} onFechar={salvando ? undefined : fecharForm} largura="sm" fecharComEsc={false}>
+          <form onSubmit={salvar}>
+            <div className={cx(estilos.grade, estilos.secao)}>
+              <Field label="Tipo *">
+                <Select value={form.tipo_id} onChange={(e) => setForm((f) => ({ ...f, tipo_id: e.target.value }))}>
+                  <option value="">—</option>
+                  {tipos.map((t) => (
+                    <option key={t.id} value={t.id} disabled={!t.ativo}>{t.nome}{!t.ativo ? ' (inativo)' : ''}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Valor (R$)">
+                <Input type="number" step="0.01" min="0" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} />
+              </Field>
+              <Field label="Periodicidade">
+                <Select value={form.periodicidade} onChange={(e) => setForm((f) => ({ ...f, periodicidade: e.target.value }))}>
+                  <option value="">—</option>
+                  {Object.entries(PERIODICIDADE_LABEL).map(([valor, label]) => (
+                    <option key={valor} value={valor}>{label}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Início">
+                <Input type="date" value={form.data_inicio} onChange={(e) => setForm((f) => ({ ...f, data_inicio: e.target.value }))} />
+              </Field>
+              <Field label="Fim">
+                <Input type="date" value={form.data_fim} onChange={(e) => setForm((f) => ({ ...f, data_fim: e.target.value }))} />
+              </Field>
             </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Valor (R$)</label>
-              <input type="number" step="0.01" min="0" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} style={campoEstilo} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Periodicidade</label>
-              <select value={form.periodicidade} onChange={(e) => setForm((f) => ({ ...f, periodicidade: e.target.value }))} style={campoEstilo}>
-                <option value="">—</option>
-                {Object.entries(PERIODICIDADE_LABEL).map(([valor, label]) => (
-                  <option key={valor} value={valor}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Início</label>
-              <input type="date" value={form.data_inicio} onChange={(e) => setForm((f) => ({ ...f, data_inicio: e.target.value }))} style={campoEstilo} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Fim</label>
-              <input type="date" value={form.data_fim} onChange={(e) => setForm((f) => ({ ...f, data_fim: e.target.value }))} style={campoEstilo} />
-            </div>
-          </div>
 
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Observações</label>
-            <textarea value={form.observacoes} onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))} rows={2} style={{ ...campoEstilo, resize: 'vertical' }} />
-          </div>
+            <Field label="Observações" className={estilos.secao}>
+              <Textarea value={form.observacoes} onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))} rows={2} />
+            </Field>
 
-          {erroForm && <p style={{ color: '#f44336', fontSize: '12px' }}>{erroForm}</p>}
+            {erroForm && <Alert tom="danger" className={estilos.mensagem}>{erroForm}</Alert>}
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="submit" disabled={salvando} style={{ padding: '7px 16px', backgroundColor: corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-              {salvando ? 'Salvando...' : 'Salvar benefício'}
-            </button>
-            <button type="button" onClick={fecharForm} style={{ padding: '7px 16px', fontSize: '13px' }}>Cancelar</button>
-          </div>
-        </form>
+            <div className={estilos.rodape}>
+              <Button type="button" variante="secondary" onClick={fecharForm} disabled={salvando}>Cancelar</Button>
+              <Button type="submit" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar benefício'}</Button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

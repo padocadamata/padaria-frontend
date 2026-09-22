@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../../components/NavegacaoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
 import DadosFuncionarioForm from '../../components/funcionarios/DadosFuncionarioForm';
 import DependentesTab from '../../components/funcionarios/DependentesTab';
 import BeneficiosTab from '../../components/funcionarios/BeneficiosTab';
+import PageShell from '../../components/shell/PageShell';
+import PageHeader from '../../components/ui/PageHeader';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
-import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import { cx } from '../../lib/design/cx';
+import estilos from '../../components/funcionarios/funcionarios.module.css';
 
 const ABAS = [
   { chave: 'dados', label: 'Dados pessoais e profissionais' },
@@ -53,7 +58,6 @@ function FuncionarioDetalheConteudo() {
   const { permissoes } = useAuth();
   const podeEditar = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_EDITAR);
 
-  const aparencia = APARENCIA_FIXA;
   const [funcionario, setFuncionario] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -85,66 +89,62 @@ function FuncionarioDetalheConteudo() {
     setFuncionario(atualizado);
   }
 
+  if (carregando) {
+    return (
+      <PageShell titulo="Folha de Pagamento">
+        <p className={estilos.carregando} role="status">Carregando…</p>
+      </PageShell>
+    );
+  }
+
+  if (erro || !funcionario) {
+    return (
+      <PageShell titulo="Folha de Pagamento">
+        <Alert tom="danger" className={estilos.mensagem}>{erro || 'Funcionário não encontrado.'}</Alert>
+        <Button onClick={() => router.push('/funcionarios')}>Voltar</Button>
+      </PageShell>
+    );
+  }
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Folha de Pagamento" />
+    <PageShell titulo="Folha de Pagamento">
+      <PageHeader
+        titulo={
+          <span className={estilos.cabecalhoDetalhe}>
+            {funcionario.nome}
+            {!funcionario.ativo && <Badge tom="neutral">Inativo</Badge>}
+          </span>
+        }
+        acoes={
+          <Button variante="secondary" onClick={() => router.push('/funcionarios')}>
+            ← Voltar para funcionários
+          </Button>
+        }
+      />
 
-      <div style={{ maxWidth: '900px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-
-        <button
-          onClick={() => router.push('/funcionarios')}
-          style={{ padding: '8px 16px', backgroundColor: 'white', color: aparencia.corPrimaria, border: `1px solid ${aparencia.corPrimaria}`, borderRadius: '5px', cursor: 'pointer', marginBottom: '20px' }}
-        >
-          ← Voltar para funcionários
-        </button>
-
-        {carregando ? (
-          <p>Carregando...</p>
-        ) : erro ? (
-          <p style={{ color: '#f44336' }}>{erro}</p>
-        ) : (
-          <>
-            <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>
-              {funcionario.nome} {!funcionario.ativo && <span style={{ fontSize: '14px', color: '#999' }}>(inativo)</span>}
-            </h2>
-
-            <div style={{ display: 'flex', gap: '4px', borderBottom: `2px solid ${aparencia.corPrimaria}`, marginBottom: '20px', flexWrap: 'wrap' }}>
-              {ABAS.map((a) => (
-                <button
-                  key={a.chave}
-                  onClick={() => setAba(a.chave)}
-                  style={{
-                    padding: '10px 16px',
-                    border: 'none',
-                    borderBottom: aba === a.chave ? `3px solid ${aparencia.corPrimaria}` : '3px solid transparent',
-                    backgroundColor: 'transparent',
-                    color: aba === a.chave ? aparencia.corPrimaria : '#666',
-                    fontWeight: aba === a.chave ? 'bold' : 'normal',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                  }}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-              {aba === 'dados' && (
-                <DadosFuncionarioForm funcionario={funcionario} corPrimaria={aparencia.corPrimaria} podeEditar={podeEditar} onSalvo={aoSalvar} />
-              )}
-              {aba === 'dependentes' && (
-                <DependentesTab funcionarioId={funcionario.id} corPrimaria={aparencia.corPrimaria} podeEditar={podeEditar} />
-              )}
-              {aba === 'beneficios' && (
-                <BeneficiosTab funcionarioId={funcionario.id} corPrimaria={aparencia.corPrimaria} podeEditar={podeEditar} />
-              )}
-            </div>
-          </>
-        )}
+      <div className={estilos.abas} role="tablist">
+        {ABAS.map((a) => (
+          <button
+            key={a.chave}
+            type="button"
+            role="tab"
+            aria-selected={aba === a.chave}
+            className={cx(estilos.aba, aba === a.chave && estilos.abaAtiva)}
+            onClick={() => setAba(a.chave)}
+          >
+            {a.label}
+          </button>
+        ))}
       </div>
-    </div>
+
+      <Card>
+        {aba === 'dados' && (
+          <DadosFuncionarioForm funcionario={funcionario} podeEditar={podeEditar} onSalvo={aoSalvar} />
+        )}
+        {aba === 'dependentes' && <DependentesTab funcionarioId={funcionario.id} podeEditar={podeEditar} />}
+        {aba === 'beneficios' && <BeneficiosTab funcionarioId={funcionario.id} podeEditar={podeEditar} />}
+      </Card>
+    </PageShell>
   );
 }
 

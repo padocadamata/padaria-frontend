@@ -1,13 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../components/CabecalhoPrincipal';
-import NavegacaoPrincipal from '../components/NavegacaoPrincipal';
 import RequireAuth from '../components/RequireAuth';
 import GerenciarCargosModal from '../components/funcionarios/GerenciarCargosModal';
+import PageShell from '../components/shell/PageShell';
+import PageHeader from '../components/ui/PageHeader';
+import Alert from '../components/ui/Alert';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import DataTable from '../components/ui/DataTable';
+import EmptyState from '../components/ui/EmptyState';
+import Field from '../components/ui/Field';
+import FilterBar from '../components/ui/FilterBar';
+import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
+import Paginacao, { paginarLista } from '../components/Paginacao';
+import estilos from '../components/funcionarios/funcionarios.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
-import { APARENCIA_FIXA } from '../lib/branding/tema';
+
+function BadgeStatus({ ativo }) {
+  return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
+}
+
+function formatarData(dataYYYYMMDD) {
+  if (!dataYYYYMMDD) return '—';
+  return new Date(`${dataYYYYMMDD}T12:00:00`).toLocaleDateString('pt-BR');
+}
 
 function FuncionariosConteudo() {
   const router = useRouter();
@@ -15,13 +34,19 @@ function FuncionariosConteudo() {
   const podeInserir = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_INSERIR);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_EDITAR);
 
-  const aparencia = APARENCIA_FIXA;
   const [funcionarios, setFuncionarios] = useState([]);
   const [cargos, setCargos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('ativos');
   const [busca, setBusca] = useState('');
+  // Paginação VISUAL (client-side, 20 por página): a listagem já carrega
+  // o conjunto completo (limit 1000, ver `carregar` abaixo) -- aqui só se
+  // fatia o resultado já filtrado. Mesmo padrão de pages/fornecedores.js/
+  // pages/catalogo.js. A consulta e os filtros continuam exatamente
+  // iguais; nenhum registro fica de fora dos cálculos porque tudo já está
+  // em memória (`funcionarios`), só a EXIBIÇÃO é paginada.
+  const [pagina, setPagina] = useState(1);
   const [modalCargosAberto, setModalCargosAberto] = useState(false);
 
   async function carregar() {
@@ -61,107 +86,111 @@ function FuncionariosConteudo() {
     });
   }, [funcionarios, filtroStatus, busca]);
 
+  const paginacao = paginarLista(listaFiltrada, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  function alterarFiltro(setter) {
+    return (valor) => {
+      setter(valor);
+      setPagina(1);
+    };
+  }
+
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
+  const quantidadeFiltrosAtivos = [filtroStatus !== 'ativos', busca !== ''].filter(Boolean).length;
+
+  function limparFiltros() {
+    setFiltroStatus('ativos');
+    setBusca('');
+    setPagina(1);
+  }
+
+  const colunas = [
+    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, render: (f) => f.nome },
+    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (f) => <BadgeStatus ativo={f.ativo} /> },
+    { chave: 'cargo', rotulo: 'Cargo', render: (f) => f.funcionarios_cargos?.nome || '—' },
+    { chave: 'telefone', rotulo: 'Telefone', render: (f) => f.telefone || '—' },
+    { chave: 'admissao', rotulo: 'Admissão', render: (f) => formatarData(f.data_admissao) },
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Folha de Pagamento" />
-
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <NavegacaoPrincipal corPrimaria={aparencia.corPrimaria} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, margin: 0 }}>Cadastro de Funcionários</h2>
-          <div style={{ display: 'flex', gap: '8px' }}>
+    <PageShell titulo="Folha de Pagamento">
+      <PageHeader
+        titulo="Cadastro de Funcionários"
+        acoes={
+          <>
             {podeEditar && (
-              <button
-                onClick={() => setModalCargosAberto(true)}
-                style={{ padding: '8px 16px', backgroundColor: 'white', color: aparencia.corPrimaria, border: `1px solid ${aparencia.corPrimaria}`, borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-              >
+              <Button variante="secondary" onClick={() => setModalCargosAberto(true)}>
                 Gerenciar cargos
-              </button>
+              </Button>
             )}
             {podeInserir && (
-              <button
-                onClick={() => router.push('/funcionarios/novo')}
-                style={{ padding: '8px 16px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-              >
-                + Novo funcionário
-              </button>
+              <Button icone="plus" onClick={() => router.push('/funcionarios/novo')}>
+                Novo funcionário
+              </Button>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
-            <input
-              type="text"
-              placeholder="Buscar por nome..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              style={{ flex: 1, minWidth: '200px', padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}
-            />
-            <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '5px' }}>
-              <option value="ativos">Ativos</option>
-              <option value="inativos">Inativos</option>
-              <option value="todos">Todos</option>
-            </select>
-          </div>
+      <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
+        <Field label="Buscar">
+          <Input type="text" value={busca} onChange={(e) => alterarFiltro(setBusca)(e.target.value)} placeholder="Nome do funcionário" />
+        </Field>
+        <Field label="Status">
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+            <option value="ativos">Ativos</option>
+            <option value="inativos">Inativos</option>
+            <option value="todos">Todos</option>
+          </Select>
+        </Field>
+      </FilterBar>
 
-          {carregando ? (
-            <p>Carregando funcionários...</p>
-          ) : erro ? (
-            <p style={{ color: '#f44336' }}>{erro}</p>
-          ) : listaFiltrada.length === 0 ? (
-            <p>Nenhum funcionário encontrado com os filtros atuais.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={thStyle(aparencia)}>Nome</th>
-                  <th style={thStyle(aparencia)}>Cargo</th>
-                  <th style={thStyle(aparencia)}>Telefone</th>
-                  <th style={thStyle(aparencia)}>Admissão</th>
-                  <th style={thStyle(aparencia)}>Status</th>
-                  <th style={thStyle(aparencia)}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {listaFiltrada.map((f) => (
-                  <tr key={f.id} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '12px' }}>{f.nome}</td>
-                    <td style={{ padding: '12px' }}>{f.funcionarios_cargos?.nome || '—'}</td>
-                    <td style={{ padding: '12px' }}>{f.telefone || '—'}</td>
-                    <td style={{ padding: '12px' }}>{f.data_admissao ? new Date(`${f.data_admissao}T12:00:00`).toLocaleDateString('pt-BR') : '—'}</td>
-                    <td style={{ padding: '12px' }}>{f.ativo ? 'Ativo' : 'Inativo'}</td>
-                    <td style={{ padding: '12px' }}>
-                      <button
-                        onClick={() => router.push(`/funcionarios/${f.id}`)}
-                        style={{ padding: '6px 12px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '13px' }}
-                      >
-                        {podeEditar ? 'Editar' : 'Ver'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {carregando ? (
+        <p role="status">Carregando funcionários...</p>
+      ) : erro ? (
+        <Alert tom="danger">{erro}</Alert>
+      ) : funcionarios.length === 0 ? (
+        <EmptyState>Nenhum funcionário encontrado.</EmptyState>
+      ) : listaFiltrada.length === 0 ? (
+        <EmptyState>Nenhum resultado para esta busca/filtro.</EmptyState>
+      ) : (
+        <div className={estilos.superficie}>
+          <DataTable
+            rotulo="Funcionários"
+            colunas={colunas}
+            linhas={paginacao.itens}
+            chaveLinha={(f) => f.id}
+            destaque={(f) => (f.ativo ? null : 'inativo')}
+            cartoesAte={900}
+            renderAcoes={(f) => (
+              <Button variante="secondary" tamanho="sm" icone={podeEditar ? 'pencil' : 'eye'} onClick={() => router.push(`/funcionarios/${f.id}`)}>
+                {podeEditar ? 'Editar' : 'Ver'}
+              </Button>
+            )}
+          />
+
+          <p className={estilos.resumo}>
+            Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total}{' '}
+            {paginacao.total === 1 ? 'funcionário' : 'funcionários'}
+            {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+          </p>
+          <Paginacao paginaAtual={paginaAtual} totalPaginas={paginacao.totalPaginas} onMudarPagina={setPagina} />
         </div>
-      </div>
+      )}
 
       <GerenciarCargosModal
         aberto={modalCargosAberto}
         onFechar={() => setModalCargosAberto(false)}
         cargos={cargos}
         podeGerenciar={podeEditar}
-        corPrimaria={aparencia.corPrimaria}
         onAtualizar={setCargos}
       />
-    </div>
+    </PageShell>
   );
-}
-
-function thStyle(aparencia) {
-  return { padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' };
 }
 
 export default function Funcionarios() {
