@@ -1,0 +1,151 @@
+/* Peças visuais das telas de Usuários/Controle de Acesso (só apresentação). */
+
+.superficie {
+  min-width: 0;
+}
+
+@media (min-width: 769px) {
+  .superficie {
+    padding: var(--ds-sp-4);
+    background-color: var(--ds-surface);
+    border: var(--ds-border-w) solid var(--ds-border);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+  }
+
+  .superficie:has(ul[aria-label]) {
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.nota {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  line-height: var(--ds-lh-body);
+}
+
+.nota code {
+  background-color: var(--ds-surface-muted);
+  padding: 1px 5px;
+  border-radius: var(--ds-radius-sm);
+  font-size: var(--ds-fs-aux);
+}
+
+/* --------------------------- página de detalhe -------------------------- */
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.carregando,
+.erroCarga {
+  padding: var(--ds-sp-6) 0;
+  text-align: center;
+  color: var(--ds-text-muted);
+}
+
+.cabecalhoUsuario {
+  margin: 0 0 var(--ds-sp-1);
+}
+
+.emailUsuario {
+  margin: 0 0 var(--ds-sp-3);
+  color: var(--ds-text-muted);
+}
+
+.linhaStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.secaoPerfil {
+  margin-top: var(--ds-sp-4);
+  padding-top: var(--ds-sp-4);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+/* -------------------------- seletor de perfil ----------------------------- */
+
+.linhaPerfil {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+}
+
+.linhaPerfil > :first-child {
+  min-width: 240px;
+  flex: 1 1 240px;
+}
+
+/* --------------------------- matriz de permissões -------------------------- */
+
+.explicacaoPermissoes {
+  margin: calc(var(--ds-sp-2) * -1) 0 var(--ds-sp-4);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.moduloBloco {
+  margin-bottom: var(--ds-sp-5);
+}
+
+.moduloTitulo {
+  margin: 0 0 var(--ds-sp-2);
+  color: var(--ds-primary);
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.grupoCabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+  padding-bottom: var(--ds-sp-2);
+  border-bottom: 2px solid var(--ds-primary);
+}
+
+.grupoTitulo {
+  margin: 0;
+  color: var(--ds-primary);
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.controleLinha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+}
+
+.badges {
+  display: flex;
+  gap: var(--ds-sp-1);
+  flex-wrap: wrap;
+}
+
+.somenteAdmin {
+  color: var(--ds-text-disabled);
+  font-style: italic;
+  font-size: var(--ds-fs-label);
+}
+
+.rodapePermissoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--ds-sp-3);
+}

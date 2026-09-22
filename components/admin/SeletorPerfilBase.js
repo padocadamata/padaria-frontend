@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import ConfirmarAcaoModal from './ConfirmarAcaoModal';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
+import Select from '../ui/Select';
+import estilos from './usuarios.module.css';
 
 // Troca o perfil-base de um usuário via RPC public.alterar_perfil_usuario
 // (migration 0018) — nunca um UPDATE direto em usuarios, porque a RPC já
@@ -10,7 +15,7 @@ import ConfirmarAcaoModal from './ConfirmarAcaoModal';
 // a RPC em si não distingue "promover a admin" de qualquer outra troca de
 // perfil, essa é uma decisão de UX, não de segurança (quem já não é admin
 // nunca chega a esta tela — RequireAuth + RLS cuidam disso).
-export default function SeletorPerfilBase({ nomeUsuario, perfilAtual, perfis, corPrimaria, salvando, erro, onAlterar }) {
+export default function SeletorPerfilBase({ nomeUsuario, perfilAtual, perfis, salvando, erro, onAlterar }) {
   const [selecionado, setSelecionado] = useState(perfilAtual);
   const [confirmandoAdmin, setConfirmandoAdmin] = useState(false);
 
@@ -38,41 +43,24 @@ export default function SeletorPerfilBase({ nomeUsuario, perfilAtual, perfis, co
 
   return (
     <div>
-      <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Perfil-base</label>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <select
-          value={selecionado}
-          onChange={(e) => setSelecionado(e.target.value)}
-          disabled={salvando}
-          style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '5px', minWidth: '220px' }}
-        >
-          {perfis.map((p) => (
-            <option key={p.nome} value={p.nome}>
-              {p.nome}
-              {p.descricao ? ` — ${p.descricao}` : ''}
-            </option>
-          ))}
-        </select>
+      <div className={estilos.linhaPerfil}>
+        <Field label="Perfil-base">
+          <Select value={selecionado} disabled={salvando} onChange={(e) => setSelecionado(e.target.value)}>
+            {perfis.map((p) => (
+              <option key={p.nome} value={p.nome}>
+                {p.nome}
+                {p.descricao ? ` — ${p.descricao}` : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-        <button
-          type="button"
-          onClick={pedirSalvar}
-          disabled={!alterado || salvando}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: alterado ? corPrimaria : '#ccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: alterado && !salvando ? 'pointer' : 'not-allowed',
-            fontWeight: 'bold',
-          }}
-        >
+        <Button onClick={pedirSalvar} disabled={!alterado || salvando}>
           {salvando ? 'Salvando...' : 'Salvar perfil'}
-        </button>
+        </Button>
       </div>
 
-      {erro && <p style={{ color: '#f44336', marginTop: '10px', fontSize: '14px' }}>{erro}</p>}
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
       {confirmandoAdmin && (
         <ConfirmarAcaoModal
@@ -85,12 +73,12 @@ export default function SeletorPerfilBase({ nomeUsuario, perfilAtual, perfis, co
               reverter depois. Tem certeza?
             </>
           }
-          corPrimaria={corPrimaria}
           perigo
           textoConfirmar="Sim, tornar administrador"
           confirmando={salvando}
           onConfirmar={confirmarPromocaoAdmin}
           onCancelar={() => setConfirmandoAdmin(false)}
+          modalDS
         />
       )}
     </div>

@@ -1,14 +1,19 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import CabecalhoPrincipal from '../../../components/CabecalhoPrincipal';
 import RequireAuth from '../../../components/RequireAuth';
 import ConfirmarAcaoModal from '../../../components/admin/ConfirmarAcaoModal';
 import SeletorPerfilBase from '../../../components/admin/SeletorPerfilBase';
 import MatrizPermissoes from '../../../components/admin/MatrizPermissoes';
+import PageShell from '../../../components/shell/PageShell';
+import PageHeader from '../../../components/ui/PageHeader';
+import Alert from '../../../components/ui/Alert';
+import Badge from '../../../components/ui/Badge';
+import Button from '../../../components/ui/Button';
+import Card from '../../../components/ui/Card';
 import { PERMISSOES } from '../../../lib/auth/permissoes';
 import { isoParaInputDatetimeLocal, inputDatetimeLocalParaIso } from '../../../lib/auth/matrizPermissoes';
 import { createClient } from '../../../lib/supabase/client';
-import { APARENCIA_FIXA } from '../../../lib/branding/tema';
+import estilos from '../../../components/admin/usuarios.module.css';
 
 // Mensagens de erro conhecidas das RPCs da migration 0018, traduzidas para
 // texto amigável. Qualquer erro fora dessa lista cai no genérico —
@@ -115,8 +120,6 @@ function UsuarioDetalheConteudo() {
   const [salvandoStatus, setSalvandoStatus] = useState(false);
   const [erroStatus, setErroStatus] = useState('');
   const [confirmandoDesativar, setConfirmandoDesativar] = useState(false);
-
-  const aparencia = APARENCIA_FIXA;
 
   async function carregarTudo() {
     if (!id) return;
@@ -255,128 +258,91 @@ function UsuarioDetalheConteudo() {
   }
 
   if (carregando) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Carregando…</div>;
+    return (
+      <PageShell titulo="Usuários">
+        <p className={estilos.carregando} role="status">Carregando…</p>
+      </PageShell>
+    );
   }
 
   if (erroCarga || !usuario) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        <p style={{ color: '#f44336' }}>{erroCarga || 'Usuário não encontrado.'}</p>
-        <button
-          onClick={() => router.push('/admin/usuarios')}
-          style={{ padding: '10px 20px', backgroundColor: aparencia.corPrimaria, color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-        >
-          Voltar
-        </button>
-      </div>
+      <PageShell titulo="Usuários">
+        <Alert tom="danger" className={estilos.mensagem}>{erroCarga || 'Usuário não encontrado.'}</Alert>
+        <Button onClick={() => router.push('/admin/usuarios')}>Voltar</Button>
+      </PageShell>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Usuários" />
+    <PageShell titulo="Usuários">
+      <PageHeader
+        titulo={usuario.nome || '(sem nome)'}
+        subtitulo={usuario.email}
+        acoes={
+          <Button variante="secondary" onClick={() => router.push('/admin/usuarios')}>
+            ← Voltar para a lista
+          </Button>
+        }
+      />
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <button
-          onClick={() => router.push('/admin/usuarios')}
-          style={{ padding: '8px 16px', backgroundColor: 'white', color: aparencia.corPrimaria, border: `1px solid ${aparencia.corPrimaria}`, borderRadius: '5px', cursor: 'pointer', marginBottom: '20px' }}
-        >
-          ← Voltar para a lista
-        </button>
+      {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
 
-        {mensagemSucesso && (
-          <p style={{ color: '#4CAF50', fontWeight: 'bold', backgroundColor: '#e8f5e9', padding: '10px 15px', borderRadius: '5px' }}>
-            {mensagemSucesso}
-          </p>
-        )}
-
-        {/* Dados do usuário */}
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-          <h2 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>{usuario.nome || '(sem nome)'}</h2>
-          <p style={{ color: '#666', marginTop: '-10px' }}>{usuario.email}</p>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '15px 0' }}>
+      <div className={estilos.cards}>
+        <Card titulo="Dados do usuário">
+          <div className={estilos.linhaStatus}>
             <strong>Status:</strong>
+            <Badge tom={usuario.ativo ? 'success' : 'neutral'}>{usuario.ativo ? 'Ativo' : 'Inativo'}</Badge>
             {usuario.ativo ? (
-              <>
-                <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>Ativo</span>
-                <button
-                  onClick={pedirDesativar}
-                  disabled={salvandoStatus}
-                  style={{ padding: '6px 14px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-                >
-                  Desativar
-                </button>
-              </>
+              <Button variante="dangerOutline" tamanho="sm" onClick={pedirDesativar} disabled={salvandoStatus}>
+                Desativar
+              </Button>
             ) : (
-              <>
-                <span style={{ color: '#f44336', fontWeight: 'bold' }}>Inativo</span>
-                <button
-                  onClick={() => confirmarAlterarStatus(true)}
-                  disabled={salvandoStatus}
-                  style={{ padding: '6px 14px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-                >
-                  {salvandoStatus ? 'Aguarde...' : 'Ativar'}
-                </button>
-              </>
+              <Button tamanho="sm" onClick={() => confirmarAlterarStatus(true)} disabled={salvandoStatus}>
+                {salvandoStatus ? 'Aguarde...' : 'Ativar'}
+              </Button>
             )}
           </div>
-          {erroStatus && <p style={{ color: '#f44336', fontSize: '14px' }}>{erroStatus}</p>}
+          {erroStatus && <Alert tom="danger" className={estilos.mensagem}>{erroStatus}</Alert>}
 
-          <div style={{ marginTop: '15px' }}>
+          <div className={estilos.secaoPerfil}>
             <SeletorPerfilBase
               nomeUsuario={usuario.nome || usuario.email}
               perfilAtual={usuario.perfil}
               perfis={perfis}
-              corPrimaria={aparencia.corPrimaria}
               salvando={salvandoPerfil}
               erro={erroPerfil}
               onAlterar={alterarPerfil}
             />
           </div>
-        </div>
+        </Card>
 
-        {/* Matriz de permissões */}
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ color: aparencia.corPrimaria, marginTop: 0 }}>Permissões</h3>
-          <p style={{ color: '#666', fontSize: '13px', marginTop: '-8px' }}>
+        <Card titulo="Permissões">
+          <p className={estilos.explicacaoPermissoes}>
             <strong>Herdado do perfil</strong>: vem do perfil-base ({usuario.perfil}). <strong>Controle</strong>: override
             individual — Herdar (nenhuma exceção), Permitir ou Bloquear, sempre por cima do perfil. Override expirado
             aparece como informativo; o efetivo já volta a valer o que o perfil concede.
           </p>
 
           <MatrizPermissoes
-            corPrimaria={aparencia.corPrimaria}
             permissoesHerdadas={permissoesHerdadas}
             overridesOriginais={overridesOriginais}
             estado={estadoEditado}
             onAlterarLinha={alterarLinha}
           />
 
-          {erroPermissoes && <p style={{ color: '#f44336', marginTop: '10px' }}>{erroPermissoes}</p>}
+          {erroPermissoes && <Alert tom="danger" className={estilos.mensagem}>{erroPermissoes}</Alert>}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-            <button
-              onClick={salvarPermissoes}
-              disabled={!temAlteracoesPendentes || salvandoPermissoes}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: temAlteracoesPendentes ? aparencia.corPrimaria : '#ccc',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: temAlteracoesPendentes && !salvandoPermissoes ? 'pointer' : 'not-allowed',
-                fontWeight: 'bold',
-              }}
-            >
+          <div className={estilos.rodapePermissoes}>
+            <Button onClick={salvarPermissoes} disabled={!temAlteracoesPendentes || salvandoPermissoes}>
               {salvandoPermissoes
                 ? 'Salvando...'
                 : temAlteracoesPendentes
                   ? `Salvar alterações (${diffPendente.length})`
                   : 'Salvar alterações'}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       </div>
 
       {confirmandoDesativar && (
@@ -389,16 +355,16 @@ function UsuarioDetalheConteudo() {
               não é excluído do Supabase Auth — pode ser reativado depois.
             </>
           }
-          corPrimaria={aparencia.corPrimaria}
           perigo
           textoConfirmar="Desativar"
           confirmando={salvandoStatus}
           erro={erroStatus}
           onConfirmar={() => confirmarAlterarStatus(false)}
           onCancelar={() => setConfirmandoDesativar(false)}
+          modalDS
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 

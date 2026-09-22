@@ -1,17 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import CabecalhoPrincipal from '../../components/CabecalhoPrincipal';
 import RequireAuth from '../../components/RequireAuth';
+import PageShell from '../../components/shell/PageShell';
+import PageHeader from '../../components/ui/PageHeader';
+import Alert from '../../components/ui/Alert';
+import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import DataTable from '../../components/ui/DataTable';
+import EmptyState from '../../components/ui/EmptyState';
 import { PERMISSOES } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
-import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import estilos from '../../components/admin/usuarios.module.css';
+
+function BadgeStatus({ ativo }) {
+  return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
+}
+
+function formatarUltimoAcesso(iso) {
+  return iso ? new Date(iso).toLocaleString('pt-BR') : 'Nunca';
+}
 
 function UsuariosConteudo() {
   const router = useRouter();
   const [usuarios, setUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const aparencia = APARENCIA_FIXA;
 
   useEffect(() => {
     async function carregar() {
@@ -35,78 +48,53 @@ function UsuariosConteudo() {
     carregar();
   }, []);
 
+  const colunas = [
+    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, render: (u) => u.nome || '—' },
+    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (u) => <BadgeStatus ativo={u.ativo} /> },
+    { chave: 'email', rotulo: 'Email', render: (u) => u.email || '—' },
+    { chave: 'perfil', rotulo: 'Perfil', render: (u) => u.perfil },
+    { chave: 'ultimoAcesso', rotulo: 'Último acesso', render: (u) => formatarUltimoAcesso(u.ultimo_acesso_em) },
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: aparencia.corFundo }}>
-      <CabecalhoPrincipal modulo="Usuários" />
+    <PageShell titulo="Usuários">
+      <PageHeader titulo="Usuários e Acessos" />
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
-          <p style={{ color: '#666', marginBottom: '16px' }}>
-            Clique em <strong>Gerenciar acessos</strong> para alterar perfil-base, ativar/desativar ou ajustar
-            permissões individuais de um usuário. Criar um usuário novo ainda exige o painel do Supabase
-            (Authentication → Users) e a migration{' '}
-            <code>supabase/migrations/0006_bootstrap_admins_TEMPLATE.sql</code> — isso depende da chave privilegiada
-            (service role), que não deve rodar no navegador, e fica para uma etapa futura com uma rota server-side
-            dedicada.
-          </p>
+      <Alert tom="info" className={estilos.mensagem}>
+        <span className={estilos.nota}>
+          Clique em <strong>Gerenciar acessos</strong> para alterar perfil-base, ativar/desativar ou ajustar
+          permissões individuais de um usuário. Criar um usuário novo ainda exige o painel do Supabase
+          (Authentication → Users) e a migration <code>supabase/migrations/0006_bootstrap_admins_TEMPLATE.sql</code> —
+          isso depende da chave privilegiada (service role), que não deve rodar no navegador, e fica para uma etapa
+          futura com uma rota server-side dedicada.
+        </span>
+      </Alert>
 
-          {carregando ? (
-            <p>Carregando usuários…</p>
-          ) : erro ? (
-            <p style={{ color: '#f44336' }}>{erro}</p>
-          ) : usuarios.length === 0 ? (
-            <p>Nenhum usuário cadastrado ainda em public.usuarios.</p>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={thStyle(aparencia)}>Nome</th>
-                  <th style={thStyle(aparencia)}>Email</th>
-                  <th style={thStyle(aparencia)}>Perfil</th>
-                  <th style={thStyle(aparencia)}>Status</th>
-                  <th style={thStyle(aparencia)}>Último acesso</th>
-                  <th style={thStyle(aparencia)}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: '1px solid #ddd' }}>
-                    <td style={{ padding: '12px' }}>{u.nome || '-'}</td>
-                    <td style={{ padding: '12px' }}>{u.email || '-'}</td>
-                    <td style={{ padding: '12px' }}>{u.perfil}</td>
-                    <td style={{ padding: '12px' }}>{u.ativo ? 'Ativo' : 'Inativo'}</td>
-                    <td style={{ padding: '12px' }}>
-                      {u.ultimo_acesso_em ? new Date(u.ultimo_acesso_em).toLocaleString('pt-BR') : 'Nunca'}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <button
-                        onClick={() => router.push(`/admin/usuarios/${u.id}`)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: aparencia.corPrimaria,
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                        }}
-                      >
-                        Gerenciar acessos
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {carregando ? (
+        <p role="status">Carregando usuários…</p>
+      ) : erro ? (
+        <Alert tom="danger">{erro}</Alert>
+      ) : usuarios.length === 0 ? (
+        <EmptyState>Nenhum usuário cadastrado ainda em public.usuarios.</EmptyState>
+      ) : (
+        <div className={estilos.superficie}>
+          <DataTable
+            rotulo="Usuários"
+            colunas={colunas}
+            linhas={usuarios}
+            chaveLinha={(u) => u.id}
+            destaque={(u) => (u.ativo ? null : 'inativo')}
+            cartoesAte={900}
+            renderAcoes={(u) => (
+              <Button variante="secondary" tamanho="sm" onClick={() => router.push(`/admin/usuarios/${u.id}`)}>
+                Gerenciar acessos
+              </Button>
+            )}
+          />
         </div>
-      </div>
-    </div>
+      )}
+    </PageShell>
   );
-}
-
-function thStyle(aparencia) {
-  return { padding: '12px', textAlign: 'left', color: aparencia.corPrimaria, fontWeight: 'bold' };
 }
 
 export default function Usuarios() {
