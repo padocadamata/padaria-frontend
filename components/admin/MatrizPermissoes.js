@@ -1,8 +1,9 @@
+import { useEffect, useRef } from 'react';
 import { ACAO_LABEL, CODIGOS_ADMINISTRATIVOS, MODULOS_MATRIZ, GRUPO_LABEL, codigosDoGrupo, estaExpirado } from '../../lib/auth/matrizPermissoes';
 import Badge from '../ui/Badge';
-import Checkbox from '../ui/Checkbox';
 import DataTable from '../ui/DataTable';
 import Select from '../ui/Select';
+import checkboxEstilos from '../ui/Checkbox.module.css';
 import estilos from './usuarios.module.css';
 
 // Grade de permissões da tela Admin → Usuários e Acessos. Componente
@@ -15,30 +16,102 @@ function obterEstadoLinha(estado, codigo) {
   return estado.get(codigo) || { estado: 'herdar', expiraEm: '' };
 }
 
+// Mesma fórmula que a coluna "Efetivo" de TabelaModulo sempre usou --
+// extraída aqui só para ser reaproveitada também pelo cálculo de
+// checked/indeterminate do "Acesso total" (AcessoTotalGrupo) abaixo.
+// Comportamento idêntico a antes, sem nenhuma mudança de cálculo.
+function calcularEfetivo(herdado, linhaEstado) {
+  if (linhaEstado.estado === 'permitir') return true;
+  if (linhaEstado.estado === 'bloquear') return false;
+  return herdado;
+}
+
 // Checkbox "Acesso total a <grupo>" (ex.: Produção) -- reaproveita
 // EXATAMENTE os mesmos códigos já listados nos módulos daquele grupo em
 // MODULOS_MATRIZ (via codigosDoGrupo) -- nunca uma permissão nova no
-// banco, só um atalho de UX que marca "Permitir" em todas de uma vez, ou
-// devolve todas para "Herdar do perfil" (controle individual) quando
-// desmarcado. Marcado só quando TODAS já estão como "Permitir" no estado
-// local (evita indicar "total" quando só parte foi concedida).
-function AcessoTotalGrupo({ grupo, estado, onAlterarLinha }) {
+// banco, só um atalho de UX que mexe nos controles individuais
+// (estadoEditado) daquela área de uma vez.
+//
+// Semântica (correção de dívida identificada ao generalizar este controle
+// de Produção para as demais áreas -- auditoria "Gerenciar Acessos"):
+//
+// MARCAR: o objetivo é deixar TODAS as permissões da área EFETIVAS, com o
+// MENOR número de overrides possível --
+//   - permissão já herdada do perfil -> fica/volta "Herdar do perfil"
+//     (nunca cria nem mantém um override "Permitir" redundante; se havia
+//     um override "Bloquear" sobre ela, também é removido aqui);
+//   - permissão não herdada -> "Permitir". Se já estava "Permitir" (com ou
+//     sem expiração), NADA é tocado -- preserva a expiração existente tal
+//     como está, nunca apaga uma data válida sem necessidade.
+//
+// DESMARCAR: semântica é "voltar esta área ao perfil base" -- TODAS as
+// permissões da área voltam para "Herdar do perfil", removendo qualquer
+// override individual da área (inclusive um com expiração futura -- ação
+// intencional do bulk, documentada no title/aria do controle).
+//
+// checked/indeterminate/unchecked são calculados sobre o EFETIVO atual
+// (herdado + estadoEditado na tela, via calcularEfetivo), não sobre os
+// overrides originais -- por isso um perfil que já herda 100% de uma área
+// aparece "checked" mesmo sem nenhum override, e marcar não cria overrides
+// nesse caso (a condição de cada código já é "herdado -> não mexe").
+//
+// `indeterminate` é propriedade DOM (não existe como atributo JSX) --
+// setada via ref, igual a qualquer checkbox HTML nativo com esse estado.
+function AcessoTotalGrupo({ grupo, permissoesHerdadas, estado, onAlterarLinha }) {
   const codigos = codigosDoGrupo(grupo);
-  const todasPermitir = codigos.length > 0 && codigos.every((codigo) => obterEstadoLinha(estado, codigo).estado === 'permitir');
+  const efetivas = codigos.map((codigo) => calcularEfetivo(permissoesHerdadas.has(codigo), obterEstadoLinha(estado, codigo)));
+  const todasEfetivas = codigos.length > 0 && efetivas.every(Boolean);
+  const algumaEfetiva = efetivas.some(Boolean);
+  const indeterminado = !todasEfetivas && algumaEfetiva;
+
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminado;
+  }, [indeterminado]);
+
+  function marcar() {
+    for (const codigo of codigos) {
+      const herdado = permissoesHerdadas.has(codigo);
+      const linhaAtual = obterEstadoLinha(estado, codigo);
+
+      if (herdado) {
+        if (linhaAtual.estado !== 'herdar') {
+          onAlterarLinha(codigo, { estado: 'herdar', expiraEm: '' });
+        }
+      } else if (linhaAtual.estado !== 'permitir') {
+        onAlterarLinha(codigo, { estado: 'permitir', expiraEm: '' });
+      }
+      // já "permitir" numa permissão não herdada: não mexe -- preserva a
+      // expiração (se houver) exatamente como está.
+    }
+  }
+
+  function desmarcar() {
+    for (const codigo of codigos) {
+      onAlterarLinha(codigo, { estado: 'herdar', expiraEm: '' });
+    }
+  }
 
   function alternar() {
-    const novoEstado = todasPermitir ? 'herdar' : 'permitir';
-    for (const codigo of codigos) {
-      onAlterarLinha(codigo, { estado: novoEstado, expiraEm: '' });
+    if (todasEfetivas) {
+      desmarcar();
+    } else {
+      marcar();
     }
   }
 
   return (
-    <Checkbox
-      rotulo={`Acesso total à ${GRUPO_LABEL[grupo] || grupo}`}
-      checked={todasPermitir}
-      onChange={alternar}
-    />
+    <label className={checkboxEstilos.linha}>
+      <input
+        ref={inputRef}
+        type="checkbox"
+        className={checkboxEstilos.caixa}
+        checked={todasEfetivas}
+        onChange={alternar}
+        title="Ao desmarcar, os acessos individuais desta área voltam às permissões do perfil base."
+      />
+      <span>{`Acesso total à ${GRUPO_LABEL[grupo] || grupo}`}</span>
+    </label>
   );
 }
 
@@ -110,7 +183,7 @@ function TabelaModulo({ modulo, permissoesHerdadas, overridesOriginais, estado, 
       mobile: 'titulo',
       cartaoOrdem: 1,
       render: (l) => {
-        const efetivo = l.linhaEstado.estado === 'permitir' ? true : l.linhaEstado.estado === 'bloquear' ? false : l.herdado;
+        const efetivo = calcularEfetivo(l.herdado, l.linhaEstado);
         return <Badge tom={efetivo ? 'success' : 'neutral'}>{efetivo ? 'Sim' : 'Não'}</Badge>;
       },
     },
@@ -146,7 +219,7 @@ export default function MatrizPermissoes({ permissoesHerdadas, overridesOriginai
         <div key={grupo} className={estilos.moduloBloco}>
           <div className={estilos.grupoCabecalho}>
             <h3 className={estilos.grupoTitulo}>{GRUPO_LABEL[grupo] || grupo}</h3>
-            <AcessoTotalGrupo grupo={grupo} estado={estado} onAlterarLinha={onAlterarLinha} />
+            <AcessoTotalGrupo grupo={grupo} permissoesHerdadas={permissoesHerdadas} estado={estado} onAlterarLinha={onAlterarLinha} />
           </div>
 
           {MODULOS_MATRIZ.filter((modulo) => modulo.grupo === grupo).map((modulo) => (
