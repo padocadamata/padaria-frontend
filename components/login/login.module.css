@@ -1,0 +1,177 @@
+/* Tela pública de Login — identidade Padoca da Mata, sem PageShell (o
+   usuário ainda não está autenticado). Só apresentação: toda a lógica de
+   autenticação continua em pages/index.js, inalterada.
+
+   .pagina carrega a classe global "ds" (styles/base.css) -- o mesmo escopo
+   que o PageShell aplica em todo o resto do sistema já migrado. É o que dá
+   box-sizing: border-box a TODO elemento aqui dentro (inclusive os
+   componentes de components/ui/*, que já contam com esse reset estar
+   ativo) e a tipografia base (font-family/line-height) -- sem isso, o
+   Input com width:100% + padding ficava maior que 100% do cartão sob
+   content-box (causa raiz do campo Senha ultrapassando a borda direita). */
+
+.pagina {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--ds-bg, #eaf7e8);
+}
+
+.grade {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --------------------- identidade institucional (logo) -------------------- */
+/* Um único logo por vez no DOM visível -- faixa compacta no mobile/tablet,
+   painel lateral cheio a partir do desktop. Nenhum texto "Padoca da Mata"
+   em nenhum dos dois: o logo oficial já identifica a marca sozinho. */
+
+.faixaInstitucional {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ds-primary);
+  padding: var(--ds-sp-5) var(--ds-sp-4);
+}
+
+.institucionalDesktop {
+  display: none;
+}
+
+.logo {
+  display: block;
+  height: 40px;
+  width: auto;
+}
+
+/* ---------------------------------- formulário ---------------------------- */
+
+.areaFormulario {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-sp-6) var(--ds-sp-4);
+}
+
+.cartao {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--ds-surface, #fff);
+  border-radius: var(--ds-radius-lg, 12px);
+  box-shadow: var(--ds-shadow-md, 0 4px 12px rgba(14, 61, 58, 0.12));
+  padding: var(--ds-sp-6) var(--ds-sp-5);
+}
+
+.titulo {
+  margin: 0 0 var(--ds-sp-1);
+  font-size: var(--ds-fs-section, 18px);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  text-align: center;
+}
+
+.subtitulo {
+  margin: 0 0 var(--ds-sp-5);
+  font-size: var(--ds-fs-body);
+  color: var(--ds-text-muted, #4d5957);
+  text-align: center;
+}
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+/* Wrapper e input SEMPRE 100%/100% do campo -- o botão do olho fica por
+   cima (position: absolute), nunca soma largura ao input. padding-right
+   do input é uma classe (não style inline) para não escapar do reset de
+   box-sizing: border-box do escopo .ds. */
+.campoSenha {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+.inputSenha {
+  width: 100%;
+  max-width: 100%;
+  padding-right: 40px;
+}
+
+.botaoMostrarSenha {
+  position: absolute;
+  right: var(--ds-sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: var(--ds-sp-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ds-text-muted, #4d5957);
+  cursor: pointer;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--ds-radius-sm, 6px);
+}
+
+.botaoMostrarSenha:hover {
+  color: var(--ds-text);
+}
+
+.botaoMostrarSenha:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.rodape {
+  margin-top: var(--ds-sp-5);
+}
+
+/* ------------------------------------ desktop ------------------------------ */
+
+@media (min-width: 1024px) {
+  .grade {
+    flex-direction: row;
+  }
+
+  .faixaInstitucional {
+    display: none;
+  }
+
+  .institucionalDesktop {
+    flex: 1 1 42%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ds-sp-4);
+    background-color: var(--ds-primary);
+    padding: var(--ds-sp-6);
+  }
+
+  .institucionalDesktop .logo {
+    height: 96px;
+  }
+
+  .slogan {
+    margin: 0;
+    font-size: var(--ds-fs-body);
+    color: var(--ds-on-primary-muted, rgba(255, 255, 255, 0.75));
+    text-align: center;
+  }
+
+  .areaFormulario {
+    flex: 1 1 58%;
+  }
+}
