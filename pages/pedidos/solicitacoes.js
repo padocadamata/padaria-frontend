@@ -14,6 +14,7 @@ import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
+import { buscarHistoricoComprasEmLote } from '../../lib/pedidos/historicoCompras';
 
 // Extrai defensivamente o `id` do pedido recém-criado a partir do que
 // supabase.rpc() devolve em `data` -- criar_pedido/registrar_compra_
@@ -63,6 +64,14 @@ function SolicitacoesConteudo() {
   // -- poder ver Solicitações não autoriza reabrir/excluir um Pedido.
   const podeReabrirPedido = hasPermissao(permissoes, PERMISSOES.PEDIDOS_REABRIR_RECEBIMENTO);
   const podeExcluirPedido = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
+  // Histórico de compras (apoio informativo, auditoria aprovada da frente
+  // "Pedidos > Solicitações -- Histórico de Compras"): a RLS de
+  // produtos_historico_compras/produtos_resumo_compras (migration 0023)
+  // exige catalogo_produtos.visualizar -- checado ANTES de qualquer
+  // consulta, nunca depois (uma resposta vazia por falta de permissão
+  // nunca deve ser confundida com "nunca comprado", ver CelulaHistorico em
+  // SolicitacoesLista.js).
+  const podeVerHistorico = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_VISUALIZAR);
 
   const aparencia = APARENCIA_FIXA;
 
@@ -79,6 +88,15 @@ function SolicitacoesConteudo() {
   // RPC sempre falhava -- bug já corrigido nesta rodada. Recarregado
   // junto com as solicitações.
   const [infoPedidoPorId, setInfoPedidoPorId] = useState({});
+  // Histórico de compras: Map<produto_id, {ultimaCompra, menorPreco3Meses}>,
+  // carregado em UMA busca em lote (nunca 1 por solicitação/produto) depois
+  // de `solicitacoes` mudar -- ver useEffect dedicado abaixo. Um erro aqui
+  // (erroHistorico) é só informativo na coluna/célula correspondente e
+  // NUNCA impede carregar/criar/editar/excluir/realizar/reabrir/vincular
+  // solicitações ou pedidos (seção 9 da auditoria aprovada).
+  const [historicoPorProdutoId, setHistoricoPorProdutoId] = useState(new Map());
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+  const [erroHistorico, setErroHistorico] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
@@ -208,6 +226,49 @@ function SolicitacoesConteudo() {
       ativo = false;
     };
   }, [recarregarTick]);
+
+  // Histórico de compras EM LOTE (nunca 1 query por solicitação/produto,
+  // seção 4 da auditoria aprovada): dispara sempre que a lista de
+  // solicitações é (re)carregada. Sem permissão de Catálogo, nem tenta
+  // consultar -- 0 linhas por RLS nunca deve ser confundido com "nunca
+  // comprado" (seção 3 da auditoria aprovada).
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarHistorico() {
+      setErroHistorico(false);
+
+      if (!podeVerHistorico) {
+        setHistoricoPorProdutoId(new Map());
+        return;
+      }
+
+      const produtoIds = solicitacoes.filter((s) => s.produto_id).map((s) => s.produto_id);
+      if (produtoIds.length === 0) {
+        setHistoricoPorProdutoId(new Map());
+        return;
+      }
+
+      setCarregandoHistorico(true);
+      try {
+        const mapa = await buscarHistoricoComprasEmLote(produtoIds);
+        if (!ativo) return;
+        setHistoricoPorProdutoId(mapa);
+      } catch (error) {
+        console.error('Erro ao carregar histórico de compras em lote:', error);
+        if (!ativo) return;
+        setErroHistorico(true);
+        setHistoricoPorProdutoId(new Map());
+      } finally {
+        if (ativo) setCarregandoHistorico(false);
+      }
+    }
+
+    carregarHistorico();
+    return () => {
+      ativo = false;
+    };
+  }, [solicitacoes, podeVerHistorico]);
 
   useEffect(() => {
     if (!mensagemSucesso) return undefined;
@@ -498,6 +559,10 @@ function SolicitacoesConteudo() {
           podeCriarPedido={podeCriarPedido}
           podeReabrirPedido={podeReabrirPedido}
           podeExcluirPedido={podeExcluirPedido}
+          podeVerHistorico={podeVerHistorico}
+          carregandoHistorico={carregandoHistorico}
+          erroHistorico={erroHistorico}
+          historicoPorProdutoId={historicoPorProdutoId}
           infoPedidoPorId={infoPedidoPorId}
           onEditar={(s) => setModalForm({ modo: 'editar', solicitacao: s })}
           onExcluir={abrirConfirmarExclusao}

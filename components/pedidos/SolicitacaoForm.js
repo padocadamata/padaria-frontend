@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
+import { buscarHistoricoComprasEmLote, formatarPrecoBase, formatarDataHistorico } from '../../lib/pedidos/historicoCompras';
+import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
+import { useAuth } from '../../hooks/useAuth';
 import Modal from '../ui/Modal';
+import Icon from '../ui/Icon';
 
 // Form único de criação E edição de uma solicitação interna de compra
 // (`solicitacao` null = criação; preenchida = edição, só permitida
@@ -59,6 +63,11 @@ const botaoEstilo = (cor) => ({
 export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', onSalvo, onCancelar }) {
   const estaEditando = solicitacao != null;
   const hoje = dataLocalHoje();
+  const { permissoes } = useAuth();
+  // Mesmo gate de RLS de produtos_historico_compras/produtos_resumo_compras
+  // (migration 0023) -- ver comentário equivalente em
+  // pages/pedidos/solicitacoes.js.
+  const podeVerHistorico = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_VISUALIZAR);
 
   const [produtos, setProdutos] = useState([]);
   const [carregandoProdutos, setCarregandoProdutos] = useState(true);
@@ -75,6 +84,15 @@ export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', 
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+
+  // Histórico de compras (apoio informativo, auditoria aprovada da frente
+  // "Pedidos > Solicitações -- Histórico de Compras"): só faz sentido
+  // quando um produto REAL do Catálogo está selecionado -- item não
+  // cadastrado nunca dispara esta consulta nem mostra o bloco (seção 5 da
+  // auditoria aprovada: "não consultar histórico" quando marcado).
+  const [historico, setHistorico] = useState(null);
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+  const [erroHistorico, setErroHistorico] = useState(false);
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -98,6 +116,38 @@ export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', 
       efeitoAtivo = false;
     };
   }, []);
+
+  useEffect(() => {
+    let efeitoAtivo = true;
+
+    async function carregarHistorico() {
+      setErroHistorico(false);
+
+      if (naoCadastrado || !produtoId || !podeVerHistorico) {
+        setHistorico(null);
+        return;
+      }
+
+      setCarregandoHistorico(true);
+      try {
+        const mapa = await buscarHistoricoComprasEmLote([produtoId]);
+        if (!efeitoAtivo) return;
+        setHistorico(mapa.get(produtoId) || null);
+      } catch (error) {
+        console.error('Erro ao carregar histórico de compras do produto:', error);
+        if (!efeitoAtivo) return;
+        setErroHistorico(true);
+        setHistorico(null);
+      } finally {
+        if (efeitoAtivo) setCarregandoHistorico(false);
+      }
+    }
+
+    carregarHistorico();
+    return () => {
+      efeitoAtivo = false;
+    };
+  }, [produtoId, naoCadastrado, podeVerHistorico]);
 
   function alternarNaoCadastrado(marcado) {
     setNaoCadastrado(marcado);
@@ -162,6 +212,11 @@ export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', 
   }
 
   const resultadosBusca = buscarProdutosPorRelevancia(produtos, buscaProduto);
+  // Unidade-base do produto selecionado, já disponível na lista carregada
+  // no topo deste form -- nunca uma query extra só para isso (mesma
+  // unidade que o banco snapshotará em pedidos_solicitacoes.unidade ao
+  // salvar, migration 0043).
+  const unidadeBaseSelecionada = produtos.find((p) => p.id === produtoId)?.unidade_medida || null;
 
   return (
     <Modal onFechar={onCancelar} largura="md" legado>
@@ -247,6 +302,49 @@ export default function SolicitacaoForm({ solicitacao, corPrimaria = '#8B4513', 
             </>
           )}
         </div>
+
+        {/* Bloco informativo, deliberadamente discreto -- nunca preenche
+            fornecedor/preço automaticamente (seção 3 da auditoria
+            aprovada). Só aparece com produto REAL selecionado; item não
+            cadastrado nunca mostra nem consulta nada aqui (seção 5). */}
+        {!naoCadastrado && produtoId && (
+          <div
+            style={{
+              marginBottom: '15px', padding: '10px 12px', backgroundColor: '#f7f7f7',
+              border: '1px solid #e0e0e0', borderRadius: '5px', fontSize: '12px', color: '#555',
+            }}
+          >
+            <strong style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#777' }}>
+              Histórico de compras
+            </strong>
+            {!podeVerHistorico ? (
+              <span>Histórico não disponível para este acesso.</span>
+            ) : carregandoHistorico ? (
+              <span>Carregando histórico...</span>
+            ) : erroHistorico ? (
+              <span>Não foi possível carregar o histórico agora.</span>
+            ) : !historico || !historico.ultimaCompra ? (
+              <span>— Sem histórico</span>
+            ) : (
+              <div style={{ display: 'grid', gap: '4px' }}>
+                {historico.menorPreco3Meses && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span title="Menor preço comparável dos últimos 3 meses" aria-label="Menor preço dos últimos 3 meses" style={{ display: 'inline-flex', color: '#888' }}>
+                      <Icon nome="tag" tamanho={14} />
+                    </span>
+                    {formatarPrecoBase(historico.menorPreco3Meses.precoBase, unidadeBaseSelecionada)} · {historico.menorPreco3Meses.fornecedor || '—'}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span title="Última compra registrada" aria-label="Última compra registrada" style={{ display: 'inline-flex', color: '#888' }}>
+                    <Icon nome="calendar" tamanho={14} />
+                  </span>
+                  {formatarDataHistorico(historico.ultimaCompra.data)} · {historico.ultimaCompra.fornecedor || '—'}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
           <div>

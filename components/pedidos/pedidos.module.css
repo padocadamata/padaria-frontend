@@ -163,3 +163,34 @@
     white-space: normal;
   }
 }
+
+/* Coluna/célula "Histórico de compras" em SolicitacoesLista.js -- dois
+   blocos compactos (menor preço 3 meses / última compra) dentro de UMA
+   única coluna, nunca 6-7 colunas separadas (decisão explícita da
+   auditoria aprovada). */
+.historicoBloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  font-size: var(--ds-fs-label);
+  min-width: 200px;
+}
+
+.historicoLinha {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  color: var(--ds-text);
+}
+
+.historicoIcone {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--ds-text-muted);
+}
+
+.historicoIndisponivel {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  font-style: italic;
+}
