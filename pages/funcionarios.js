@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import RequireAuth from '../components/RequireAuth';
 import GerenciarCargosModal from '../components/funcionarios/GerenciarCargosModal';
+import FuncionariosSubNav from '../components/funcionarios/FuncionariosSubNav';
 import PageShell from '../components/shell/PageShell';
 import PageHeader from '../components/ui/PageHeader';
 import Alert from '../components/ui/Alert';
@@ -56,7 +57,7 @@ function FuncionariosConteudo() {
     const [{ data: funcionariosData, error: erroFuncionarios }, { data: cargosData }] = await Promise.all([
       supabase
         .from('funcionarios')
-        .select('id, nome, telefone, ativo, data_admissao, cargo_id, funcionarios_cargos(nome)')
+        .select('id, nome, telefone, ativo, data_admissao, cargo_id, tipo_vinculo, funcionarios_cargos(nome)')
         .order('nome')
         .limit(1000),
       supabase.from('funcionarios_cargos').select('id, nome, ativo').order('nome'),
@@ -109,7 +110,22 @@ function FuncionariosConteudo() {
   }
 
   const colunas = [
-    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, render: (f) => f.nome },
+    {
+      chave: 'nome',
+      rotulo: 'Nome',
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      render: (f) => (
+        <>
+          {f.nome}
+          {f.tipo_vinculo === 'freelancer' && (
+            <span className={estilos.marcaFreelancer}>
+              <Badge tom="info">freelancer</Badge>
+            </span>
+          )}
+        </>
+      ),
+    },
     { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (f) => <BadgeStatus ativo={f.ativo} /> },
     { chave: 'cargo', rotulo: 'Cargo', render: (f) => f.funcionarios_cargos?.nome || '—' },
     { chave: 'telefone', rotulo: 'Telefone', render: (f) => f.telefone || '—' },
@@ -118,6 +134,7 @@ function FuncionariosConteudo() {
 
   return (
     <PageShell titulo="Folha de Pagamento">
+      <FuncionariosSubNav ativo="funcionarios" />
       <PageHeader
         titulo="Cadastro de Funcionários"
         acoes={

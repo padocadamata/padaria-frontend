@@ -48,6 +48,11 @@ function estadoInicial(funcionario) {
     data_demissao: funcionario?.data_demissao || '',
     ativo: funcionario ? !!funcionario.ativo : true,
     usuario_id: funcionario?.usuario_id || '',
+    // Migration 0055 (frente Escala) -- identifica o vínculo para permitir
+    // colocar freelancers na Escala com cadastro mínimo, sem tabela
+    // separada nem duplicar cadastro (mesmo funcionario_id preserva
+    // histórico de dias trabalhados).
+    tipo_vinculo: funcionario?.tipo_vinculo || 'funcionario',
   };
 }
 
@@ -95,6 +100,7 @@ export function montarPayload(dados) {
     data_demissao: dataDemissao,
     ativo: dataDemissao ? false : dados.ativo,
     usuario_id: dados.usuario_id || null,
+    tipo_vinculo: dados.tipo_vinculo,
   };
 }
 
@@ -276,6 +282,12 @@ export default function DadosFuncionarioForm({ funcionario, podeEditar, onCriado
       <div className={estilos.secao}>
         <h3 className={estilos.tituloSecao}>Dados profissionais</h3>
         <div className={cx(estilos.grade, estilos.larguraTotal)} style={{ marginBottom: 'var(--ds-sp-4)' }}>
+          <Field label="Vínculo">
+            <Select value={dados.tipo_vinculo} disabled={!podeEditar} onChange={(e) => atualizarCampo('tipo_vinculo', e.target.value)}>
+              <option value="funcionario">Funcionário</option>
+              <option value="freelancer">Freelancer</option>
+            </Select>
+          </Field>
           <Field label="Cargo/Função">
             <Select value={dados.cargo_id} disabled={!podeEditar} onChange={(e) => atualizarCampo('cargo_id', e.target.value)}>
               <option value="">—</option>

@@ -1,0 +1,582 @@
+/* Migration 0055 -- Folha de Pagamento > Escala. */
+
+.modalCorpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.mensagem {
+  margin: 0;
+}
+
+.listaPeriodos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.linhaPeriodo {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-sp-2);
+}
+
+.linhaPeriodo > *:first-child,
+.linhaPeriodo > *:nth-child(2) {
+  flex: 1;
+}
+
+.rodapePlanejamento {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.secaoOcorrencia {
+  padding-top: var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.tituloOcorrencia {
+  margin: 0 0 var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+}
+
+.linhaOcorrencia {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+}
+
+.notaOcorrencia {
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+/* ------------------------------- Visão semanal ------------------------------- */
+
+.cabecalhoSemana {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.navegacaoSemana {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.tituloSemana {
+  margin: 0;
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.celulaDia {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 32px;
+  padding: var(--ds-sp-1);
+  border-radius: var(--ds-radius-sm, 6px);
+  cursor: pointer;
+  text-align: left;
+  background: none;
+  border: 1px dashed transparent;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.celulaDia:hover {
+  border-color: var(--ds-border-strong);
+  background-color: var(--ds-neutral-soft);
+}
+
+.celulaDia:disabled {
+  cursor: default;
+}
+
+.celulaNaoDefinido {
+  color: var(--ds-text-muted);
+  font-style: italic;
+  font-size: var(--ds-fs-label);
+}
+
+.celulaFolga {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.celulaPeriodo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text);
+}
+
+.celulaOcorrencia {
+  margin-top: 2px;
+}
+
+.legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-3);
+  margin-top: var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+/* ------------------------------- Produtividade ------------------------------- */
+
+.barraProdutividade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.selecaoFuncionarios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--ds-sp-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.listaConflitos {
+  margin: 0;
+  padding-left: var(--ds-sp-4);
+  font-size: var(--ds-fs-label);
+}
+
+/* ------------------------------- Visão do dia -------------------------------- */
+
+.resumoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+.resumoItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--ds-sp-2);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface-muted);
+}
+
+.resumoItem strong {
+  font-size: var(--ds-fs-section);
+  color: var(--ds-text);
+}
+
+.resumoItem span {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+}
+
+.listaFaixas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.faixaCobertura {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+}
+
+.faixaHorario {
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  min-width: 96px;
+}
+
+.faixaPessoas {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.faixaAusente {
+  font-style: italic;
+}
+
+/* ------------------------------- Visão Cobertura (timeline contínua) --------- */
+
+.controlesPeriodo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.campoData {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.envolucroCobertura {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+/* UMA grade só para o período inteiro -- nunca um bloco por dia. Colunas
+   com largura FIXA em px via style inline (nunca "fr"): coluna do
+   funcionário (LARGURA_FUNCIONARIO) + 1 coluna por dia exibido, todas com
+   a MESMA largura (LARGURA_DIA), não importa se são 1 ou 7 dias. min-width
+   também vem via style inline (soma exata das colunas) -- sem isso, um
+   grid com width:auto dentro de um pai com overflow-x:auto deixa o
+   navegador encolher as colunas para caber na viewport (bug corrigido
+   nesta rodada: dias ficavam espremidos com muitos dias selecionados). */
+.timelineCobertura {
+  display: grid;
+  align-items: stretch;
+}
+
+.cantoCobertura {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  background-color: var(--ds-surface-muted);
+  border-right: 1px solid var(--ds-border-strong);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+/* Separador de dia REFORÇADO (item 1 do refinamento) -- mais forte que a
+   borda horizontal entre linhas, para o limite de cada dia ficar óbvio
+   durante o scroll horizontal, sem depender de cor chamativa. */
+.cabecalhoDiaCobertura {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--ds-sp-2);
+  background-color: var(--ds-surface-muted);
+  border-right: 1px solid var(--ds-border-strong);
+  border-bottom: 1px solid var(--ds-border);
+  font-size: var(--ds-fs-label);
+}
+
+.eixoHorarioCobertura {
+  position: relative;
+  height: 18px;
+  margin-top: var(--ds-sp-1);
+}
+
+.marcaHoraCobertura {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+.nomeCoberturaFixo {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: var(--ds-sp-2);
+  background-color: var(--ds-surface);
+  border-right: 1px solid var(--ds-border-strong);
+  border-bottom: 1px solid var(--ds-border);
+  font-size: var(--ds-fs-label);
+  white-space: nowrap;
+}
+
+.trilhaCobertura {
+  position: relative;
+  min-height: 36px;
+  border-right: 1px solid var(--ds-border-strong);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+/* Linha "Cobertura" com um pouco mais de peso visual (item 2 do
+   refinamento) -- fundo neutro discreto + borda superior mais forte para
+   separá-la das linhas de funcionário, sem usar cor chamativa. */
+.trilhaCoberturaTotal {
+  background-color: var(--ds-surface-muted);
+  border-top: 1px solid var(--ds-border-strong);
+}
+
+.nomeCoberturaFixoTotal {
+  background-color: var(--ds-surface-muted);
+  border-top: 1px solid var(--ds-border-strong);
+}
+
+.barraCoberturaTrabalho,
+.barraCoberturaAusente {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: var(--ds-radius-sm, 4px);
+  font-size: 10px;
+  font-weight: var(--ds-fw-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barraCoberturaTrabalho {
+  background-color: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+
+.barraCoberturaAusente {
+  color: var(--ds-danger);
+  border: 1px dashed var(--ds-danger);
+  background-image: repeating-linear-gradient(45deg, var(--ds-danger-soft) 0, var(--ds-danger-soft) 4px, transparent 4px, transparent 8px);
+}
+
+.chipFolgaCobertura {
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: var(--ds-radius-sm, 4px);
+  font-size: 10px;
+  color: var(--ds-text-muted);
+  background-color: var(--ds-surface-muted);
+}
+
+.segmentoCoberturaTotal {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ds-neutral-soft);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-sm, 4px);
+  font-size: 12px;
+  font-weight: var(--ds-fw-bold, 700);
+  color: var(--ds-text);
+}
+
+/* ------------------------------- Visão mensal -------------------------------- */
+
+/* Grade de planejamento macro (funcionário × dia), com sub-indicadores
+   Manhã/Tarde por célula -- substitui o antigo calendário FullCalendar
+   (removido: nenhuma biblioteca de calendário é mais usada na Escala). */
+.envolucroMensal {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.gradeMensal {
+  border-collapse: collapse;
+  font-size: var(--ds-fs-label);
+}
+
+.gradeMensal th,
+.gradeMensal td {
+  border: 1px solid var(--ds-border);
+  padding: 0;
+}
+
+.gradeMensal thead th {
+  background-color: var(--ds-surface-muted);
+  color: var(--ds-text-muted);
+  font-weight: var(--ds-fw-semibold);
+  padding: var(--ds-sp-2);
+}
+
+.colFuncionarioFixa {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--ds-surface);
+  white-space: nowrap;
+  text-align: left;
+  font-weight: var(--ds-fw-semibold);
+  padding: var(--ds-sp-2) var(--ds-sp-3) !important;
+}
+
+.gradeMensal thead .colFuncionarioFixa {
+  z-index: 3;
+  background-color: var(--ds-surface-muted);
+}
+
+.colDiaMensal {
+  min-width: 40px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.gradeMensal thead th.colDiaMensal {
+  padding: 0;
+}
+
+/* Destaque discreto do dia atual (refinamento visual, item 7b) -- só uma
+   cor de fundo diferente no cabeçalho + borda inferior mais forte, nunca
+   um selo/texto extra que competiria com o resto da grade. */
+.colDiaMensalHoje {
+  background-color: var(--ds-primary-soft);
+}
+
+.colDiaMensalHoje .botaoCabecalhoDia {
+  border-bottom: 2px solid var(--ds-primary);
+}
+
+.botaoCabecalhoDia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  padding: var(--ds-sp-1);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.botaoCabecalhoDia:hover {
+  background-color: var(--ds-primary-soft);
+}
+
+.rotuloDiaSemanaMensal {
+  font-size: 10px;
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+}
+
+.celulaMensalContainer {
+  padding: 0 !important;
+}
+
+.celulaMensalBotao {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  padding: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.celulaMensalBotao:hover {
+  background-color: var(--ds-neutral-soft);
+}
+
+/* Destaque discreto da coluna do dia atual nas células do corpo também
+   (não só no cabeçalho) -- mesma cor de fundo, mais fraca. */
+.celulaMensalHoje {
+  background-color: var(--ds-primary-soft);
+}
+
+/* "—" de não definido reduzido de peso visual (refinamento 7a): mais claro
+   e menor que o conteúdo real (M/T, Folga), pra não competir por atenção
+   numa grade com muitas células vazias. */
+.celulaMensalNaoDefinido {
+  margin: auto;
+  color: var(--ds-border-strong);
+  font-size: 11px;
+}
+
+/* Folga como selo compacto (refinamento 7c) -- texto horizontal, nunca
+   girado, cabe na célula sem dominar visualmente nem depender só de cor. */
+.celulaMensalFolga {
+  margin: auto;
+  padding: 1px 6px;
+  border-radius: var(--ds-radius-sm, 4px);
+  background-color: var(--ds-surface-muted);
+  font-size: 9px;
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.celulaMensalTrabalho {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  align-items: center;
+}
+
+.faixaMTPreenchida,
+.faixaMTVazia {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  font-weight: var(--ds-fw-semibold);
+  border-radius: var(--ds-radius-sm, 4px);
+  line-height: 1.4;
+}
+
+.faixaMTPreenchida {
+  background-color: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+
+.faixaMTVazia {
+  color: var(--ds-text-muted);
+  border: 1px dashed var(--ds-border);
+}
+
+.seloMensalFalta,
+.seloMensalAtestado {
+  font-size: 9px;
+  font-weight: var(--ds-fw-semibold);
+  border-radius: var(--ds-radius-sm, 4px);
+  padding: 0 3px;
+}
+
+.seloMensalFalta {
+  color: var(--ds-danger);
+  border: 1px solid var(--ds-danger);
+}
+
+.seloMensalAtestado {
+  color: var(--ds-warning);
+  border: 1px solid var(--ds-warning);
+}

@@ -215,3 +215,8 @@
 .criarCargo > :first-child {
   flex: 1;
 }
+
+/* Migration 0055 (frente Escala) -- indicador de vínculo na listagem. */
+.marcaFreelancer {
+  margin-left: var(--ds-sp-2);
+}
