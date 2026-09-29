@@ -3,6 +3,7 @@ import RequireAuth from '../../components/RequireAuth';
 import FuncionariosSubNav from '../../components/funcionarios/FuncionariosSubNav';
 import EscalaDiaModal from '../../components/funcionarios/EscalaDiaModal';
 import EscalaLoteModal from '../../components/funcionarios/EscalaLoteModal';
+import EscalaPadraoLoteModal from '../../components/funcionarios/EscalaPadraoLoteModal';
 import EscalaCoberturaDiaModal from '../../components/funcionarios/EscalaCoberturaDiaModal';
 import EscalaMensal from '../../components/funcionarios/EscalaMensal';
 import EscalaPorHora from '../../components/funcionarios/EscalaPorHora';
@@ -79,6 +80,7 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
 
   const [modalDia, setModalDia] = useState(null); // { funcionario, data, estado }
   const [modalLoteAberto, setModalLoteAberto] = useState(false);
+  const [modalPadraoAberto, setModalPadraoAberto] = useState(false);
 
   const [confirmarCopiaSemana, setConfirmarCopiaSemana] = useState(null); // { atribuicoes, conflitos }
   const [copiandoSemana, setCopiandoSemana] = useState(false);
@@ -153,6 +155,16 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
   function aoSalvarLote() {
     setModalLoteAberto(false);
     setMensagemSucesso('Escala aplicada em lote com sucesso.');
+    recarregarTudo();
+  }
+
+  function fecharModalPadrao() {
+    setModalPadraoAberto(false);
+  }
+
+  function aoAplicarPadrao() {
+    setModalPadraoAberto(false);
+    setMensagemSucesso('Escala padrão aplicada com sucesso.');
     recarregarTudo();
   }
 
@@ -253,6 +265,7 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
           {podeEditar && (
             <>
               <Button variante="secondary" tamanho="sm" onClick={prepararCopiaSemanaAnterior}>Copiar semana anterior</Button>
+              <Button variante="secondary" tamanho="sm" onClick={() => setModalPadraoAberto(true)}>Preencher pela Escala Padrão</Button>
               <Button tamanho="sm" icone="plus" onClick={() => setModalLoteAberto(true)}>Aplicar em lote</Button>
             </>
           )}
@@ -286,6 +299,10 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
 
       {modalLoteAberto && (
         <EscalaLoteModal funcionarios={funcionarios} dias={dias} mapaEscala={mapaEscala} onFechar={fecharModalLote} onSalvo={aoSalvarLote} />
+      )}
+
+      {modalPadraoAberto && (
+        <EscalaPadraoLoteModal funcionarios={funcionarios} dias={dias} onFechar={fecharModalPadrao} onAplicado={aoAplicarPadrao} />
       )}
 
       {confirmarCopiaSemana && (

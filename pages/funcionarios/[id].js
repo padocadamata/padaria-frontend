@@ -4,6 +4,7 @@ import RequireAuth from '../../components/RequireAuth';
 import DadosFuncionarioForm from '../../components/funcionarios/DadosFuncionarioForm';
 import DependentesTab from '../../components/funcionarios/DependentesTab';
 import BeneficiosTab from '../../components/funcionarios/BeneficiosTab';
+import EscalaPadraoTab from '../../components/funcionarios/EscalaPadraoTab';
 import PageShell from '../../components/shell/PageShell';
 import PageHeader from '../../components/ui/PageHeader';
 import Alert from '../../components/ui/Alert';
@@ -21,6 +22,7 @@ const ABAS = [
   { chave: 'dados', label: 'Dados pessoais e profissionais' },
   { chave: 'dependentes', label: 'Dependentes' },
   { chave: 'beneficios', label: 'Benefícios' },
+  { chave: 'escala_padrao', label: 'Escala Padrão' },
 ];
 
 // Diffs mínimos que valem auditoria dedicada, além do "editou" genérico
@@ -57,6 +59,8 @@ function FuncionarioDetalheConteudo() {
   const { id } = router.query;
   const { permissoes } = useAuth();
   const podeEditar = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_EDITAR);
+  const podeVerEscala = hasPermissao(permissoes, PERMISSOES.ESCALA_VISUALIZAR);
+  const podeEditarEscala = hasPermissao(permissoes, PERMISSOES.ESCALA_EDITAR);
 
   const [funcionario, setFuncionario] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -143,6 +147,9 @@ function FuncionarioDetalheConteudo() {
         )}
         {aba === 'dependentes' && <DependentesTab funcionarioId={funcionario.id} podeEditar={podeEditar} />}
         {aba === 'beneficios' && <BeneficiosTab funcionarioId={funcionario.id} podeEditar={podeEditar} />}
+        {aba === 'escala_padrao' && (
+          <EscalaPadraoTab funcionarioId={funcionario.id} podeVer={podeVerEscala} podeEditar={podeEditarEscala} />
+        )}
       </Card>
     </PageShell>
   );
