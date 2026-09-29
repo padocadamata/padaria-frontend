@@ -7,6 +7,10 @@ import {
   formatarCpf,
   cpfValido,
   UNIDADES_FEDERATIVAS,
+  TIPOS_CHAVE_PIX,
+  formatarCnpj,
+  normalizarChavePix,
+  chavePixValida,
 } from '../../lib/funcionarios/normalizacao';
 import Alert from '../ui/Alert';
 import Button from '../ui/Button';
@@ -17,6 +21,27 @@ import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
 import { cx } from '../../lib/design/cx';
 import estilos from './funcionarios.module.css';
+
+// Placeholder adaptado por tipo de chave PIX (migration 0056) -- só ajuda
+// visual, nunca aplicado ao valor real.
+const PLACEHOLDER_CHAVE_PIX = {
+  cpf: '000.000.000-00',
+  cnpj: '00.000.000/0000-00',
+  celular: '(00) 00000-0000',
+  email: 'nome@exemplo.com',
+  aleatoria: '123e4567-e89b-12d3-a456-426614174000',
+};
+
+// Exibe a chave já salva formatada quando o tipo tem máscara conhecida
+// (cpf/cnpj, mesmo padrão já usado para o CPF principal do funcionário) --
+// os demais tipos (celular/email/aleatória) não têm máscara de exibição,
+// mostram o valor como veio do banco.
+function formatarChavePixExibicao(tipo, valor) {
+  if (!valor) return '';
+  if (tipo === 'cpf') return formatarCpf(valor);
+  if (tipo === 'cnpj') return formatarCnpj(valor);
+  return valor;
+}
 
 // Mesmo componente para /funcionarios/novo (funcionario=null) e para a
 // aba "Dados pessoais/profissionais" de /funcionarios/[id] (funcionario
@@ -53,8 +78,21 @@ function estadoInicial(funcionario) {
     // separada nem duplicar cadastro (mesmo funcionario_id preserva
     // histórico de dias trabalhados).
     tipo_vinculo: funcionario?.tipo_vinculo || 'funcionario',
+    // Migration 0056 (Folha de Pagamento > Cadastro e Parametrizações,
+    // Etapa A) -- dados para pagamento. Ambos nullable no banco e opcionais
+    // aqui: funcionário pode ser cadastrado/editado sem nenhum PIX.
+    tipo_chave_pix: funcionario?.tipo_chave_pix || '',
+    chave_pix: formatarChavePixExibicao(funcionario?.tipo_chave_pix, funcionario?.chave_pix),
   };
 }
+
+const MENSAGEM_CHAVE_PIX_INVALIDA = {
+  cpf: 'CPF da chave PIX inválido — confira os dígitos informados.',
+  cnpj: 'CNPJ da chave PIX inválido — confira os dígitos informados.',
+  celular: 'Celular da chave PIX parece incompleto — confira o número informado.',
+  email: 'E-mail da chave PIX inválido — confira o endereço informado.',
+  aleatoria: 'Chave aleatória inválida — o formato esperado é um UUID (ex.: 123e4567-e89b-12d3-a456-426614174000).',
+};
 
 export function validar(dados) {
   if (!dados.nome.trim()) {
@@ -66,6 +104,19 @@ export function validar(dados) {
   }
   if (dados.estado && !/^[A-Z]{2}$/.test(dados.estado)) {
     return 'Estado (UF) inválido.';
+  }
+  // PIX é opcional (migration 0056) -- tipo e chave sempre juntos ou ambos
+  // em branco, nunca um sem o outro (mesma coerência exigida no banco).
+  const temTipoPix = !!dados.tipo_chave_pix;
+  const temChavePix = !!dados.chave_pix.trim();
+  if (temTipoPix && !temChavePix) {
+    return 'Informe a chave PIX, ou limpe o tipo selecionado para não cadastrar PIX.';
+  }
+  if (!temTipoPix && temChavePix) {
+    return 'Selecione o tipo da chave PIX informada, ou apague a chave para não cadastrar PIX.';
+  }
+  if (temTipoPix && temChavePix && !chavePixValida(dados.tipo_chave_pix, dados.chave_pix)) {
+    return MENSAGEM_CHAVE_PIX_INVALIDA[dados.tipo_chave_pix] || 'Chave PIX inválida.';
   }
   return null;
 }
@@ -101,6 +152,12 @@ export function montarPayload(dados) {
     ativo: dataDemissao ? false : dados.ativo,
     usuario_id: dados.usuario_id || null,
     tipo_vinculo: dados.tipo_vinculo,
+    // Sem tipo selecionado, a chave é sempre enviada como null também --
+    // limpar o tipo remove o PIX por completo, mesmo que sobre texto
+    // digitado no campo (validar() já bloqueia esse estado antes de
+    // chegar aqui, isto é só a segunda camada de garantia).
+    tipo_chave_pix: dados.tipo_chave_pix || null,
+    chave_pix: dados.tipo_chave_pix ? normalizarChavePix(dados.tipo_chave_pix, dados.chave_pix) : null,
   };
 }
 
@@ -115,6 +172,8 @@ export function mensagemErro(error) {
   }
   if (error.code === '23514') {
     if (msg.includes('estado')) return 'Estado (UF) inválido.';
+    if (msg.includes('chave_pix_coerente')) return 'Informe o tipo e a chave PIX juntos, ou deixe os dois em branco.';
+    if (msg.includes('tipo_chave_pix_valido')) return 'Tipo de chave PIX inválido.';
     return 'O nome não pode ficar em branco.';
   }
   if (error.code === '23503') {
@@ -331,6 +390,36 @@ export default function DadosFuncionarioForm({ funcionario, podeEditar, onCriado
             demissão acima e (2) marque "Funcionário ativo" manualmente.
           </p>
         )}
+      </div>
+
+      <div className={estilos.secao}>
+        <h3 className={estilos.tituloSecao}>Dados para pagamento</h3>
+        <div className={estilos.grade}>
+          <Field label="Tipo da chave PIX">
+            <Select
+              value={dados.tipo_chave_pix}
+              disabled={!podeEditar}
+              onChange={(e) => {
+                const tipo = e.target.value;
+                setDados((atual) => ({ ...atual, tipo_chave_pix: tipo, chave_pix: tipo ? atual.chave_pix : '' }));
+              }}
+            >
+              <option value="">— Sem PIX cadastrado —</option>
+              {TIPOS_CHAVE_PIX.map((t) => (
+                <option key={t.valor} value={t.valor}>{t.rotulo}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Chave PIX">
+            <Input
+              type="text"
+              value={dados.chave_pix}
+              disabled={!podeEditar || !dados.tipo_chave_pix}
+              placeholder={PLACEHOLDER_CHAVE_PIX[dados.tipo_chave_pix] || ''}
+              onChange={(e) => atualizarCampo('chave_pix', e.target.value)}
+            />
+          </Field>
+        </div>
       </div>
 
       {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}

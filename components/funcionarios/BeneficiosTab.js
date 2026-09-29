@@ -9,6 +9,8 @@ import Input from '../ui/Input';
 import Modal from '../ui/Modal';
 import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
+import GerenciarTiposBeneficioModal from './GerenciarTiposBeneficioModal';
+import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
 import { cx } from '../../lib/design/cx';
 import estilos from './funcionarios.module.css';
 
@@ -41,6 +43,16 @@ function mensagemErro(error) {
   return 'Não foi possível salvar o benefício. Tente novamente ou avise um administrador.';
 }
 
+// Exclusão permanente (distinta de Encerrar -- Encerrar é lógico e
+// preserva histórico via ativo=false; Excluir remove a linha de verdade,
+// só para lançamento feito por engano). Nenhuma outra tabela referencia
+// funcionarios_beneficios.id (auditado antes de implementar isto) -- o
+// único jeito de a exclusão falhar é falta de permissão/policy no banco.
+function mensagemErroExclusao(error) {
+  console.error('Erro ao excluir benefício:', error);
+  return 'Não foi possível excluir. Tente novamente ou avise um administrador.';
+}
+
 export default function BeneficiosTab({ funcionarioId, podeEditar }) {
   const [beneficios, setBeneficios] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -51,7 +63,11 @@ export default function BeneficiosTab({ funcionarioId, podeEditar }) {
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(estadoInicialForm());
   const [salvando, setSalvando] = useState(false);
+  const [mostrarGerenciarTipos, setMostrarGerenciarTipos] = useState(false);
   const [erroForm, setErroForm] = useState('');
+  const [confirmarExclusao, setConfirmarExclusao] = useState(null); // { id, nomeTipo }
+  const [excluindoId, setExcluindoId] = useState(null);
+  const [erroExclusao, setErroExclusao] = useState('');
 
   async function carregar() {
     setCarregando(true);
@@ -150,6 +166,32 @@ export default function BeneficiosTab({ funcionarioId, podeEditar }) {
     carregar();
   }
 
+  async function confirmarExclusaoBeneficio() {
+    if (!confirmarExclusao) return;
+    const { id } = confirmarExclusao;
+    setExcluindoId(id);
+    setErroExclusao('');
+    const supabase = createClient();
+    const { data, error } = await supabase.from('funcionarios_beneficios').delete().eq('id', id).select('id');
+    setExcluindoId(null);
+
+    if (error) {
+      setErroExclusao(mensagemErroExclusao(error));
+      return;
+    }
+    if (!data || data.length === 0) {
+      // RLS bloqueou silenciosamente (nenhuma linha afetada, sem erro
+      // explícito) -- cenário esperado até a migration correspondente ser
+      // aplicada (falta policy de DELETE nesta tabela).
+      setErroExclusao('Não foi possível excluir — a exclusão de benefícios ainda não está habilitada no banco. Avise um administrador.');
+      return;
+    }
+
+    registrarAuditoria({ entidade: 'funcionario_beneficio', registroId: id, acao: 'excluiu' });
+    setBeneficios((atual) => atual.filter((b) => b.id !== id));
+    setConfirmarExclusao(null);
+  }
+
   if (carregando) return <p className={estilos.vazio}>Carregando benefícios...</p>;
   if (erro) return <Alert tom="danger">{erro}</Alert>;
 
@@ -175,6 +217,13 @@ export default function BeneficiosTab({ funcionarioId, podeEditar }) {
                   <Button tamanho="sm" variante="secondary" onClick={() => alternarAtivo(ben)}>
                     {ben.ativo ? 'Encerrar' : 'Reativar'}
                   </Button>
+                  <Button
+                    tamanho="sm"
+                    variante="secondary"
+                    onClick={() => setConfirmarExclusao({ id: ben.id, nomeTipo: ben.funcionarios_beneficios_tipos?.nome || 'este benefício' })}
+                  >
+                    Excluir
+                  </Button>
                 </div>
               )}
             </div>
@@ -183,7 +232,43 @@ export default function BeneficiosTab({ funcionarioId, podeEditar }) {
       )}
 
       {podeEditar && (
-        <Button tamanho="sm" icone="plus" onClick={abrirNovo}>Adicionar benefício</Button>
+        <div className={estilos.itemAcoes}>
+          <Button tamanho="sm" icone="plus" onClick={abrirNovo}>Adicionar benefício</Button>
+          <Button tamanho="sm" variante="secondary" onClick={() => setMostrarGerenciarTipos(true)}>Gerenciar tipos</Button>
+        </div>
+      )}
+
+      {mostrarGerenciarTipos && (
+        <GerenciarTiposBeneficioModal
+          aberto={mostrarGerenciarTipos}
+          onFechar={() => setMostrarGerenciarTipos(false)}
+          tipos={tipos}
+          podeGerenciar={podeEditar}
+          onAtualizar={setTipos}
+        />
+      )}
+
+      {confirmarExclusao && (
+        <ConfirmarAcaoModal
+          modalDS
+          titulo="Excluir benefício"
+          perigo
+          confirmando={excluindoId === confirmarExclusao.id}
+          erro={erroExclusao}
+          textoConfirmar={excluindoId === confirmarExclusao.id ? 'Excluindo...' : 'Excluir permanentemente'}
+          mensagem={
+            <p>
+              Excluir permanentemente o benefício <strong>{confirmarExclusao.nomeTipo}</strong>? Use esta opção só
+              quando o lançamento foi feito por engano — se o benefício existiu de verdade e deixou de valer, prefira
+              "Encerrar" para preservar o histórico. Esta ação não pode ser desfeita.
+            </p>
+          }
+          onConfirmar={confirmarExclusaoBeneficio}
+          onCancelar={() => {
+            setConfirmarExclusao(null);
+            setErroExclusao('');
+          }}
+        />
       )}
 
       {mostrarForm && (

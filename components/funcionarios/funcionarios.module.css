@@ -220,3 +220,51 @@
 .marcaFreelancer {
   margin-left: var(--ds-sp-2);
 }
+
+/* ------------------------- tipos de benefício ----------------------------- */
+/* Classes PRÓPRIAS (não reaproveitam .itemCargo/.itemCargoNome/.itemAcoes)
+   -- item em 2 linhas (nome+status em cima, ações embaixo) para caber
+   nome + status + Renomear + Inativar/Reativar + Excluir sem cortar nada
+   nem gerar scroll horizontal, sem alterar em nada o modal de Cargos. */
+
+.itemTipoBeneficio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  background-color: var(--ds-surface-muted);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemTipoBeneficioEmEdicao {
+  background-color: var(--ds-warning-soft);
+}
+
+.itemTipoBeneficioLinhaSuperior {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.itemTipoBeneficioNome {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: var(--ds-fs-body);
+}
+
+.itemTipoBeneficioInativo {
+  color: var(--ds-text-disabled);
+  text-decoration: line-through;
+}
+
+.itemTipoBeneficioAcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-1);
+}
+
+.itemTipoBeneficioNotaUso {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
