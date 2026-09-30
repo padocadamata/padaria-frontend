@@ -7,6 +7,7 @@ import EscalaPadraoLoteModal from '../../components/funcionarios/EscalaPadraoLot
 import EscalaCoberturaDiaModal from '../../components/funcionarios/EscalaCoberturaDiaModal';
 import EscalaMensal from '../../components/funcionarios/EscalaMensal';
 import EscalaPorHora from '../../components/funcionarios/EscalaPorHora';
+import IndicadorVinculo from '../../components/funcionarios/IndicadorVinculo';
 import PageShell from '../../components/shell/PageShell';
 import PageHeader from '../../components/ui/PageHeader';
 import Alert from '../../components/ui/Alert';
@@ -220,16 +221,13 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
       rotulo: 'Funcionário',
       mobile: 'titulo',
       cartaoOrdem: 0,
-      render: (f) => (
-        <>
-          {f.nome}
-          {f.tipo_vinculo === 'freelancer' && (
-            <span className={estilos.celulaOcorrencia}>
-              <Badge tom="info">freelancer</Badge>
-            </span>
-          )}
-        </>
-      ),
+      render: (f) => f.nome,
+    },
+    {
+      chave: 'vinculo',
+      rotulo: 'Vínculo',
+      alinhar: 'centro',
+      render: (f) => <IndicadorVinculo tipoVinculo={f.tipo_vinculo} />,
     },
     ...dias.map((data, indice) => ({
       chave: `dia_${data}`,

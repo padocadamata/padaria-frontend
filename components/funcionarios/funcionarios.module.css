@@ -216,11 +216,6 @@
   flex: 1;
 }
 
-/* Migration 0055 (frente Escala) -- indicador de vínculo na listagem. */
-.marcaFreelancer {
-  margin-left: var(--ds-sp-2);
-}
-
 /* ------------------------- tipos de benefício ----------------------------- */
 /* Classes PRÓPRIAS (não reaproveitam .itemCargo/.itemCargoNome/.itemAcoes)
    -- item em 2 linhas (nome+status em cima, ações embaixo) para caber

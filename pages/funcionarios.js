@@ -19,14 +19,11 @@ import estilos from '../components/funcionarios/funcionarios.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
+import { OPCOES_VINCULO, rotuloVinculo, tomVinculo } from '../lib/funcionarios/vinculo';
+import { funcionarioPassaFiltro } from '../lib/funcionarios/filtros';
 
 function BadgeStatus({ ativo }) {
   return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
-}
-
-function formatarData(dataYYYYMMDD) {
-  if (!dataYYYYMMDD) return '—';
-  return new Date(`${dataYYYYMMDD}T12:00:00`).toLocaleDateString('pt-BR');
 }
 
 function FuncionariosConteudo() {
@@ -40,6 +37,7 @@ function FuncionariosConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('ativos');
+  const [filtroVinculo, setFiltroVinculo] = useState('');
   const [busca, setBusca] = useState('');
   // Paginação VISUAL (client-side, 20 por página): a listagem já carrega
   // o conjunto completo (limit 1000, ver `carregar` abaixo) -- aqui só se
@@ -57,7 +55,7 @@ function FuncionariosConteudo() {
     const [{ data: funcionariosData, error: erroFuncionarios }, { data: cargosData }] = await Promise.all([
       supabase
         .from('funcionarios')
-        .select('id, nome, telefone, ativo, data_admissao, cargo_id, tipo_vinculo, funcionarios_cargos(nome)')
+        .select('id, nome, ativo, cargo_id, tipo_vinculo, chave_pix, funcionarios_cargos(nome)')
         .order('nome')
         .limit(1000),
       supabase.from('funcionarios_cargos').select('id, nome, ativo').order('nome'),
@@ -78,14 +76,8 @@ function FuncionariosConteudo() {
   }, []);
 
   const listaFiltrada = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return funcionarios.filter((f) => {
-      if (filtroStatus === 'ativos' && !f.ativo) return false;
-      if (filtroStatus === 'inativos' && f.ativo) return false;
-      if (termo && !f.nome.toLowerCase().includes(termo)) return false;
-      return true;
-    });
-  }, [funcionarios, filtroStatus, busca]);
+    return funcionarios.filter((f) => funcionarioPassaFiltro(f, { termo: busca, status: filtroStatus, vinculo: filtroVinculo }));
+  }, [funcionarios, filtroStatus, filtroVinculo, busca]);
 
   const paginacao = paginarLista(listaFiltrada, pagina);
   const paginaAtual = paginacao.paginaAtual;
@@ -101,10 +93,11 @@ function FuncionariosConteudo() {
     if (pagina !== paginaAtual) setPagina(paginaAtual);
   }, [pagina, paginaAtual]);
 
-  const quantidadeFiltrosAtivos = [filtroStatus !== 'ativos', busca !== ''].filter(Boolean).length;
+  const quantidadeFiltrosAtivos = [filtroStatus !== 'ativos', filtroVinculo !== '', busca !== ''].filter(Boolean).length;
 
   function limparFiltros() {
     setFiltroStatus('ativos');
+    setFiltroVinculo('');
     setBusca('');
     setPagina(1);
   }
@@ -115,21 +108,12 @@ function FuncionariosConteudo() {
       rotulo: 'Nome',
       mobile: 'titulo',
       cartaoOrdem: 0,
-      render: (f) => (
-        <>
-          {f.nome}
-          {f.tipo_vinculo === 'freelancer' && (
-            <span className={estilos.marcaFreelancer}>
-              <Badge tom="info">freelancer</Badge>
-            </span>
-          )}
-        </>
-      ),
+      render: (f) => f.nome,
     },
+    { chave: 'vinculo', rotulo: 'Vínculo', render: (f) => <Badge tom={tomVinculo(f.tipo_vinculo)}>{rotuloVinculo(f.tipo_vinculo)}</Badge> },
     { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (f) => <BadgeStatus ativo={f.ativo} /> },
     { chave: 'cargo', rotulo: 'Cargo', render: (f) => f.funcionarios_cargos?.nome || '—' },
-    { chave: 'telefone', rotulo: 'Telefone', render: (f) => f.telefone || '—' },
-    { chave: 'admissao', rotulo: 'Admissão', render: (f) => formatarData(f.data_admissao) },
+    { chave: 'chave_pix', rotulo: 'Chave PIX', render: (f) => f.chave_pix || '—' },
   ];
 
   return (
@@ -162,6 +146,14 @@ function FuncionariosConteudo() {
             <option value="ativos">Ativos</option>
             <option value="inativos">Inativos</option>
             <option value="todos">Todos</option>
+          </Select>
+        </Field>
+        <Field label="Vínculo">
+          <Select value={filtroVinculo} onChange={(e) => alterarFiltro(setFiltroVinculo)(e.target.value)}>
+            <option value="">Todos os vínculos</option>
+            {OPCOES_VINCULO.map((o) => (
+              <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+            ))}
           </Select>
         </Field>
       </FilterBar>

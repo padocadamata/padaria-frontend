@@ -9,7 +9,17 @@ import {
 import { LIMITE_MANHA_TARDE } from '../../lib/funcionarios/escalaConfig';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { cx } from '../../lib/design/cx';
+import IndicadorVinculo from './IndicadorVinculo';
 import estilos from './escala.module.css';
+
+// Identifica sábado/domingo pela DATA real (0=domingo, 6=sábado -- mesma
+// convenção de diaDaSemanaIndice), nunca por posição fixa de coluna --
+// vale para qualquer mês/semana, independente de onde o fim de semana cai
+// no calendário.
+function ehFimDeSemana(data) {
+  const dia = diaDaSemanaIndice(data);
+  return dia === 0 || dia === 6;
+}
 
 // Classifica UMA célula funcionário×dia para o desenho de planejamento
 // macro (seção 2/3 da instrução aprovada) -- não é cálculo de cobertura
@@ -77,7 +87,7 @@ function CelulaMensal({ funcionario, data, estado, ehHoje, onAbrir }) {
   }
 
   return (
-    <td className={cx(estilos.celulaMensalContainer, ehHoje && estilos.celulaMensalHoje)}>
+    <td className={cx(estilos.celulaMensalContainer, ehFimDeSemana(data) && estilos.celulaMensalFimDeSemana, ehHoje && estilos.celulaMensalHoje)}>
       <button type="button" className={estilos.celulaMensalBotao} title={titulo} onClick={() => onAbrir(funcionario, data, estado)}>
         {conteudo}
       </button>
@@ -100,8 +110,9 @@ export default function EscalaMensal({ funcionarios, mapaEscala, dias, onAbrirFu
         <thead>
           <tr>
             <th className={estilos.colFuncionarioFixa}>Funcionário</th>
+            <th className={estilos.colVinculoMensal}>Vínculo</th>
             {dias.map((data) => (
-              <th key={data} className={cx(estilos.colDiaMensal, data === hoje && estilos.colDiaMensalHoje)}>
+              <th key={data} className={cx(estilos.colDiaMensal, ehFimDeSemana(data) && estilos.colDiaMensalFimDeSemana, data === hoje && estilos.colDiaMensalHoje)}>
                 <button type="button" className={estilos.botaoCabecalhoDia} onClick={() => onAbrirDia(data)}>
                   <span className={estilos.rotuloDiaSemanaMensal}>{ROTULO_DIA_SEMANA[diaDaSemanaIndice(data)]}</span>
                   <span>{formatarDataCurta(data).split('/')[0]}</span>
@@ -113,12 +124,15 @@ export default function EscalaMensal({ funcionarios, mapaEscala, dias, onAbrirFu
         <tbody>
           {funcionarios.length === 0 ? (
             <tr>
-              <td className={estilos.colFuncionarioFixa} colSpan={dias.length + 1}>Nenhum funcionário para este filtro.</td>
+              <td className={estilos.colFuncionarioFixa} colSpan={dias.length + 2}>Nenhum funcionário para este filtro.</td>
             </tr>
           ) : (
             funcionarios.map((funcionario) => (
               <tr key={funcionario.id}>
                 <th scope="row" className={estilos.colFuncionarioFixa}>{funcionario.nome}</th>
+                <td className={estilos.colVinculoMensal}>
+                  <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
+                </td>
                 {dias.map((data) => (
                   <CelulaMensal
                     key={data}

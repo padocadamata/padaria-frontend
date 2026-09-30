@@ -6,6 +6,7 @@ import Alert from '../ui/Alert';
 import Button from '../ui/Button';
 import Checkbox from '../ui/Checkbox';
 import Field from '../ui/Field';
+import IndicadorVinculo from './IndicadorVinculo';
 import estilos from './escala.module.css';
 
 const ROTULO_SITUACAO = {
@@ -87,7 +88,12 @@ export default function EscalaPadraoLoteModal({ funcionarios, dias, onFechar, on
             <Field label="Funcionários">
               <div className={estilos.selecaoFuncionarios}>
                 {funcionarios.map((f) => (
-                  <Checkbox key={f.id} rotulo={f.nome} checked={funcionarioIds.includes(f.id)} onChange={() => alternarFuncionario(f.id)} />
+                  <Checkbox
+                    key={f.id}
+                    rotulo={<>{f.nome}<IndicadorVinculo tipoVinculo={f.tipo_vinculo} /></>}
+                    checked={funcionarioIds.includes(f.id)}
+                    onChange={() => alternarFuncionario(f.id)}
+                  />
                 ))}
               </div>
             </Field>

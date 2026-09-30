@@ -19,6 +19,7 @@ import Field from '../ui/Field';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
+import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import { cx } from '../../lib/design/cx';
 import estilos from './funcionarios.module.css';
 
@@ -343,8 +344,9 @@ export default function DadosFuncionarioForm({ funcionario, podeEditar, onCriado
         <div className={cx(estilos.grade, estilos.larguraTotal)} style={{ marginBottom: 'var(--ds-sp-4)' }}>
           <Field label="Vínculo">
             <Select value={dados.tipo_vinculo} disabled={!podeEditar} onChange={(e) => atualizarCampo('tipo_vinculo', e.target.value)}>
-              <option value="funcionario">Funcionário</option>
-              <option value="freelancer">Freelancer</option>
+              {OPCOES_VINCULO.map((o) => (
+                <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+              ))}
             </Select>
           </Field>
           <Field label="Cargo/Função">

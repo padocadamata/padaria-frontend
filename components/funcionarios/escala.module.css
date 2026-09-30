@@ -1,5 +1,43 @@
 /* Migration 0055 -- Folha de Pagamento > Escala. */
 
+/* Indicador compacto de vínculo (IndicadorVinculo.js, frente PJ) -- C/F/PJ
+   em Semanal/Mensal/Cobertura. Largura mínima pequena para não competir
+   com as colunas dos dias -- a letra é sempre visível (nunca só cor). */
+.indicadorVinculo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 3px;
+  border-radius: var(--ds-radius-pill);
+  font-size: 9px;
+  font-weight: var(--ds-fw-bold, 700);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.indicadorVinculo_neutral {
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-neutral);
+}
+
+.indicadorVinculo_info {
+  background-color: var(--ds-info-soft);
+  color: var(--ds-info);
+}
+
+.indicadorVinculo_primary {
+  background-color: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+
+.colVinculoSemanal {
+  min-width: 44px;
+  text-align: center;
+}
+
 .modalCorpo {
   display: flex;
   flex-direction: column;
@@ -316,6 +354,48 @@
   white-space: nowrap;
 }
 
+/* Coluna própria e estreita "Vínculo" (frente PJ) -- 2ª coluna sticky
+   (logo após Funcionário), left definido via inline style em JS
+   (LARGURA_FUNCIONARIO) para nunca duplicar o valor em CSS. Fica sticky
+   junto com Funcionário para o indicador continuar visível durante o
+   scroll horizontal pelos dias -- nunca some atrás da coluna do nome. */
+.cabecalhoVinculoCobertura {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-sp-1);
+  background-color: var(--ds-surface-muted);
+  border-right: 1px solid var(--ds-border-strong);
+  border-bottom: 1px solid var(--ds-border);
+  font-size: 9px;
+  color: var(--ds-text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.vinculoCobertura {
+  position: sticky;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ds-surface);
+  border-right: 1px solid var(--ds-border-strong);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.vinculoCobertura .indicadorVinculo {
+  margin-left: 0;
+}
+
+.vinculoCoberturaTotal {
+  background-color: var(--ds-surface-muted);
+  border-top: 1px solid var(--ds-border-strong);
+}
+
 .trilhaCobertura {
   position: relative;
   min-height: 36px;
@@ -439,6 +519,17 @@
   background-color: var(--ds-surface-muted);
 }
 
+/* Coluna própria e estreita "Vínculo" (frente PJ) -- só o indicador
+   compacto C/F/PJ, largura mínima necessária para não tomar espaço dos
+   dias do mês. Não é sticky (só o Funcionário precisa ficar fixo durante
+   o scroll horizontal). */
+.colVinculoMensal {
+  width: 36px;
+  min-width: 36px;
+  text-align: center;
+  padding: var(--ds-sp-2) !important;
+}
+
 .colDiaMensal {
   min-width: 40px;
   position: sticky;
@@ -448,6 +539,23 @@
 
 .gradeMensal thead th.colDiaMensal {
   padding: 0;
+}
+
+/* Destaque discreto de sábado/domingo (frente Vínculo PJ) -- identificado
+   pela DATA real (dia_semana 0 ou 6), nunca por posição fixa de coluna,
+   então vale para qualquer mês/semana. Token --ds-neutral-cool-soft
+   (styles/tokens.css) -- cinza-azulado frio e muito sutil, criado para este
+   uso depois de conferir que nenhum token existente servia: --ds-secondary-
+   soft lia como salmão/rosado (associação indesejada com alerta/erro,
+   REJEITADO no teste visual); --ds-info-soft é visualmente adequado mas já
+   é o tom semântico de "info" (badge Freelancer, Alert info) em outros
+   lugares do app -- reaproveitá-lo aqui criaria uma associação indevida.
+   Esta regra vem ANTES de .colDiaMensalHoje no arquivo de proposito: quando
+   um dia é hoje E fim de semana ao mesmo tempo, a regra que aparece DEPOIS
+   no CSS vence (mesma especificidade) -- "hoje" precisa continuar sendo o
+   destaque mais forte, nunca enfraquecido pelo tom de fim de semana. */
+.colDiaMensalFimDeSemana {
+  background-color: var(--ds-neutral-cool-soft);
 }
 
 /* Destaque discreto do dia atual (refinamento visual, item 7b) -- só uma
@@ -503,6 +611,13 @@
 
 .celulaMensalBotao:hover {
   background-color: var(--ds-neutral-soft);
+}
+
+/* Mesmo destaque de sábado/domingo, agora nas células do corpo -- mesma
+   regra de precedência: vem ANTES de .celulaMensalHoje para "hoje" sempre
+   vencer quando o dia é os dois ao mesmo tempo. */
+.celulaMensalFimDeSemana {
+  background-color: var(--ds-neutral-cool-soft);
 }
 
 /* Destaque discreto da coluna do dia atual nas células do corpo também

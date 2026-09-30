@@ -95,6 +95,12 @@
   --ds-info-soft: #e3eff8;       /* texto info 6,1:1 */
   --ds-neutral: #38443f;
   --ds-neutral-soft: #e9eeed;    /* texto neutral 8,7:1 */
+  --ds-neutral-cool-soft: #eef2f5; /* cinza-azulado muito claro, SEM texto emparelhado --
+                                       só para fundos decorativos discretos (ex.: destaque de
+                                       coluna) que precisam ser visivelmente frios/neutros,
+                                       distintos dos tons verdes (surface-muted/primary-soft/
+                                       neutral-soft) e do azul já reservado para "info"
+                                       (--ds-info-soft) -- nunca usar para texto/contraste. */
 
   --ds-focus: var(--ds-primary);           /* anel de foco padrão (sobrescrito em fundos escuros) */
 

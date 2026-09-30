@@ -4,6 +4,7 @@ import { calcularCoberturaDia, nomesComDesambiguacao } from '../../lib/funcionar
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
 import Select from '../ui/Select';
+import IndicadorVinculo from './IndicadorVinculo';
 import estilos from './escala.module.css';
 
 function formatarDataExibicao(dataYYYYMMDD) {
@@ -96,7 +97,10 @@ export default function EscalaCoberturaDiaModal({ data, funcionarios, mapaEscala
             <ul className={estilos.listaFaixas}>
               {escalaIndividual.map((item) => (
                 <li key={item.funcionario.funcionario_id} className={estilos.faixaCobertura}>
-                  <span className={estilos.faixaHorario}>{item.funcionario.nome}</span>
+                  <span className={estilos.faixaHorario}>
+                    {item.funcionario.nome}
+                    <IndicadorVinculo tipoVinculo={item.funcionario.tipo_vinculo} />
+                  </span>
                   <span className={estilos.faixaPessoas}>
                     {item.tipo === 'folga'
                       ? 'Folga'

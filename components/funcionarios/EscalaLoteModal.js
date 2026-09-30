@@ -8,6 +8,7 @@ import Checkbox from '../ui/Checkbox';
 import Field from '../ui/Field';
 import Select from '../ui/Select';
 import PeriodosEditor from './PeriodosEditor';
+import IndicadorVinculo from './IndicadorVinculo';
 import estilos from './escala.module.css';
 
 const ROTULO_DIA_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -83,7 +84,12 @@ export default function EscalaLoteModal({ funcionarios, dias, mapaEscala, onFech
         <Field label="Funcionários">
           <div className={estilos.selecaoFuncionarios}>
             {funcionarios.map((f) => (
-              <Checkbox key={f.id} rotulo={f.nome} checked={funcionarioIds.includes(f.id)} onChange={() => alternarFuncionario(f.id)} />
+              <Checkbox
+                key={f.id}
+                rotulo={<>{f.nome}<IndicadorVinculo tipoVinculo={f.tipo_vinculo} /></>}
+                checked={funcionarioIds.includes(f.id)}
+                onChange={() => alternarFuncionario(f.id)}
+              />
             ))}
           </div>
         </Field>

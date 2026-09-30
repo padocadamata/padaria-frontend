@@ -6,6 +6,7 @@ import { cx } from '../../lib/design/cx';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
+import IndicadorVinculo from './IndicadorVinculo';
 import estilos from './escala.module.css';
 
 const MAX_DIAS = 7;
@@ -18,6 +19,7 @@ const JANELA_PADRAO = { inicio: 6 * 60, fim: 20 * 60 }; // 06:00-20:00, fallback
 // desenho anterior (1 dia = referência aprovada); LARGURA_FUNCIONARIO
 // ampliada de 128px para nunca cortar nomes (sugestão 190-220px).
 const LARGURA_FUNCIONARIO = 200;
+const LARGURA_VINCULO = 40;
 const LARGURA_DIA = 640;
 
 function minutosDesde(hhmm) {
@@ -263,8 +265,8 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
   // próprio grid força overflow real + scroll horizontal em vez de
   // encolher, e cada dia mantém a mesma largura sozinho ou com 7 dias.
   const numDias = Math.max(dias.length, 1);
-  const gridColunas = `${LARGURA_FUNCIONARIO}px repeat(${numDias}, ${LARGURA_DIA}px)`;
-  const larguraTotalGrid = LARGURA_FUNCIONARIO + numDias * LARGURA_DIA;
+  const gridColunas = `${LARGURA_FUNCIONARIO}px ${LARGURA_VINCULO}px repeat(${numDias}, ${LARGURA_DIA}px)`;
+  const larguraTotalGrid = LARGURA_FUNCIONARIO + LARGURA_VINCULO + numDias * LARGURA_DIA;
 
   return (
     <>
@@ -305,6 +307,7 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
         <div className={estilos.envolucroCobertura}>
           <div className={estilos.timelineCobertura} style={{ gridTemplateColumns: gridColunas, minWidth: `${larguraTotalGrid}px` }}>
             <span className={estilos.cantoCobertura} />
+            <span className={estilos.cabecalhoVinculoCobertura} style={{ left: LARGURA_FUNCIONARIO }}>Vínculo</span>
             {dias.map((data) => (
               <CabecalhoDiaCobertura key={data} data={data} janela={janela} />
             ))}
@@ -314,6 +317,7 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
             ))}
 
             <span className={cx(estilos.nomeCoberturaFixo, estilos.nomeCoberturaFixoTotal)}><strong>Cobertura</strong></span>
+            <span className={cx(estilos.vinculoCobertura, estilos.vinculoCoberturaTotal)} style={{ left: LARGURA_FUNCIONARIO }} />
             {dias.map((data) => (
               <TrilhaCoberturaDia key={data} faixas={faixasPorDia.get(data) || []} janela={janela} />
             ))}
@@ -326,14 +330,21 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
   );
 }
 
-// Uma linha de funcionário = nome fixo + 1 trilha por dia exibido -- extraído
-// só para poder usar hooks/organização sem quebrar a sequência de filhos
-// diretos do grid (o nome + as N trilhas continuam sendo N+1 filhos diretos
-// em sequência, do jeito que o CSS Grid espera).
+// Uma linha de funcionário = nome fixo + vínculo fixo + 1 trilha por dia
+// exibido -- extraído só para poder usar hooks/organização sem quebrar a
+// sequência de filhos diretos do grid (nome + vínculo + as N trilhas
+// continuam sendo N+2 filhos diretos em sequência, do jeito que o CSS Grid
+// espera -- precisa bater exatamente com gridColunas, que também tem N+2
+// entradas).
 function FragmentoLinhaFuncionario({ funcionario, dias, porFuncionarioEDia, janela }) {
   return (
     <>
-      <span className={estilos.nomeCoberturaFixo} title={funcionario.nome}>{obterPrimeiroNome(funcionario.nome)}</span>
+      <span className={estilos.nomeCoberturaFixo} title={funcionario.nome}>
+        {obterPrimeiroNome(funcionario.nome)}
+      </span>
+      <span className={estilos.vinculoCobertura} style={{ left: LARGURA_FUNCIONARIO }}>
+        <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
+      </span>
       {dias.map((data) => (
         <TrilhaFuncionarioDia key={data} item={porFuncionarioEDia.get(data)?.get(funcionario.id) || null} janela={janela} />
       ))}
