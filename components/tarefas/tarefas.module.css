@@ -1,0 +1,584 @@
+/* Migration 0061 -- Folha de Pagamento > Tarefas. */
+
+.barraMes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+}
+.navegacaoMes {
+  display: flex;
+  gap: var(--ds-sp-2);
+}
+.tituloMes {
+  margin: 0;
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  min-width: 11ch;
+}
+.acoesMes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  margin-left: auto;
+}
+.mensagem {
+  margin-bottom: var(--ds-sp-3);
+}
+.legenda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  margin-top: var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+.itemLegenda {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+}
+
+/* ------------------------------- Posições -------------------------------- */
+/* Mesma referência de cor da planilha (F1 azul, F2 laranja, F3 verde), com
+   os tokens do Design System -- a cor nunca é o único sinal: o rótulo
+   F1/F2/F3 (ou o nome) está sempre escrito. */
+.pos1 { background-color: var(--ds-info-soft); color: var(--ds-info); }
+.pos2 { background-color: var(--ds-warning-soft); color: var(--ds-warning); }
+.pos3 { background-color: var(--ds-success-soft); color: var(--ds-success); }
+
+.chipPosicao {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--ds-radius-sm, 6px);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  white-space: nowrap;
+}
+
+/* --------------------------------- Matriz -------------------------------- */
+.envolucro {
+  overflow: auto;
+  max-height: 74vh;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface);
+}
+.grade {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--ds-fs-label);
+}
+.grade th,
+.grade td {
+  border-right: 1px solid var(--ds-border);
+  border-bottom: 1px solid var(--ds-border);
+  padding: 0;
+}
+.grade thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--ds-surface-muted);
+  color: var(--ds-text-muted);
+  font-weight: var(--ds-fw-semibold);
+}
+.colTarefa {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 240px;
+  max-width: 300px;
+  background-color: var(--ds-surface);
+  text-align: left;
+}
+.grade thead .colTarefa {
+  z-index: 3;
+  padding: var(--ds-sp-2);
+}
+.celulaTarefa {
+  padding: 6px var(--ds-sp-2) !important;
+  line-height: 1.25;
+}
+.descricaoTarefa {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--ds-text);
+}
+.metaTarefa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ds-text-muted);
+}
+.seloGrupo {
+  padding: 0 5px;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-sm, 4px);
+}
+.tarefaInativa .descricaoTarefa {
+  color: var(--ds-text-muted);
+}
+
+.linhaSecao td {
+  position: sticky;
+  left: 0;
+  padding: 6px var(--ds-sp-2) !important;
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-text);
+  font-weight: var(--ds-fw-semibold);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.colDia {
+  min-width: 52px;
+}
+.botaoDia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.botaoDia:hover {
+  background-color: var(--ds-neutral-soft);
+}
+.botaoDia:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+.numeroDia {
+  font-size: var(--ds-fs-body);
+  color: var(--ds-text);
+}
+.siglaDia {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.fimDeSemana {
+  background-color: var(--ds-surface-muted);
+}
+.grade thead th.fimDeSemana {
+  background-color: var(--ds-neutral-soft);
+}
+.hoje {
+  box-shadow: inset 0 -3px 0 var(--ds-primary);
+}
+.grade thead th.hoje .numeroDia {
+  color: var(--ds-primary);
+  font-weight: var(--ds-fw-bold);
+}
+
+.celula {
+  position: relative;
+  height: 40px;
+  vertical-align: middle;
+}
+.ocorrencia {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  padding: 2px 3px;
+}
+.checkbox {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--ds-primary);
+  cursor: pointer;
+}
+.checkbox:disabled {
+  cursor: default;
+}
+.rotulo {
+  flex: 1;
+  min-width: 0;
+  max-width: 7ch;
+  padding: 1px 3px;
+  border: none;
+  border-radius: var(--ds-radius-sm, 4px);
+  font: inherit;
+  font-size: 11px;
+  font-weight: var(--ds-fw-semibold);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.rotulo:focus-visible {
+  outline: 2px solid var(--ds-focus);
+}
+.concluida .rotulo {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.cancelada .rotulo {
+  background-color: transparent;
+  color: var(--ds-text-disabled);
+  text-decoration: line-through;
+}
+.seloCancelada {
+  font-size: 10px;
+  color: var(--ds-danger);
+  font-weight: var(--ds-fw-bold);
+}
+.avulsa .rotulo {
+  outline: 1px dashed currentColor;
+  outline-offset: -1px;
+}
+.seloDuasExecucoes {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-size: 9px;
+  font-weight: var(--ds-fw-bold);
+  color: var(--ds-text-muted);
+}
+.listaExecucoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+.itemExecucao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2);
+  border-bottom: 1px solid var(--ds-border);
+}
+.itemExecucao:last-child {
+  border-bottom: none;
+}
+.nomeExecucao {
+  flex: 1;
+  min-width: 8ch;
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+.nomeExecucaoVazio {
+  flex: 1;
+  min-width: 8ch;
+  font-style: italic;
+  color: var(--ds-text-muted);
+}
+.novaExecucao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-sp-2);
+}
+.novaExecucao > :first-child {
+  flex: 1;
+  min-width: 180px;
+}
+.indicadorAjuste {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--ds-primary);
+}
+.celulaVazia {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 38px;
+  border: none;
+  background: none;
+  color: transparent;
+  cursor: pointer;
+}
+.celulaVazia:hover,
+.celulaVazia:focus-visible {
+  color: var(--ds-text-muted);
+  background-color: var(--ds-neutral-soft);
+}
+
+/* ------------------------------ Resumo do dia ---------------------------- */
+.navegacaoDia {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+}
+.tituloDia {
+  margin: 0;
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  text-align: center;
+}
+.progressoDia {
+  margin: 0 0 var(--ds-sp-3);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+.barraProgresso {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background-color: var(--ds-neutral-soft);
+  overflow: hidden;
+}
+.barraProgressoValor {
+  height: 100%;
+  background-color: var(--ds-success);
+}
+.grupoResponsavel {
+  margin-bottom: var(--ds-sp-4);
+}
+.cabecalhoGrupo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-2);
+}
+.contagemGrupo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+.listaTarefasDia {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+.itemTarefaDia {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-sp-2);
+  min-height: var(--ds-touch-min, 44px);
+  padding: var(--ds-sp-2);
+  border-bottom: 1px solid var(--ds-border);
+}
+.itemTarefaDia:last-child {
+  border-bottom: none;
+}
+.itemTarefaDia input[type='checkbox'] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--ds-primary);
+}
+.textoItemDia {
+  flex: 1;
+  min-width: 0;
+  color: var(--ds-text);
+}
+.itemConcluido .textoItemDia {
+  color: var(--ds-text-muted);
+  text-decoration: line-through;
+}
+.itemCancelado .textoItemDia {
+  color: var(--ds-text-disabled);
+  text-decoration: line-through;
+}
+.detalheItemDia {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  text-decoration: none;
+}
+
+/* ------------------------------- Formulários ----------------------------- */
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+.linhaCampos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--ds-sp-3);
+}
+.opcoesDias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-1) var(--ds-sp-3);
+}
+.opcaoPosicao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}
+.opcaoPosicao label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  min-height: var(--ds-touch-min, 44px);
+  padding: 0 var(--ds-sp-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  cursor: pointer;
+}
+.caixaInfo {
+  margin: 0;
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface-muted);
+  color: var(--ds-text);
+  font-size: var(--ds-fs-label);
+  line-height: 1.5;
+}
+.caixaInfo ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+.secaoModal {
+  padding-top: var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+.tituloSecaoModal {
+  margin: 0 0 var(--ds-sp-2);
+  font-size: var(--ds-fs-body);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+.rodapeModal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+.textoAuxiliar {
+  margin: 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+/* -------------------------------- Cadastro ------------------------------- */
+/* Distribuição: Tarefa e Programação dividem a largura (Programação com
+   largura mínima confortável para "3x por semana — Seg, Qua e Sex" e para
+   a mudança agendada); Situação e Ações ocupam só o próprio conteúdo. */
+.colCadTarefa {
+  width: 52%;
+}
+.colCadProgramacao {
+  width: 48%;
+}
+.colCadSituacao,
+.colCadAcoes,
+.celulaCadCompacta {
+  width: 1%;
+  white-space: nowrap;
+}
+.colCadAcoes {
+  text-align: right;
+}
+.celulaCadTarefa {
+  min-width: 14rem;
+}
+.celulaCadProgramacao {
+  min-width: 15rem;
+}
+.programacaoRegra {
+  display: block;
+  color: var(--ds-text);
+}
+.programacaoNaLinha {
+  display: none;
+}
+.acoesIcones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.tabelaCadastro {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ds-fs-label);
+}
+.tabelaCadastro th,
+.tabelaCadastro td {
+  padding: var(--ds-sp-2);
+  border-bottom: 1px solid var(--ds-border);
+  text-align: left;
+  vertical-align: top;
+}
+.tabelaCadastro th {
+  color: var(--ds-text-muted);
+  font-weight: var(--ds-fw-semibold);
+}
+.acoesLinha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-1);
+  justify-content: flex-end;
+}
+.cabecalhoCategoria td {
+  background-color: var(--ds-neutral-soft);
+  font-weight: var(--ds-fw-semibold);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.cartaoTarefa {
+  padding: var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  margin-bottom: var(--ds-sp-2);
+}
+.listaVigencias {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text);
+}
+
+@media (max-width: 768px) {
+  .acoesMes {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Telas estreitas: a coluna Programação sai e o mesmo texto aparece
+   abaixo da descrição -- sem rolagem horizontal. */
+@media (max-width: 640px) {
+  .colCadProgramacao,
+  .celulaCadProgramacao {
+    display: none;
+  }
+  .celulaCadTarefa {
+    min-width: 0;
+  }
+  .programacaoNaLinha {
+    display: block;
+    margin-top: 4px;
+    font-size: var(--ds-fs-aux);
+    color: var(--ds-text-muted);
+  }
+  .programacaoNaLinha .programacaoRegra {
+    color: var(--ds-text-muted);
+  }
+}

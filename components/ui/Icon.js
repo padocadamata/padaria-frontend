@@ -131,6 +131,20 @@ const CAMINHOS = {
       <path d="m13.5 6.5 4 4" />
     </>
   ),
+  // Pausar / retomar (ex.: inativar e reativar um cadastro).
+  pause: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 9v6" />
+      <path d="M14 9v6" />
+    </>
+  ),
+  play: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 8.5v7l5.5-3.5-5.5-3.5Z" />
+    </>
+  ),
   undo: (
     <>
       <path d="M9 14 4 9l5-5" />
