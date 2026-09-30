@@ -17,7 +17,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { PERMISSOES, hasPermissao } from '../../../lib/auth/permissoes';
 import { dataLocalHoje } from '../../../lib/data/dataLocal';
 import { dataCurta } from '../../../lib/tarefas/calendario';
-import { compararPorFrequencia, descreverRegra, proximaVersao, regraVigente } from '../../../lib/tarefas/regras';
+import { compararPorFrequencia, descreverRegra, proximaVersao, regraReferencia, regraVigente } from '../../../lib/tarefas/regras';
 import { carregarCadastro, excluirTarefa } from '../../../lib/tarefas/consultas';
 import { mensagemErro } from '../../../lib/tarefas/erros';
 import estilos from '../../../components/tarefas/tarefas.module.css';
@@ -61,7 +61,7 @@ function TarefasCadastro() {
       .then((c) => ativo && setCadastro(c))
       .catch((e) => {
         console.error('Erro ao carregar cadastro de Tarefas:', e);
-        if (ativo) setErro('Não foi possível carregar o cadastro. Verifique se a migration 0061 já foi executada.');
+        if (ativo) setErro(`Não foi possível carregar o cadastro: ${mensagemErro(e)}`);
       })
       .finally(() => ativo && setCarregando(false));
     return () => {
@@ -75,7 +75,7 @@ function TarefasCadastro() {
       categoria: c,
       tarefas: cadastro.tarefas
         .filter((t) => t.categoria === c.valor && (mostrarInativas || t.ativo))
-        .map((tarefa) => ({ tarefa, regra: regraVigente(cadastro.regrasPorTarefa.get(tarefa.id), hoje) }))
+        .map((tarefa) => ({ tarefa, regra: regraReferencia(cadastro.regrasPorTarefa.get(tarefa.id), hoje) }))
         .sort(compararPorFrequencia)
         .map((x) => x.tarefa),
     }));
@@ -177,6 +177,7 @@ function TarefasCadastro() {
       {inativando && (
         <InativarTarefaModal
           tarefa={inativando}
+          regras={cadastro?.regrasPorTarefa.get(inativando.id) || []}
           hoje={hoje}
           onFechar={() => setInativando(null)}
           onSalvo={(r) => concluir(`Tarefa inativada a partir de ${r.aplicar_a_partir_de.split('-').reverse().join('/')}. ${r.removidas} ocorrência(s) futura(s) removida(s).`)}
@@ -188,7 +189,12 @@ function TarefasCadastro() {
           modalDS
           perigo
           titulo="Excluir tarefa"
-          mensagem={<p>Excluir definitivamente <strong>{excluindo.descricao}</strong>? Só é possível se ela nunca apareceu no calendário.</p>}
+          mensagem={
+            <p>
+              Excluir definitivamente <strong>{excluindo.descricao}</strong>? Só é possível se ela nunca apareceu no calendário;
+              com histórico, ela é preservada — inativa, já fica fora da programação e do cadastro.
+            </p>
+          }
           textoConfirmar="Excluir"
           confirmando={excluindoEstado.confirmando}
           erro={excluindoEstado.erro}

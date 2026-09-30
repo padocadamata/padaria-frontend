@@ -94,7 +94,7 @@ function TarefasCalendario() {
         setMesProgramado(m);
       } catch (e) {
         console.error('Erro ao carregar Tarefas:', e);
-        if (ativo) setErro('Não foi possível carregar as tarefas. Verifique se a migration 0061 já foi executada.');
+        if (ativo) setErro(`Não foi possível carregar as tarefas: ${mensagemErro(e)}`);
       } finally {
         if (ativo) setCarregando(false);
       }

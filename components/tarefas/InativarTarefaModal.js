@@ -6,14 +6,17 @@ import Input from '../ui/Input';
 import Alert from '../ui/Alert';
 import { inativarTarefa } from '../../lib/tarefas/consultas';
 import { mensagemErro } from '../../lib/tarefas/erros';
+import { primeiraDataAlteracao } from '../../lib/tarefas/regras';
 import { PreviaSincronizacao } from './ProgramarMesModal';
 import estilos from './tarefas.module.css';
 
 // Inativação "a partir de" (>= hoje), com prévia: some das datas futuras
 // ainda não tocadas; passado, concluídas, ajustadas, canceladas e avulsas
-// permanecem no calendário.
-export default function InativarTarefaModal({ tarefa, hoje, onFechar, onSalvo }) {
-  const [aPartirDe, setAPartirDe] = useState(hoje);
+// permanecem no calendário. A data começa na primeira aceita pelo banco
+// (nunca antes de uma versão de regra já agendada).
+export default function InativarTarefaModal({ tarefa, regras, hoje, onFechar, onSalvo }) {
+  const dataMinima = primeiraDataAlteracao(regras, hoje);
+  const [aPartirDe, setAPartirDe] = useState(dataMinima);
   const [previa, setPrevia] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -37,7 +40,7 @@ export default function InativarTarefaModal({ tarefa, hoje, onFechar, onSalvo })
       <div className={estilos.pilha}>
         <p className={estilos.caixaInfo}><strong>{tarefa.descricao}</strong></p>
         <Field label="Deixa de ser programada a partir de">
-          <Input type="date" min={hoje} value={aPartirDe} onChange={(e) => { setAPartirDe(e.target.value); setPrevia(null); }} disabled={salvando} />
+          <Input type="date" min={dataMinima} value={aPartirDe} onChange={(e) => { setAPartirDe(e.target.value); setPrevia(null); }} disabled={salvando} />
         </Field>
         <p className={estilos.textoAuxiliar}>
           O histórico continua no calendário. Para voltar a programá-la depois, use &quot;Reativar&quot;.

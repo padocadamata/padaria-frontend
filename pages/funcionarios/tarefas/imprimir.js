@@ -9,6 +9,7 @@ import { dataLocalHoje } from '../../../lib/data/dataLocal';
 import { diasDoMes, inicioDoMes } from '../../../lib/tarefas/calendario';
 import { carregarCadastro, carregarOcorrencias } from '../../../lib/tarefas/consultas';
 import { montarImpressao, rotuloMesImpressao } from '../../../lib/tarefas/impressao';
+import { mensagemErro } from '../../../lib/tarefas/erros';
 import estilos from '../../../components/tarefas/impressao.module.css';
 
 // Folha de Pagamento > Tarefas > Imprimir calendário (A4 paisagem / PDF).
@@ -51,7 +52,7 @@ function TarefasImpressao() {
       })
       .catch((e) => {
         console.error('Erro ao carregar a impressão de Tarefas:', e);
-        if (ativo) setErro('Não foi possível carregar o calendário para impressão.');
+        if (ativo) setErro(`Não foi possível carregar o calendário para impressão: ${mensagemErro(e)}`);
       });
     return () => {
       ativo = false;

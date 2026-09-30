@@ -11,9 +11,11 @@ import {
   DIAS_SEMANA,
   SEMANAS_DO_MES,
   TIPOS_REGRA,
+  dataReferenciaRegra,
   descreverRegra,
   formularioParaRegra,
   mesmaProgramacao,
+  primeiraDataAlteracao,
   proximaVersao,
   regraParaFormulario,
   regraVigente,
@@ -46,11 +48,18 @@ function alternar(lista, valor) {
 // hoje, com prévia do efeito nas ocorrências futuras ainda não tocadas.
 // O deslocamento da rotação nunca aparece: o banco escolhe o mais
 // equilibrado.
+//
+// Data de referência: a edição compara o formulário com a regra que vale em
+// `dataReferenciaRegra` (hoje, ou a 1ª versão se a tarefa ainda não
+// começou) e manda essa MESMA data ao banco -- assim corrigir só o nome
+// não vira mudança de programação. Nova versão: nunca antes da última já
+// gravada (`primeiraDataAlteracao`), que o banco recusaria.
 export default function TarefaFormModal({ modo, tarefa, regras, categorias, grupos, hoje, onFechar, onSalvo }) {
-  const vigenteHoje = regraVigente(regras, hoje);
+  const dataMinima = primeiraDataAlteracao(regras, hoje);
+  const dataInicial = modo === 'editar' ? dataReferenciaRegra(regras, hoje) : modo === 'reativar' ? dataMinima : hoje;
   const base = modo === 'reativar'
-    ? [...(regras || [])].reverse().find((r) => r.tipo !== TIPOS_REGRA.SEM_PROGRAMACAO) || null
-    : vigenteHoje;
+    ? [...(regras || [])].sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde)).find((r) => r.tipo !== TIPOS_REGRA.SEM_PROGRAMACAO) || null
+    : regraVigente(regras, dataInicial);
 
   const [descricao, setDescricao] = useState(tarefa?.descricao ?? '');
   const [categoria, setCategoria] = useState(tarefa?.categoria ?? categorias[0]?.valor ?? '');
@@ -58,15 +67,15 @@ export default function TarefaFormModal({ modo, tarefa, regras, categorias, grup
   const [ordem, setOrdem] = useState(tarefa?.ordem != null ? String(tarefa.ordem) : '');
   const [grupoId, setGrupoId] = useState(base?.grupo_id ?? '');
   const [form, setForm] = useState(() => regraParaFormulario(base));
-  const [aPartirDe, setAPartirDe] = useState(hoje);
+  const [aPartirDe, setAPartirDe] = useState(dataInicial);
   const [previa, setPrevia] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
   const regraForm = useMemo(() => ({ ...formularioParaRegra(form), grupo_id: form.tipo === TIPOS_REGRA.SEM_PROGRAMACAO ? null : grupoId || null }), [form, grupoId]);
-  const vigenteNaData = regraVigente(regras, aPartirDe || hoje);
+  const vigenteNaData = regraVigente(regras, aPartirDe || dataInicial);
   const mudouProgramacao = modo !== 'editar' || !mesmaProgramacao(vigenteNaData, regraForm);
-  const agendada = modo === 'editar' ? proximaVersao(regras, aPartirDe || hoje) : null;
+  const agendada = modo !== 'novo' ? proximaVersao(regras, aPartirDe || dataInicial) : null;
 
   function mudarForm(parcial) {
     setForm((f) => ({ ...f, ...parcial }));
@@ -89,7 +98,9 @@ export default function TarefaFormModal({ modo, tarefa, regras, categorias, grup
         ordem: ordem.trim() === '' ? null : Number(ordem),
         observacao,
         ...regraForm,
-        aplicarAPartirDe: mudouProgramacao ? aPartirDe : null,
+        // Sempre a data de referência: sem mudança de programação o banco só
+        // a usa para achar a regra a comparar (não grava versão nova).
+        aplicarAPartirDe: aPartirDe || dataInicial,
         ativo: modo === 'reativar' ? true : null,
       }, simular);
       if (simular) setPrevia(r);
@@ -196,7 +207,7 @@ export default function TarefaFormModal({ modo, tarefa, regras, categorias, grup
                 label="Vale a partir de"
                 dica="Dias anteriores ficam como estão. Só ocorrências futuras ainda não concluídas, ajustadas ou canceladas são reprogramadas."
               >
-                <Input type="date" min={hoje} value={aPartirDe} onChange={(e) => { setAPartirDe(e.target.value); setPrevia(null); }} disabled={salvando} />
+                <Input type="date" min={dataMinima} value={aPartirDe} onChange={(e) => { setAPartirDe(e.target.value); setPrevia(null); }} disabled={salvando} />
               </Field>
             )}
             {agendada && (
