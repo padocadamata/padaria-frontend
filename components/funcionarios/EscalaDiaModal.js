@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { formatarHora, construirCopiaDia } from '../../lib/funcionarios/escala';
+import { buscarFormaRemuneracaoAtual } from '../../lib/funcionarios/pagamentos';
 import Modal from '../ui/Modal';
 import Alert from '../ui/Alert';
 import Badge from '../ui/Badge';
@@ -30,6 +31,12 @@ function mensagemErroPlanejamento(error) {
   if (msg.includes('hora_fim <= hora_inicio') || msg.includes('hora_inicio/hora_fim validos')) {
     return 'Informe horários válidos (saída sempre depois da entrada).';
   }
+  // Protecao K (migration 0066) -- a RPC ja devolve a mensagem exata,
+  // pronta para o usuario (ver aplicar_escala_em_lote). Repassa verbatim em
+  // vez de cair no fallback generico abaixo.
+  if (msg.includes('já possui pagamento confirmado')) {
+    return msg;
+  }
   console.error('Erro ao salvar escala do dia:', error);
   return 'Não foi possível salvar. Tente novamente ou avise um administrador.';
 }
@@ -47,13 +54,38 @@ export default function EscalaDiaModal({ funcionario, data, estadoAtual, podeEdi
   });
   const [periodos, setPeriodos] = useState(() => {
     if (estadoAtual?.tipo === 'trabalho' && estadoAtual.periodos.length > 0) {
-      return estadoAtual.periodos.map((p) => ({ hora_inicio: formatarHora(p.hora_inicio), hora_fim: formatarHora(p.hora_fim) }));
+      return estadoAtual.periodos.map((p) => ({
+        hora_inicio: formatarHora(p.hora_inicio),
+        hora_fim: formatarHora(p.hora_fim),
+        // Preserva a classificação já existente (migrations 0065/0066) --
+        // NUNCA reseta silenciosamente para 'normal' ao reabrir/resalvar o
+        // dia, mesmo quando o toggle não está visível no momento (forma de
+        // remuneração atual != mensal).
+        natureza_financeira: p.natureza_financeira || 'normal',
+      }));
     }
     return [{ hora_inicio: '', hora_fim: '' }];
   });
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+
+  // Toggle "Extra remunerado" (migrations 0065/0066, frente Pagamentos):
+  // escondido só quando a forma de remuneração ATUAL é por_hora (para quem
+  // é por hora todo período já é pago -- o campo seria inerte). Para mensal
+  // ou ainda não configurado, a marcação fica disponível (o pagamento de
+  // extra exige forma mensal NA DATA, validado no banco).
+  const [formaRemuneracao, setFormaRemuneracao] = useState(null);
+
+  useEffect(() => {
+    let ativo = true;
+    buscarFormaRemuneracaoAtual(funcionario.id).then((forma) => {
+      if (ativo) setFormaRemuneracao(forma);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [funcionario.id]);
 
   const [salvandoOcorrencia, setSalvandoOcorrencia] = useState(false);
   const [erroOcorrencia, setErroOcorrencia] = useState('');
@@ -195,7 +227,7 @@ export default function EscalaDiaModal({ funcionario, data, estadoAtual, podeEdi
         </Field>
 
         {tipoSelecionado === 'trabalho' && (
-          <PeriodosEditor periodos={periodos} onAlterar={setPeriodos} podeEditar={podeEditar} />
+          <PeriodosEditor periodos={periodos} onAlterar={setPeriodos} podeEditar={podeEditar} mostrarNaturezaFinanceira={formaRemuneracao !== 'por_hora'} />
         )}
 
         {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}

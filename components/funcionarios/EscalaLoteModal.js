@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
-import { construirAplicacaoEmLote, detectarSobrescritas } from '../../lib/funcionarios/escala';
+import { construirAplicacaoEmLote, detectarSobrescritas, rotuloDiaSemana } from '../../lib/funcionarios/escala';
 import Modal from '../ui/Modal';
 import Alert from '../ui/Alert';
 import Button from '../ui/Button';
@@ -11,7 +11,6 @@ import PeriodosEditor from './PeriodosEditor';
 import IndicadorVinculo from './IndicadorVinculo';
 import estilos from './escala.module.css';
 
-const ROTULO_DIA_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function formatarDataCurta(dataYYYYMMDD) {
   const [, mes, dia] = dataYYYYMMDD.split('-');
@@ -71,6 +70,13 @@ export default function EscalaLoteModal({ funcionarios, dias, mapaEscala, onFech
     const { error } = await supabase.rpc('aplicar_escala_em_lote', { p_atribuicoes: atribuicoes });
     setSalvando(false);
     if (error) {
+      // Protecao K (migration 0066) -- a RPC ja devolve a mensagem exata,
+      // pronta para o usuario. Repassa verbatim em vez do fallback
+      // generico abaixo (mesmo tratamento de EscalaDiaModal.js).
+      if (error.message?.includes('já possui pagamento confirmado')) {
+        setErro(error.message);
+        return;
+      }
       console.error('Erro ao aplicar escala em lote:', error);
       setErro('Não foi possível aplicar. Verifique se algum dia selecionado já tem falta/atestado registrado e tente novamente.');
       return;
@@ -96,10 +102,10 @@ export default function EscalaLoteModal({ funcionarios, dias, mapaEscala, onFech
 
         <Field label="Dias (semana em exibição)">
           <div className={estilos.selecaoFuncionarios}>
-            {dias.map((data, indice) => (
+            {dias.map((data) => (
               <Checkbox
                 key={data}
-                rotulo={`${ROTULO_DIA_SEMANA[indice]} ${formatarDataCurta(data)}`}
+                rotulo={`${rotuloDiaSemana(data)} ${formatarDataCurta(data)}`}
                 checked={datas.includes(data)}
                 onChange={() => alternarData(data)}
               />

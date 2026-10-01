@@ -1,0 +1,161 @@
+/* Migrations 0065/0066 -- Folha de Pagamento > Pagamentos. */
+
+.navegacaoVisoes {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.colunaSecoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-5);
+}
+
+.tituloSecao {
+  margin: 0 0 var(--ds-sp-3);
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.listaCards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.vazio {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+  font-style: italic;
+}
+
+.listaJornadas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+}
+
+.rodapeSelecao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  margin-top: var(--ds-sp-3);
+  padding-top: var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.resumoLinha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-1) 0;
+}
+
+.listaDescontos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.linhaDesconto {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}
+
+.linhaDesconto > *:first-child {
+  flex: 2 1 10rem;
+}
+
+.linhaDesconto > *:nth-child(2) {
+  flex: 1 1 6rem;
+}
+
+.linhaDesconto > *:nth-child(3) {
+  flex: 2 1 10rem;
+}
+
+.detalheLista {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ds-sp-1) var(--ds-sp-4);
+  margin: 0;
+}
+
+.detalheLista dt {
+  color: var(--ds-text-muted);
+}
+
+.detalheLista dd {
+  margin: 0;
+  font-weight: var(--ds-fw-semibold);
+  text-align: right;
+}
+
+.secaoCancelamento {
+  padding-top: var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.controlesFiltro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.campoFiltro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.listaConfiguracoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.linhaConfiguracao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  flex-wrap: wrap;
+}
+
+.infoConfiguracao {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+}
+
+.avisoCompacto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-3);
+}
+
+.naoConfigurado {
+  color: var(--ds-text-muted);
+  font-style: italic;
+  font-size: var(--ds-fs-label);
+}

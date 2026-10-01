@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
-import { buscarEscalaPeriodo, ROTULO_DIA_SEMANA, formatarDataCurta, formatarPeriodoSemana, formatarHora } from '../../lib/funcionarios/escala';
+import { buscarEscalaPeriodo, ROTULO_DIA_SEMANA, formatarDataCurta, formatarPeriodoSemana, formatarHora, inicioDaSemana } from '../../lib/funcionarios/escala';
 import { resolverEstadosDoDia, calcularFaixasCobertura, obterPrimeiroNome } from '../../lib/funcionarios/escalaCobertura';
 import { cx } from '../../lib/design/cx';
 import Button from '../ui/Button';
@@ -173,12 +173,10 @@ function TrilhaCoberturaDia({ faixas, janela }) {
 // Somente leitura. Todo o cálculo vem do motor único de cobertura
 // (lib/funcionarios/escalaCobertura.js), chamado 1x por dia exibido -- este
 // componente só organiza e posiciona.
-// Domingo da semana que contém `data` -- mesma convenção de inicioDaSemana
-// em lib/funcionarios/escala.js, reimplementada aqui só para o default
-// inicial (import evitado de propósito para não puxar diasDaSemana junto).
+// Período padrão = semana OPERACIONAL corrente (segunda a domingo), a
+// mesma da visão Semanal -- inicioDaSemana de lib/funcionarios/escala.js.
 function inicioDaSemanaCorrente(data) {
-  const indice = new Date(`${data}T12:00:00`).getDay();
-  return somarDias(data, -indice);
+  return inicioDaSemana(data);
 }
 
 export default function EscalaPorHora({ funcionarios, cargos }) {
@@ -244,10 +242,13 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
     setDataFim(fim);
   }
 
+  // Período de 7 dias -> volta à semana operacional corrente (segunda a
+  // domingo). Período personalizado menor -> começa hoje, mesmo tamanho.
   function irParaHoje() {
     const span = Math.max(dias.length, 1);
     const hoje = dataLocalHoje();
-    const { inicio, fim } = normalizarIntervalo(hoje, somarDias(hoje, span - 1));
+    const base = span === MAX_DIAS ? inicioDaSemanaCorrente(hoje) : hoje;
+    const { inicio, fim } = normalizarIntervalo(base, somarDias(base, span - 1));
     setDataInicio(inicio);
     setDataFim(fim);
   }

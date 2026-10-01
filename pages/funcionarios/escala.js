@@ -28,7 +28,7 @@ import {
   formatarPeriodo,
   construirCopiaSemana,
   detectarSobrescritas,
-  ROTULO_DIA_SEMANA,
+  rotuloDiaSemana,
   formatarDataCurta,
   formatarPeriodoSemana,
 } from '../../lib/funcionarios/escala';
@@ -48,7 +48,10 @@ function CelulaDia({ funcionario, data, mapaEscala, podeEditar, onAbrir }) {
   ) : (
     <>
       {estado.periodos.map((p, i) => (
-        <span key={i} className={estilos.celulaPeriodo}>{formatarPeriodo(p)}</span>
+        <span key={i} className={estilos.celulaPeriodo} title={p.natureza_financeira === 'extra_remunerado' ? 'Extra remunerado' : undefined}>
+          {formatarPeriodo(p)}
+          {p.natureza_financeira === 'extra_remunerado' ? ' · extra' : ''}
+        </span>
       ))}
       {estado.ocorrencia && (
         <span className={estilos.celulaOcorrencia}>
@@ -205,6 +208,12 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
     setCopiandoSemana(false);
 
     if (error) {
+      // Protecao K (migration 0066) -- repassa a mensagem exata da RPC em
+      // vez do fallback generico (mesmo tratamento de EscalaDiaModal.js).
+      if (error.message?.includes('já possui pagamento confirmado')) {
+        setErroCopiaSemana(error.message);
+        return;
+      }
       console.error('Erro ao copiar semana anterior:', error);
       setErroCopiaSemana('Não foi possível copiar a semana anterior. Verifique se algum dia de destino já tem falta/atestado registrado.');
       return;
@@ -229,9 +238,9 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
       alinhar: 'centro',
       render: (f) => <IndicadorVinculo tipoVinculo={f.tipo_vinculo} />,
     },
-    ...dias.map((data, indice) => ({
+    ...dias.map((data) => ({
       chave: `dia_${data}`,
-      rotulo: `${ROTULO_DIA_SEMANA[indice]} ${formatarDataCurta(data)}`,
+      rotulo: `${rotuloDiaSemana(data)} ${formatarDataCurta(data)}`,
       render: (f) => (
         <CelulaDia funcionario={f} data={data} mapaEscala={mapaEscala} podeEditar={podeEditar} onAbrir={abrirModalDia} />
       ),
