@@ -70,7 +70,9 @@ export default function CalendarioImpressao({ modelo }) {
                 </th>
                 <td className={estilos.celFreq}>{linha.frequencia}</td>
                 {linha.celulas.map((c) => (
-                  <td key={c.data} className={c.texto ? estilos.celF : estilos.celVazia}>{c.texto}</td>
+                  <td key={c.data} className={`${c.texto ? estilos.celF : estilos.celVazia} ${c.fimDeSemana ? estilos.celFimDeSemana : ''}`}>
+                    {c.texto}
+                  </td>
                 ))}
               </tr>
             ))}

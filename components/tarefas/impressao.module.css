@@ -1,7 +1,8 @@
 /* Impressão do Calendário de Tarefas -- A4 paisagem (área útil 281 x 194 mm
    com margens de 8 mm). Unidades físicas (mm/pt) e só preto/cinza sobre
-   branco: legível em impressora P&B, sem depender de "imprimir planos de
-   fundo". A quebra de página é do navegador: cabeçalho (thead) repetido em
+   branco: legível em impressora P&B. Os dois cinzas claros (categoria e fim
+   de semana) usam print-color-adjust para não depender de "imprimir planos
+   de fundo". A quebra de página é do navegador: cabeçalho (thead) repetido em
    cada folha, categoria inteira nunca partida, bloco RESPONSÁVEIS inteiro. */
 
 .folha {
@@ -87,14 +88,30 @@
   text-decoration: underline;
 }
 
-/* Categorias -- compactas, separadas por traço grosso (sem fundo) */
+/* Sábado/domingo (derivado da data de cada dia/célula no modelo): coluna
+   inteira em cinza muito claro -- cabeçalho e todas as células. Mais claro
+   que a faixa de categoria (hierarquia: categoria > tarefas > fim de
+   semana). print-color-adjust: o fundo sai mesmo com "imprimir planos de
+   fundo" desligado; é a única tinta extra, mínima. */
+.cabDiaFimDeSemana,
+.celFimDeSemana {
+  background: #f0f0f0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Categorias -- a faixa cinza clara marca o início de cada bloco; o traço
+   superior é só um pouco mais firme que a borda comum (0,35 x 0,25 mm). */
 .secao {
   break-inside: avoid;
   page-break-inside: avoid;
 }
 .linhaCategoria th {
   padding: 0.7mm 1.5mm;
-  border-top: 0.6mm solid #000;
+  border-top: 0.35mm solid #000;
+  background: #dedede;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
   font-size: 7.5pt;
   font-weight: 700;
   letter-spacing: 0.08em;
