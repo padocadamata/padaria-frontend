@@ -7,7 +7,7 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import IndicadorVinculo from './IndicadorVinculo';
 import PagamentoDetalheModal from './PagamentoDetalheModal';
-import { buscarHistoricoPagamentos, formatarMoeda, formatarCompetencia } from '../../lib/funcionarios/pagamentos';
+import { buscarHistoricoPagamentos, formatarMoeda, formatarCompetencia, rotuloNaturezaPagamento } from '../../lib/funcionarios/pagamentos';
 import { rotuloTipoLancamento, centavos } from '../../lib/funcionarios/pagamentosCalculo';
 import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import estilosPagamentos from './pagamentos.module.css';
@@ -71,7 +71,8 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
     {
       chave: 'natureza',
       rotulo: 'Forma',
-      render: (p) => (p.natureza === 'mensal' ? `Mensal ${formatarCompetencia(p.competencia)} · ${rotuloTipoLancamento(p.tipo_lancamento)}` : 'Por hora'),
+      render: (p) =>
+        p.natureza === 'mensal' ? `Mensal ${formatarCompetencia(p.competencia)} · ${rotuloTipoLancamento(p.tipo_lancamento)}` : rotuloNaturezaPagamento(p.natureza),
     },
     { chave: 'bruto', rotulo: 'Bruto', alinhar: 'direita', render: (p) => formatarMoeda(p.valor_bruto) },
     { chave: 'descontos', rotulo: 'Descontos', alinhar: 'direita', render: (p) => formatarMoeda(p.total_descontos) },
@@ -118,6 +119,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
             <option value="">Todas</option>
             <option value="por_hora">Por hora</option>
             <option value="mensal">Mensal</option>
+            <option value="regularizacao_historica">Regularização histórica</option>
           </Select>
         </Field>
         <Field label="Status">

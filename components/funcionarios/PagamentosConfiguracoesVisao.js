@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import IndicadorVinculo from './IndicadorVinculo';
 import ConfiguracaoFuncionarioModal from './ConfiguracaoFuncionarioModal';
+import FeriadosCard from './FeriadosCard';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import {
   buscarValorHoraVigente,
@@ -149,6 +150,7 @@ export default function PagamentosConfiguracoesVisao({ funcionarios, podeRegras,
   return (
     <div className={estilosPagamentos.colunaSecoes}>
       <ValorHoraCard podeRegras={podeRegras} />
+      <FeriadosCard podeRegras={podeRegras} />
 
       <section>
         <h3 className={estilosPagamentos.tituloSecao}>Configuração por funcionário</h3>

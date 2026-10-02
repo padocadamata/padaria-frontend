@@ -151,6 +151,12 @@ export default function EscalaDiaModal({ funcionario, data, estadoAtual, podeEdi
     });
     setSalvandoOcorrencia(false);
     if (error) {
+      // Migration 0068 -- dia com jornada em pagamento ativo nao aceita
+      // falta/atestado; a mensagem do banco ja vem pronta para o usuario.
+      if (error.message?.includes('já possui jornada com pagamento confirmado')) {
+        setErroOcorrencia(error.message);
+        return;
+      }
       console.error('Erro ao registrar ocorrência:', error);
       setErroOcorrencia('Não foi possível registrar. Tente novamente.');
       return;

@@ -159,3 +159,50 @@
   font-style: italic;
   font-size: var(--ds-fs-label);
 }
+
+/* Migration 0068 -- valor calculado x valor a pagar por jornada. */
+.linhaJornada {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(9rem, 1fr);
+  align-items: center;
+  gap: var(--ds-sp-2) var(--ds-sp-3);
+  padding: var(--ds-sp-1) 0;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.jornadaInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.jornadaCalculado {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.jornadaValor {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.prevista {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.itemConferencia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  padding: var(--ds-sp-1) 0;
+}
+
+@media (max-width: 640px) {
+  .linhaJornada {
+    grid-template-columns: 1fr;
+  }
+}

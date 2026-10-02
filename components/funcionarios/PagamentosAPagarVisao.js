@@ -6,34 +6,73 @@ import Button from '../ui/Button';
 import Checkbox from '../ui/Checkbox';
 import Input from '../ui/Input';
 import IndicadorVinculo from './IndicadorVinculo';
+import JornadaValorLinha from './JornadaValorLinha';
 import PagamentoPorHoraModal from './PagamentoPorHoraModal';
 import PagamentoMensalModal from './PagamentoMensalModal';
-import { formatarDataCurta, formatarHora } from '../../lib/funcionarios/escala';
+import { formatarDataCurta, rotuloDiaSemana } from '../../lib/funcionarios/escala';
 import { inicioDoMes, dataLocalHoje } from '../../lib/data/dataLocal';
-import { buscarSituacaoRemuneracaoEmLote, buscarPendenciasPorHora, buscarPendenciaMensal, formatarMoeda, formatarCompetencia } from '../../lib/funcionarios/pagamentos';
-import { agruparPorForma, chaveJornada, somarValores } from '../../lib/funcionarios/pagamentosCalculo';
+import { buscarSituacaoRemuneracaoEmLote, buscarPendenciasPorHora, buscarPendenciaMensal, buscarPendenciasHistoricas, formatarMoeda, formatarCompetencia } from '../../lib/funcionarios/pagamentos';
+import { agruparPorForma, chaveJornada, resolverValorAPagar, somarValoresAPagar } from '../../lib/funcionarios/pagamentosCalculo';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
 
+function formatarPrevista(data) {
+  return data ? `${rotuloDiaSemana(data)} ${formatarDataCurta(data)}` : null;
+}
+
+// Estado comum de seleção + "Valor a pagar" digitado por jornada (chave
+// lógica funcionario+data+hora_inicio+hora_fim, nunca id físico).
+function useSelecaoComValores() {
+  const [selecionadas, setSelecionadas] = useState(new Set());
+  const [digitados, setDigitados] = useState({});
+  function alternar(chave) {
+    setSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(chave)) novo.delete(chave);
+      else novo.add(chave);
+      return novo;
+    });
+  }
+  function digitar(chave, texto) {
+    setDigitados((atual) => ({ ...atual, [chave]: texto }));
+    // Digitar um valor numa jornada não selecionada já a seleciona.
+    if (String(texto).trim()) setSelecionadas((atual) => (atual.has(chave) ? atual : new Set(atual).add(chave)));
+  }
+  function limpar() {
+    setSelecionadas(new Set());
+    setDigitados({});
+  }
+  return { selecionadas, setSelecionadas, digitados, alternar, digitar, limpar };
+}
+
+function contarValoresFaltando(itens, digitados) {
+  return itens.filter((p) => {
+    const r = resolverValorAPagar(p.valor ?? null, digitados[chaveJornada(p)]);
+    return r.pendente || r.invalido;
+  }).length;
+}
+
 // 1 funcionário com jornadas por hora: lista de jornadas pendentes (falta/
-// atestado/folga/futuras já vêm excluídas pela RPC), seleção de qualquer
-// subconjunto (pagamento parcial) e "Incluir pagamento". Jornada sem
-// valor/hora vigente na data aparece, mas não é selecionável.
+// atestado/folga/futuras já vêm excluídas pela RPC), cada uma com valor
+// calculado e "Valor a pagar" editável (migration 0068), seleção de
+// qualquer subconjunto (pagamento parcial) e "Incluir pagamento".
 function FuncionarioPorHora({ funcionario, formaAtual, podeConfirmar }) {
   const [aberto, setAberto] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [pendencias, setPendencias] = useState([]);
   const [erro, setErro] = useState('');
-  const [selecionadas, setSelecionadas] = useState(new Set());
   const [modalAberto, setModalAberto] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const [suporteValorManual, setSuporteValorManual] = useState(true);
+  const sel = useSelecaoComValores();
 
   async function carregar() {
     setCarregando(true);
     setErro('');
-    const { pendencias: lista, erro: erroCarga } = await buscarPendenciasPorHora(funcionario.id);
+    const { pendencias: lista, erro: erroCarga, suporteValorManual: suporte } = await buscarPendenciasPorHora(funcionario.id);
     setPendencias(lista);
-    setSelecionadas(new Set());
+    setSuporteValorManual(suporte !== false);
+    sel.limpar();
     if (erroCarga) setErro(erroCarga);
     setCarregando(false);
   }
@@ -45,23 +84,15 @@ function FuncionarioPorHora({ funcionario, formaAtual, podeConfirmar }) {
     if (novo) carregar();
   }
 
-  function alternarSelecao(chave) {
-    setSelecionadas((atual) => {
-      const novo = new Set(atual);
-      if (novo.has(chave)) novo.delete(chave);
-      else novo.add(chave);
-      return novo;
-    });
-  }
-
-  const pagaveis = pendencias.filter((p) => p.valor !== null && p.valor !== undefined);
-  const semValorHora = pendencias.length - pagaveis.length;
-  const jornadasSelecionadas = pagaveis.filter((p) => selecionadas.has(chaveJornada(p)));
-  const totalSelecionado = somarValores(jornadasSelecionadas);
-  const todasSelecionadas = pagaveis.length > 0 && jornadasSelecionadas.length === pagaveis.length;
+  const jornadasSelecionadas = pendencias.filter((p) => sel.selecionadas.has(chaveJornada(p)));
+  const totalSelecionado = somarValoresAPagar(jornadasSelecionadas, sel.digitados);
+  const faltamValores = contarValoresFaltando(jornadasSelecionadas, sel.digitados);
+  const semValorHora = pendencias.filter((p) => p.valor === null || p.valor === undefined).length;
+  const todasSelecionadas = pendencias.length > 0 && jornadasSelecionadas.length === pendencias.length;
+  const previstas = Array.from(new Set(pendencias.map((p) => p.data_prevista).filter(Boolean))).sort();
 
   function alternarTodas() {
-    setSelecionadas(todasSelecionadas ? new Set() : new Set(pagaveis.map(chaveJornada)));
+    sel.setSelecionadas(todasSelecionadas ? new Set() : new Set(pendencias.map(chaveJornada)));
   }
 
   function aoConfirmarPagamento() {
@@ -95,35 +126,37 @@ function FuncionarioPorHora({ funcionario, formaAtual, podeConfirmar }) {
           <p className={estilosPagamentos.vazio}>Nenhuma jornada pendente.</p>
         ) : (
           <>
+            {previstas.length > 0 && (
+              <p className={estilosPagamentos.prevista}>
+                Data prevista de pagamento (só referência): {previstas.slice(0, 3).map(formatarPrevista).join(' · ')}
+                {previstas.length > 3 ? ' …' : ''}
+              </p>
+            )}
             {semValorHora > 0 && (
-              <Alert tom="warning">
-                {semValorHora} jornada(s) sem valor/hora vigente na data (anteriores à primeira vigência). Cadastre a vigência em &quot;Configurações&quot; para poder pagá-las.
-              </Alert>
+              <p className={estilosPagamentos.prevista}>{semValorHora} jornada(s) sem valor/hora vigente na data: informe o valor a pagar de cada uma.</p>
             )}
-            {pagaveis.length > 1 && (
-              <Checkbox rotulo="Selecionar todas" checked={todasSelecionadas} onChange={alternarTodas} />
-            )}
+            {pendencias.length > 1 && <Checkbox rotulo="Selecionar todas" checked={todasSelecionadas} onChange={alternarTodas} />}
             <ul className={estilosPagamentos.listaJornadas}>
-              {pendencias.map((p) => {
-                const pagavel = p.valor !== null && p.valor !== undefined;
-                return (
-                  <li key={chaveJornada(p)}>
-                    <Checkbox
-                      rotulo={`${formatarDataCurta(p.data)} ${formatarHora(p.hora_inicio)}–${formatarHora(p.hora_fim)} (${p.duracao_minutos}min)${p.natureza_financeira === 'extra_remunerado' ? ' · extra' : ''} — ${pagavel ? `${formatarMoeda(p.valor)} (${formatarMoeda(p.valor_hora_aplicado)}/h)` : 'sem valor/hora'}`}
-                      checked={selecionadas.has(chaveJornada(p))}
-                      disabled={!pagavel}
-                      onChange={() => alternarSelecao(chaveJornada(p))}
-                    />
-                  </li>
-                );
-              })}
+              {pendencias.map((p) => (
+                <JornadaValorLinha
+                  key={chaveJornada(p)}
+                  item={p}
+                  selecionada={sel.selecionadas.has(chaveJornada(p))}
+                  onAlternar={sel.alternar}
+                  digitado={sel.digitados[chaveJornada(p)]}
+                  onDigitar={sel.digitar}
+                />
+              ))}
             </ul>
             <div className={estilosPagamentos.rodapeSelecao}>
-              <strong>
-                Selecionado: {jornadasSelecionadas.length} jornada(s) — {formatarMoeda(totalSelecionado)}
-              </strong>
+              <span>
+                <strong>
+                  Selecionado: {jornadasSelecionadas.length} jornada(s) — {formatarMoeda(totalSelecionado)}
+                </strong>
+                {faltamValores > 0 && <span className={estilosPagamentos.prevista}> · falta informar {faltamValores} valor(es)</span>}
+              </span>
               {podeConfirmar && (
-                <Button disabled={jornadasSelecionadas.length === 0} onClick={() => setModalAberto(true)}>
+                <Button disabled={jornadasSelecionadas.length === 0 || faltamValores > 0} onClick={() => setModalAberto(true)}>
                   Incluir pagamento
                 </Button>
               )}
@@ -132,32 +165,134 @@ function FuncionarioPorHora({ funcionario, formaAtual, podeConfirmar }) {
         ))}
 
       {modalAberto && (
-        <PagamentoPorHoraModal funcionario={funcionario} jornadas={jornadasSelecionadas} onFechar={() => setModalAberto(false)} onConfirmado={aoConfirmarPagamento} />
+        <PagamentoPorHoraModal
+          funcionario={funcionario}
+          jornadas={jornadasSelecionadas}
+          digitados={sel.digitados}
+          suporteValorManual={suporteValorManual}
+          onFechar={() => setModalAberto(false)}
+          onConfirmado={aoConfirmarPagamento}
+        />
+      )}
+    </Card>
+  );
+}
+
+// REGULARIZAÇÃO HISTÓRICA (migration 0068): jornadas da Escala anteriores
+// à primeira vigência do valor/hora, de 1 pessoa -- independente da forma
+// de remuneração (inclusive nenhuma). Sem valor calculado: o "Valor a
+// pagar" de cada jornada é obrigatório. Não é pagamento por hora nem
+// mensal (nunca usa R$/h nem saldo-base).
+function FuncionarioHistorico({ funcionario, jornadas, podeConfirmar, onRegistrado }) {
+  const [aberto, setAberto] = useState(false);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const sel = useSelecaoComValores();
+
+  const selecionadas = jornadas.filter((j) => sel.selecionadas.has(chaveJornada(j)));
+  const total = somarValoresAPagar(selecionadas, sel.digitados);
+  const faltamValores = contarValoresFaltando(selecionadas, sel.digitados);
+  const todas = jornadas.length > 0 && selecionadas.length === jornadas.length;
+
+  function aoConfirmar() {
+    setModalAberto(false);
+    sel.limpar();
+    setMensagemSucesso('Regularização registrada com sucesso.');
+    onRegistrado();
+  }
+
+  return (
+    <Card
+      titulo={funcionario.nome}
+      subtitulo={
+        <span className={estilosPagamentos.infoConfiguracao}>
+          {funcionario.tipo_vinculo && <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />}
+          <Badge tom="warning">Regularização histórica</Badge>
+          <span className={estilosPagamentos.prevista}>{jornadas.length} jornada(s)</span>
+        </span>
+      }
+      acao={
+        <Button
+          variante="secondary"
+          tamanho="sm"
+          onClick={() => {
+            setMensagemSucesso('');
+            setAberto((v) => !v);
+          }}
+        >
+          {aberto ? 'Ocultar' : 'Ver jornadas'}
+        </Button>
+      }
+    >
+      {mensagemSucesso && <Alert tom="success">{mensagemSucesso}</Alert>}
+      {aberto && (
+        <>
+          {jornadas.length > 1 && (
+            <Checkbox rotulo="Selecionar todas" checked={todas} onChange={() => sel.setSelecionadas(todas ? new Set() : new Set(jornadas.map(chaveJornada)))} />
+          )}
+          <ul className={estilosPagamentos.listaJornadas}>
+            {jornadas.map((j) => (
+              <JornadaValorLinha
+                key={chaveJornada(j)}
+                item={j}
+                selecionada={sel.selecionadas.has(chaveJornada(j))}
+                onAlternar={sel.alternar}
+                digitado={sel.digitados[chaveJornada(j)]}
+                onDigitar={sel.digitar}
+              />
+            ))}
+          </ul>
+          <div className={estilosPagamentos.rodapeSelecao}>
+            <span>
+              <strong>
+                Selecionado: {selecionadas.length} jornada(s) — {formatarMoeda(total)}
+              </strong>
+              {faltamValores > 0 && <span className={estilosPagamentos.prevista}> · falta informar {faltamValores} valor(es)</span>}
+            </span>
+            {podeConfirmar && (
+              <Button disabled={selecionadas.length === 0 || faltamValores > 0} onClick={() => setModalAberto(true)}>
+                Registrar regularização
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+      {modalAberto && (
+        <PagamentoPorHoraModal
+          modo="historico"
+          funcionario={funcionario}
+          jornadas={selecionadas}
+          digitados={sel.digitados}
+          onFechar={() => setModalAberto(false)}
+          onConfirmado={aoConfirmar}
+        />
       )}
     </Card>
   );
 }
 
 // 1 funcionário mensal: resumo da competência (base vigente, quanto da base
-// já foi quitado por pagamentos ativos, saldo, faltas/atestados, extras
-// remunerados pendentes) e "Incluir pagamento". Vários pagamentos por
-// competência são permitidos (adiantamento/parcial/complemento).
+// já foi quitado por pagamentos ativos, saldo, faltas/atestados, data
+// prevista) e extras remunerados pendentes com valor calculado e "Valor a
+// pagar" editável. A remuneração-base nunca vira valor por jornada.
 function FuncionarioMensal({ funcionario, podeConfirmar }) {
   const [competencia, setCompetencia] = useState(() => inicioDoMes(dataLocalHoje()));
   const [aberto, setAberto] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [resumo, setResumo] = useState(null);
   const [erro, setErro] = useState('');
-  const [extrasSelecionados, setExtrasSelecionados] = useState(new Set());
   const [modalAberto, setModalAberto] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const [suporteValorManual, setSuporteValorManual] = useState(true);
+  const sel = useSelecaoComValores();
 
   async function carregar() {
     setCarregando(true);
     setErro('');
-    const { pendencia, erro: erroCarga } = await buscarPendenciaMensal(funcionario.id, competencia);
+    const { pendencia, erro: erroCarga, suporteValorManual: suporte } = await buscarPendenciaMensal(funcionario.id, competencia);
     setResumo(pendencia);
-    setExtrasSelecionados(new Set());
+    setSuporteValorManual(suporte !== false);
+    sel.limpar();
     if (erroCarga) setErro(erroCarga);
     setCarregando(false);
   }
@@ -167,20 +302,12 @@ function FuncionarioMensal({ funcionario, podeConfirmar }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competencia, aberto]);
 
-  function alternarSelecao(chave) {
-    setExtrasSelecionados((atual) => {
-      const novo = new Set(atual);
-      if (novo.has(chave)) novo.delete(chave);
-      else novo.add(chave);
-      return novo;
-    });
-  }
-
-  const extrasDisponiveis = (resumo?.extras_pendentes || []).filter((e) => e.valor !== null && e.valor !== undefined);
-  const extrasSemValorHora = (resumo?.extras_pendentes || []).length - extrasDisponiveis.length;
-  const extrasSelecionadosLista = extrasDisponiveis.filter((e) => extrasSelecionados.has(chaveJornada(e)));
+  const extrasDisponiveis = resumo?.extras_pendentes || [];
+  const extrasSelecionadosLista = extrasDisponiveis.filter((e) => sel.selecionadas.has(chaveJornada(e)));
+  const faltamValores = contarValoresFaltando(extrasSelecionadosLista, sel.digitados);
   const mensalNaCompetencia = resumo?.forma_vigente === 'mensal';
-  const podeIncluir = mensalNaCompetencia && resumo?.valor_mensal_base !== null && (Number(resumo?.saldo_base) > 0 || extrasDisponiveis.length > 0);
+  const podeIncluir =
+    mensalNaCompetencia && resumo?.valor_mensal_base !== null && (Number(resumo?.saldo_base) > 0 || extrasDisponiveis.length > 0) && faltamValores === 0;
 
   function aoConfirmarPagamento() {
     setModalAberto(false);
@@ -232,6 +359,12 @@ function FuncionarioMensal({ funcionario, podeConfirmar }) {
               <strong>Saldo da base</strong>
               <strong>{formatarMoeda(resumo.saldo_base)}</strong>
             </div>
+            {resumo.data_prevista && (
+              <div className={estilosPagamentos.resumoLinha}>
+                <span>Data prevista (só referência)</span>
+                <span>{formatarPrevista(resumo.data_prevista)}</span>
+              </div>
+            )}
             {(resumo.faltas_qtd > 0 || resumo.atestados_qtd > 0) && (
               <div className={estilosPagamentos.resumoLinha}>
                 <span>
@@ -241,19 +374,20 @@ function FuncionarioMensal({ funcionario, podeConfirmar }) {
               </div>
             )}
 
-            {extrasSemValorHora > 0 && <Alert tom="warning">{extrasSemValorHora} extra(s) sem valor/hora vigente na data.</Alert>}
             {extrasDisponiveis.length > 0 && (
               <>
                 <h4>Extras remunerados pendentes</h4>
                 <ul className={estilosPagamentos.listaJornadas}>
                   {extrasDisponiveis.map((e) => (
-                    <li key={chaveJornada(e)}>
-                      <Checkbox
-                        rotulo={`${formatarDataCurta(e.data)} ${formatarHora(e.hora_inicio)}–${formatarHora(e.hora_fim)} (${e.duracao_minutos}min) — ${formatarMoeda(e.valor)}`}
-                        checked={extrasSelecionados.has(chaveJornada(e))}
-                        onChange={() => alternarSelecao(chaveJornada(e))}
-                      />
-                    </li>
+                    <JornadaValorLinha
+                      key={chaveJornada(e)}
+                      item={e}
+                      extra
+                      selecionada={sel.selecionadas.has(chaveJornada(e))}
+                      onAlternar={sel.alternar}
+                      digitado={sel.digitados[chaveJornada(e)]}
+                      onDigitar={sel.digitar}
+                    />
                   ))}
                 </ul>
               </>
@@ -261,7 +395,10 @@ function FuncionarioMensal({ funcionario, podeConfirmar }) {
 
             {podeConfirmar && (
               <div className={estilosPagamentos.rodapeSelecao}>
-                <span>{extrasSelecionadosLista.length > 0 ? `${extrasSelecionadosLista.length} extra(s) selecionado(s)` : ''}</span>
+                <span>
+                  {extrasSelecionadosLista.length > 0 ? `${extrasSelecionadosLista.length} extra(s) selecionado(s)` : ''}
+                  {faltamValores > 0 && <span className={estilosPagamentos.prevista}> · falta informar {faltamValores} valor(es)</span>}
+                </span>
                 <Button disabled={!podeIncluir} onClick={() => setModalAberto(true)}>
                   Incluir pagamento
                 </Button>
@@ -276,6 +413,8 @@ function FuncionarioMensal({ funcionario, podeConfirmar }) {
           competencia={competencia}
           resumo={resumo}
           extras={extrasSelecionadosLista}
+          digitados={sel.digitados}
+          suporteValorManual={suporteValorManual}
           onFechar={() => setModalAberto(false)}
           onConfirmado={aoConfirmarPagamento}
         />
@@ -286,7 +425,9 @@ function FuncionarioMensal({ funcionario, podeConfirmar }) {
 
 export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onIrParaConfiguracoes }) {
   const [situacao, setSituacao] = useState({ formaAtual: new Map(), comPorHora: new Set() });
+  const [historico, setHistorico] = useState({ disponivel: false, jornadas: [] });
   const [carregando, setCarregando] = useState(true);
+  const [recarregarHistorico, setRecarregarHistorico] = useState(0);
 
   useEffect(() => {
     let ativo = true;
@@ -301,6 +442,30 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
       ativo = false;
     };
   }, [funcionarios]);
+
+  useEffect(() => {
+    let ativo = true;
+    buscarPendenciasHistoricas().then((dados) => {
+      if (ativo) setHistorico(dados);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [recarregarHistorico]);
+
+  // Agrupa por pessoa (a RPC já vem ordenada por nome/data). Inclui quem
+  // não tem forma de remuneração cadastrada.
+  const historicoPorPessoa = useMemo(() => {
+    const mapa = new Map();
+    for (const j of historico.jornadas) {
+      if (!mapa.has(j.funcionario_id)) {
+        mapa.set(j.funcionario_id, { funcionario: { id: j.funcionario_id, nome: j.funcionario_nome, tipo_vinculo: j.tipo_vinculo }, jornadas: [] });
+      }
+      mapa.get(j.funcionario_id).jornadas.push(j);
+    }
+    return Array.from(mapa.values());
+  }, [historico]);
+  const dataCorte = historico.jornadas[0]?.data_corte || null;
 
   const grupos = useMemo(() => agruparPorForma(funcionarios, situacao.formaAtual, situacao.comPorHora), [funcionarios, situacao]);
 
@@ -338,6 +503,27 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
           </div>
         )}
       </section>
+
+      {historico.disponivel && historicoPorPessoa.length > 0 && (
+        <section>
+          <h3 className={estilosPagamentos.tituloSecao}>Regularização histórica</h3>
+          <p className={estilosPagamentos.prevista}>
+            Jornadas da Escala anteriores a {dataCorte ? formatarDataCurta(dataCorte) + '/' + dataCorte.slice(0, 4) : 'início do valor/hora'} (antes do primeiro valor/hora
+            cadastrado). Não há valor calculado: informe o valor a pagar de cada jornada. Não altera forma de remuneração nem saldo mensal.
+          </p>
+          <div className={estilosPagamentos.listaCards}>
+            {historicoPorPessoa.map(({ funcionario, jornadas }) => (
+              <FuncionarioHistorico
+                key={funcionario.id}
+                funcionario={funcionario}
+                jornadas={jornadas}
+                podeConfirmar={podeConfirmar}
+                onRegistrado={() => setRecarregarHistorico((n) => n + 1)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <h3 className={estilosPagamentos.tituloSecao}>Mensal</h3>

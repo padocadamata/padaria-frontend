@@ -6,7 +6,7 @@ import Button from '../ui/Button';
 import Field from '../ui/Field';
 import Textarea from '../ui/Textarea';
 import { formatarHora } from '../../lib/funcionarios/escala';
-import { buscarDetalhePagamento, cancelarPagamento, formatarMoeda, formatarCompetencia } from '../../lib/funcionarios/pagamentos';
+import { buscarDetalhePagamento, cancelarPagamento, formatarMoeda, formatarCompetencia, rotuloNaturezaPagamento } from '../../lib/funcionarios/pagamentos';
 import { rotuloTipoLancamento } from '../../lib/funcionarios/pagamentosCalculo';
 import { rotuloVinculo } from '../../lib/funcionarios/vinculo';
 import estilosEscala from './escala.module.css';
@@ -76,7 +76,7 @@ export default function PagamentoDetalheModal({ pagamento, podeCancelar, onFecha
           <dt>Vínculo (na época)</dt>
           <dd>{rotuloVinculo(pagamento.tipo_vinculo_snapshot)}</dd>
           <dt>Forma de remuneração</dt>
-          <dd>{mensal ? 'Mensal' : 'Por hora'}</dd>
+          <dd>{rotuloNaturezaPagamento(pagamento.natureza)}</dd>
           {mensal && (
             <>
               <dt>Competência</dt>
@@ -106,9 +106,24 @@ export default function PagamentoDetalheModal({ pagamento, podeCancelar, onFecha
                 <h4>{mensal ? 'Extras remunerados' : 'Jornadas'}</h4>
                 <ul className={estilosPagamentos.listaJornadas}>
                   {detalhe.itens.map((item) => (
-                    <li key={item.id}>
-                      {formatarDataExibicao(item.data)} {formatarHora(item.hora_inicio)}–{formatarHora(item.hora_fim)} ({item.duracao_minutos}min × {formatarMoeda(item.valor_hora_aplicado)}/h)
-                      {item.natureza_financeira === 'extra_remunerado' && !mensal ? ' · extra' : ''} — {formatarMoeda(item.valor)}
+                    <li key={item.id} className={estilosPagamentos.itemConferencia}>
+                      <span>
+                        {formatarDataExibicao(item.data)} {formatarHora(item.hora_inicio)}–{formatarHora(item.hora_fim)} ({item.duracao_minutos}min
+                        {item.valor_hora_aplicado !== null ? ` × ${formatarMoeda(item.valor_hora_aplicado)}/h` : ', sem valor/hora vigente'})
+                        {item.natureza_financeira === 'extra_remunerado' && !mensal ? ' · extra' : ''} — <strong>{formatarMoeda(item.valor)}</strong>{' '}
+                        {item.origem_valor === 'regularizacao_historica' ? (
+                          <Badge tom="warning">regularização histórica</Badge>
+                        ) : (
+                          (item.origem_valor === 'manual' || (!item.origem_valor && item.valor_manual)) && <Badge tom="info">ajuste manual</Badge>
+                        )}
+                      </span>
+                      {item.valor_manual && (
+                        <span className={estilosPagamentos.prevista}>
+                          Calculado: {item.valor_calculado !== null && item.valor_calculado !== undefined ? formatarMoeda(item.valor_calculado) : 'não disponível'} · pago:{' '}
+                          {formatarMoeda(item.valor)}
+                          {item.observacao_ajuste ? ` · ${item.observacao_ajuste}` : ''}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>

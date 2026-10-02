@@ -6,31 +6,50 @@ import Field from '../ui/Field';
 import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import EditorDescontos from './EditorDescontos';
-import { formatarDataCurta, formatarHora } from '../../lib/funcionarios/escala';
-import { formatarMoeda, criarPagamentoPorHora } from '../../lib/funcionarios/pagamentos';
-import { normalizarDescontos, resumirValores, somarValores, chaveJornada } from '../../lib/funcionarios/pagamentosCalculo';
+import ItensComAjuste from './ItensComAjuste';
+import { formatarMoeda, criarPagamentoPorHora, criarPagamentoRegularizacaoHistorica } from '../../lib/funcionarios/pagamentos';
+import { normalizarDescontos, resumirValores, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068 } from '../../lib/funcionarios/pagamentosCalculo';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
 
-// Confirma atomicamente 1 pagamento natureza=por_hora (migration 0066) --
-// não existe rascunho persistido; este modal só monta o payload e a RPC
-// folha_criar_pagamento_por_hora grava cabeçalho + jornadas + descontos
-// numa única transação, recalculando tudo no banco.
-export default function PagamentoPorHoraModal({ funcionario, jornadas, onFechar, onConfirmado }) {
+// Confirma atomicamente 1 pagamento natureza=por_hora (migrations 0066/
+// 0068) -- não existe rascunho persistido; a RPC grava cabeçalho + jornadas
+// + descontos numa única transação e recalcula tudo. Cada jornada vai com
+// o valor automático, ou com o "Valor a pagar" informado (ajuste manual,
+// só daquela jornada -- nunca o valor/hora global).
+// modo="historico" (migration 0068): mesma conferência, mas grava uma
+// REGULARIZAÇÃO HISTÓRICA (valor manual obrigatório em todas as jornadas,
+// sem valor/hora, sem forma de remuneração).
+export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados = {}, suporteValorManual = true, modo = 'por_hora', onFechar, onConfirmado }) {
+  const historico = modo === 'historico';
   const [descontos, setDescontos] = useState([]);
+  const [observacoesAjuste, setObservacoesAjuste] = useState({});
   const [dataEfetiva, setDataEfetiva] = useState(dataLocalHoje());
   const [observacao, setObservacao] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
   const { payload: descontosPayload, erros: errosDescontos } = normalizarDescontos(descontos);
-  const valores = resumirValores(somarValores(jornadas), descontosPayload);
+  const valores = resumirValores(somarValoresAPagar(jornadas, digitados), descontosPayload);
 
   async function confirmar() {
     setErro('');
     if (jornadas.length === 0) {
       setErro('Selecione ao menos 1 jornada.');
+      return;
+    }
+    const { payload: itensPayload, erros: errosItens } = montarItensPayload(jornadas, digitados, observacoesAjuste);
+    if (errosItens.length > 0) {
+      setErro(errosItens.join(' '));
+      return;
+    }
+    if (historico && itensPayload.some((linha) => !Object.prototype.hasOwnProperty.call(linha, 'valor'))) {
+      setErro('Informe o valor a pagar de todas as jornadas da regularização histórica.');
+      return;
+    }
+    if (!historico && !suporteValorManual && payloadExigeValorManual(itensPayload)) {
+      setErro(MENSAGEM_SEM_0068);
       return;
     }
     if (errosDescontos.length > 0) {
@@ -47,9 +66,10 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, onFechar,
     }
 
     setSalvando(true);
-    const { id, erro: erroRpc } = await criarPagamentoPorHora({
+    const criar = historico ? criarPagamentoRegularizacaoHistorica : criarPagamentoPorHora;
+    const { id, erro: erroRpc } = await criar({
       funcionarioId: funcionario.id,
-      jornadas: jornadas.map((j) => ({ data: j.data, hora_inicio: j.hora_inicio, hora_fim: j.hora_fim })),
+      jornadas: itensPayload,
       descontos: descontosPayload,
       dataEfetiva,
       observacao,
@@ -64,15 +84,12 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, onFechar,
   }
 
   return (
-    <Modal titulo={`Pagamento por hora — ${funcionario.nome}`} onFechar={salvando ? undefined : onFechar} largura="md">
+    <Modal titulo={`${historico ? 'Regularização histórica' : 'Pagamento por hora'} — ${funcionario.nome}`} onFechar={salvando ? undefined : onFechar} largura="md">
       <div className={estilosEscala.modalCorpo}>
-        <ul className={estilosPagamentos.listaJornadas}>
-          {jornadas.map((j) => (
-            <li key={chaveJornada(j)}>
-              {formatarDataCurta(j.data)} {formatarHora(j.hora_inicio)}–{formatarHora(j.hora_fim)} ({j.duracao_minutos}min × {formatarMoeda(j.valor_hora_aplicado)}/h) — {formatarMoeda(j.valor)}
-            </li>
-          ))}
-        </ul>
+        {historico && (
+          <p className={estilosPagamentos.prevista}>Registro financeiro manual de jornadas anteriores ao primeiro valor/hora. Não define forma de remuneração.</p>
+        )}
+        <ItensComAjuste itens={jornadas} digitados={digitados} observacoes={observacoesAjuste} onObservacao={setObservacoesAjuste} historico={historico} />
 
         <div className={estilosPagamentos.resumoLinha}>
           <strong>Bruto</strong>

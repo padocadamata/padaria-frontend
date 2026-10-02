@@ -7,9 +7,9 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
 import EditorDescontos from './EditorDescontos';
-import { formatarDataCurta, formatarHora } from '../../lib/funcionarios/escala';
+import ItensComAjuste from './ItensComAjuste';
 import { formatarMoeda, formatarCompetencia, criarPagamentoMensal } from '../../lib/funcionarios/pagamentos';
-import { TIPOS_LANCAMENTO_MENSAL, normalizarDescontos, resumirValores, somarValores, chaveJornada, valorBaseDoLancamento, integralPermitido } from '../../lib/funcionarios/pagamentosCalculo';
+import { TIPOS_LANCAMENTO_MENSAL, normalizarDescontos, resumirValores, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068, valorBaseDoLancamento, integralPermitido } from '../../lib/funcionarios/pagamentosCalculo';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
@@ -20,7 +20,11 @@ import estilosPagamentos from './pagamentos.module.css';
 // benefício Adiantamento Salarial) + quanto da base este pagamento quita
 // (0..saldo; o banco recusa acima do saldo). A sugestão de desconto por
 // falta NUNCA entra sozinha: só por botão explícito, e continua editável.
-export default function PagamentoMensalModal({ funcionario, competencia, resumo, extras, onFechar, onConfirmado }) {
+export default function PagamentoMensalModal({ funcionario, competencia, resumo, extras, digitados = {}, suporteValorManual = true, onFechar, onConfirmado }) {
+  // Extras: valor automático (duração × valor/hora) ou "Valor a pagar"
+  // informado na tela anterior (migration 0068). A base mensal nunca é
+  // calculada por jornada.
+  const [observacoesAjuste, setObservacoesAjuste] = useState({});
   const saldo = Number(resumo.saldo_base || 0);
   const primeiroDaCompetencia = Number(resumo.pagamentos_ativos_qtd || 0) === 0;
   // Integral = quitar TODO o saldo-base pendente da competência (regra
@@ -41,7 +45,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
   const valorBaseCalculado = valorBaseDoLancamento({ tipo: tipoLancamento, digitado: valorBaseDigitado, saldo });
   const valorBaseNumero = valorBaseCalculado ?? NaN;
   const valorBaseValido = valorBaseCalculado !== null && valorBaseCalculado >= 0;
-  const valorExtras = somarValores(extras);
+  const valorExtras = somarValoresAPagar(extras, digitados);
   const { payload: descontosPayload, erros: errosDescontos } = normalizarDescontos(descontos);
   const valores = resumirValores((valorBaseValido ? valorBaseNumero : 0) + valorExtras, descontosPayload);
   const sugestaoJaIncluida = descontos.some((d) => d.origem === 'sugestao_falta');
@@ -75,6 +79,15 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
       setErro(`O valor da base não pode passar do saldo da competência (${formatarMoeda(saldo)}).`);
       return;
     }
+    const { payload: extrasPayload, erros: errosExtras } = montarItensPayload(extras, digitados, observacoesAjuste);
+    if (errosExtras.length > 0) {
+      setErro(errosExtras.join(' '));
+      return;
+    }
+    if (!suporteValorManual && payloadExigeValorManual(extrasPayload)) {
+      setErro(MENSAGEM_SEM_0068);
+      return;
+    }
     if (valores.bruto <= 0) {
       setErro('Informe um valor de base maior que zero ou selecione ao menos um extra.');
       return;
@@ -98,7 +111,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
       competencia,
       tipoLancamento,
       valorBase: Math.round(valorBaseNumero * 100) / 100,
-      extras: extras.map((e) => ({ data: e.data, hora_inicio: e.hora_inicio, hora_fim: e.hora_fim })),
+      extras: extrasPayload,
       descontos: descontosPayload,
       dataEfetiva,
       observacao,
@@ -154,15 +167,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
           />
         </Field>
 
-        {extras.length > 0 && (
-          <ul className={estilosPagamentos.listaJornadas}>
-            {extras.map((e) => (
-              <li key={chaveJornada(e)}>
-                Extra: {formatarDataCurta(e.data)} {formatarHora(e.hora_inicio)}–{formatarHora(e.hora_fim)} ({e.duracao_minutos}min × {formatarMoeda(e.valor_hora_aplicado)}/h) — {formatarMoeda(e.valor)}
-              </li>
-            ))}
-          </ul>
-        )}
+        {extras.length > 0 && <ItensComAjuste itens={extras} digitados={digitados} observacoes={observacoesAjuste} onObservacao={setObservacoesAjuste} prefixo="Extra: " />}
 
         <div className={estilosPagamentos.resumoLinha}>
           <strong>Bruto</strong>
