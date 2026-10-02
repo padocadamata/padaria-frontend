@@ -47,6 +47,9 @@ function DashboardConteudo() {
   // Agenda de hoje: mesma exigência da página /agenda (agenda.visualizar). Aniversários dentro
   // dela seguem o gate da Agenda: só com funcionarios.visualizar também.
   const podeVerAgenda = hasPermissao(permissoes, PERMISSOES.AGENDA_VISUALIZAR);
+  // Encomendas (migration 0071) e o lembrete de 1 dia antes entram no MESMO
+  // card, só para quem também tem encomendas.visualizar.
+  const podeVerEncomendas = hasPermissao(permissoes, PERMISSOES.ENCOMENDAS_VISUALIZAR);
 
   // Atalhos = os mesmos módulos que a navegação já mostra a este usuário
   // (exceto o próprio Dashboard).
@@ -78,7 +81,7 @@ function DashboardConteudo() {
       )}
 
       <div className={styles.grade}>
-        {podeVerAgenda && <AgendaDeHoje incluirAniversarios={podeVerFuncionarios} />}
+        {podeVerAgenda && <AgendaDeHoje incluirAniversarios={podeVerFuncionarios} incluirEncomendas={podeVerEncomendas} />}
         {podeVerProducao && <AtencaoProducao />}
         {podeVerPedidos && <RecebimentosPrevistos />}
         <LembretesRapidos />

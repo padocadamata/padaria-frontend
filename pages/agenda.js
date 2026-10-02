@@ -8,6 +8,7 @@ import AgendaItemDetalheModal from '../components/agenda/AgendaItemDetalheModal'
 import GerenciarCategoriasAgendaModal from '../components/agenda/GerenciarCategoriasAgendaModal';
 import ConcluirTarefaModal from '../components/agenda/ConcluirTarefaModal';
 import AniversarioOcorrenciaModal from '../components/agenda/AniversarioOcorrenciaModal';
+import EncomendaOcorrenciaModal from '../components/agenda/EncomendaOcorrenciaModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
 import PageShell from '../components/shell/PageShell';
 import PageHeader from '../components/ui/PageHeader';
@@ -19,6 +20,8 @@ import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
 import { buscarItensDaAgenda, buscarNascimentosParaAgenda } from '../lib/agenda/consultasAgenda';
 import { itemAgendaAniversario } from '../lib/funcionarios/aniversarios';
+import { carregarEncomendas } from '../lib/encomendas/encomendas';
+import { itensAgendaEncomendas } from '../lib/encomendas/agenda';
 import estilos from '../components/agenda/agenda.module.css';
 
 // FullCalendar manipula o DOM diretamente -- client-only, sem SSR
@@ -40,6 +43,10 @@ function AgendaConteudo() {
   // aqui (RLS de public.funcionarios bloquearia de qualquer forma, mas
   // o gate aqui evita até tentar e mostrar um estado de erro confuso).
   const podeVerFuncionarios = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_VISUALIZAR);
+  // Encomendas (migration 0071): mesma integração ADITIVA dos aniversários
+  // -- projeção de public.encomendas (lib/encomendas/agenda.js), nunca
+  // gravada em agenda_itens; só consultada por quem tem encomendas.visualizar.
+  const podeVerEncomendas = hasPermissao(permissoes, PERMISSOES.ENCOMENDAS_VISUALIZAR);
 
   const [visao, setVisao] = useState('dayGridMonth');
   const [janela, setJanela] = useState(null); // { inicio, fim }
@@ -60,6 +67,9 @@ function AgendaConteudo() {
   const [erroReabertura, setErroReabertura] = useState('');
   const [funcionariosNascimento, setFuncionariosNascimento] = useState([]);
   const [aniversarioDetalhe, setAniversarioDetalhe] = useState(null);
+  const [encomendas, setEncomendas] = useState([]);
+  const [erroEncomendas, setErroEncomendas] = useState('');
+  const [encomendaDetalhe, setEncomendaDetalhe] = useState(null);
 
   useEffect(() => {
     let ativo = true;
@@ -117,6 +127,29 @@ function AgendaConteudo() {
     [funcionariosNascimento]
   );
 
+  // Encomendas da MESMA janela visível, pela mesma RPC da tela de
+  // Encomendas (listar_encomendas). Recarrega junto com a Agenda.
+  useEffect(() => {
+    if (!janela || !podeVerEncomendas) {
+      setEncomendas([]);
+      setErroEncomendas('');
+      return undefined;
+    }
+    let ativo = true;
+    async function carregar() {
+      const r = await carregarEncomendas(janela.inicio, janela.fim);
+      if (!ativo) return;
+      setEncomendas(r.encomendas);
+      setErroEncomendas(r.erro ? 'Não foi possível carregar as encomendas nesta Agenda.' : '');
+    }
+    carregar();
+    return () => {
+      ativo = false;
+    };
+  }, [janela, recarregarTick, podeVerEncomendas]);
+
+  const itensEncomenda = useMemo(() => itensAgendaEncomendas(encomendas), [encomendas]);
+
   // Consulta por janela (seção 22/6 da arquitetura aprovada): nunca
   // busca "todas as ocorrências futuras" nem superbusca avulsos antigos
   // indefinidamente. 3 consultas em paralelo, cada uma com o filtro
@@ -170,7 +203,7 @@ function AgendaConteudo() {
     // anual já usada por qualquer evento/tarefa recorrente real, sem
     // nenhuma lógica de data duplicada.
     const todas = expandirRecorrencia({
-      itens: [...itens, ...itensAniversario],
+      itens: [...itens, ...itensAniversario, ...itensEncomenda],
       excecoes,
       inicioJanela: janela.inicio,
       fimJanela: janela.fim,
@@ -182,7 +215,7 @@ function AgendaConteudo() {
       if (filtro.status === 'concluida' && !oc.concluida) return false;
       return true;
     });
-  }, [itens, itensAniversario, excecoes, janela, filtro]);
+  }, [itens, itensAniversario, itensEncomenda, excecoes, janela, filtro]);
 
   const onMudarJanela = useCallback((inicio, fim) => {
     setJanela((atual) => (atual && atual.inicio === inicio && atual.fim === fim ? atual : { inicio, fim }));
@@ -277,6 +310,7 @@ function AgendaConteudo() {
       <AgendaFiltros categorias={categorias} filtro={filtro} onMudarFiltro={setFiltro} />
 
       {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+      {erroEncomendas && <Alert tom="warning" className={estilos.mensagem}>{erroEncomendas}</Alert>}
 
       <div className={estilos.superficieCalendario}>
         {carregando && <p className={estilos.carregandoCalendario} role="status">Carregando...</p>}
@@ -284,7 +318,9 @@ function AgendaConteudo() {
           visao={visao}
           ocorrencias={ocorrencias}
           onMudarJanela={onMudarJanela}
-          onClicarOcorrencia={(oc) => (oc.item.tipo === 'aniversario' ? setAniversarioDetalhe(oc) : setOcorrenciaDetalhe(oc))}
+          onClicarOcorrencia={(oc) =>
+            oc.item.tipo === 'aniversario' ? setAniversarioDetalhe(oc) : oc.item.tipo === 'encomenda' ? setEncomendaDetalhe(oc) : setOcorrenciaDetalhe(oc)
+          }
           onClicarData={(data) => {
             if (podeInserir) setModalForm({ modo: 'criar', dataInicialSugerida: data });
           }}
@@ -335,6 +371,8 @@ function AgendaConteudo() {
       {aniversarioDetalhe && (
         <AniversarioOcorrenciaModal ocorrencia={aniversarioDetalhe} onFechar={() => setAniversarioDetalhe(null)} />
       )}
+
+      {encomendaDetalhe && <EncomendaOcorrenciaModal ocorrencia={encomendaDetalhe} onFechar={() => setEncomendaDetalhe(null)} />}
 
       {ocorrenciaParaConcluir && (
         <ConcluirTarefaModal

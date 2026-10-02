@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import RequireAuth from '../components/RequireAuth';
 import ClienteModal from '../components/clientes/ClienteModal';
+import ClientesSubNav from '../components/clientes/ClientesSubNav';
 import PageShell from '../components/shell/PageShell';
 import PageHeader from '../components/ui/PageHeader';
 import Alert from '../components/ui/Alert';
@@ -141,6 +142,7 @@ function ClientesConteudo() {
 
   return (
     <PageShell titulo="Clientes">
+      <ClientesSubNav ativo="clientes" />
       <PageHeader
         titulo="Clientes"
         acoes={

@@ -1,0 +1,113 @@
+/* Encomendas (migration 0071). Reaproveita components/clientes/clientes.module.css
+   (superfície, seletor, resultados, rodapé); aqui só o que é próprio da encomenda. */
+
+.linhaCampos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+@media (max-width: 640px) {
+  .linhaCampos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.clienteEscolhido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-muted, var(--ds-surface));
+}
+
+.cadastroRapido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-3);
+  border: 1px dashed var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.dica {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.aviso {
+  margin: 0;
+  color: var(--ds-danger, #b42318);
+  font-size: var(--ds-fs-label);
+}
+
+.itens {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemCabecalho {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.itemNome {
+  flex: 1;
+  font-weight: var(--ds-fw-semibold);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemCampos {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--ds-sp-2);
+}
+
+@media (max-width: 640px) {
+  .itemCampos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.itemQuantidade,
+.itemComentario {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.itensCelula {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comentarioCelula {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.dataCelula {
+  white-space: nowrap;
+}

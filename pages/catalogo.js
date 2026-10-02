@@ -162,7 +162,10 @@ function mensagemErroExclusaoProduto(error) {
   if (!error) return '';
   const msg = error.message || '';
 
-  if (msg.includes('ja possui utilizacao no sistema')) {
+  // 23001/23503: o banco recusou por chave estrangeira (ex.: produto usado em
+  // encomenda, migration 0071 -- encomendas_itens.produto_id ON DELETE
+  // RESTRICT). Mesmo significado da checagem explícita da RPC.
+  if (msg.includes('ja possui utilizacao no sistema') || error.code === '23001' || error.code === '23503') {
     return 'Este produto já possui utilização no sistema e não pode ser excluído. Se ele não for mais utilizado, deixe-o como Inativo.';
   }
   if (msg.includes('requer a permissao catalogo_produtos.excluir')) {

@@ -23,6 +23,9 @@ const CORES_CATEGORIA = {
   // -- nunca existe em agenda_categorias, é só para colorir/identificar
   // visualmente estes cards na grade.
   ANIVERSARIO: '#E91E63',
+  // Idem para encomendas de clientes (lib/encomendas/agenda.js, migration
+  // 0071) -- projeção de public.encomendas, nunca uma categoria real.
+  ENCOMENDA: '#7B1FA2',
 };
 
 function somarUmDia(dataYYYYMMDD) {

@@ -1,16 +1,18 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
-import { dataLocalHoje } from '../../lib/data/dataLocal';
+import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { buscarItensDaAgenda, buscarNascimentosParaAgenda } from '../../lib/agenda/consultasAgenda';
 import { ocorrenciasDoDia, resumirAgendaDoDia } from '../../lib/agenda/resumoDoDia';
+import { carregarEncomendas } from '../../lib/encomendas/encomendas';
+import { itensDashboardEncomendas } from '../../lib/encomendas/agenda';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
 import { cx } from '../../lib/design/cx';
 import styles from './dashboard.module.css';
 
-const ICONE_POR_TIPO = { aniversario: 'gift', evento: 'calendar', tarefa: 'check' };
+const ICONE_POR_TIPO = { aniversario: 'gift', evento: 'calendar', tarefa: 'check', encomenda: 'clipboard', lembrete_encomenda: 'note' };
 
 // Resumo do DIA ATUAL (America/Sao_Paulo) da Agenda: mesmas consultas
 // (lib/agenda/consultasAgenda.js), mesma expansão de recorrência e mesma
@@ -19,10 +21,16 @@ const ICONE_POR_TIPO = { aniversario: 'gift', evento: 'calendar', tarefa: 'check
 // Permissões (o gate é da página): só é renderizado para quem tem
 // agenda.visualizar. Aniversários só entram (e a consulta de funcionários só
 // dispara) para quem também tem funcionarios.visualizar -- `incluirAniversarios`.
-export default function AgendaDeHoje({ incluirAniversarios }) {
+// Encomendas (migration 0071) só entram para quem tem encomendas.visualizar
+// -- `incluirEncomendas`: as de HOJE como compromisso e, pela regra padrão
+// do módulo, as PENDENTES de AMANHÃ como lembrete (lib/encomendas/agenda.js).
+// Projeção da mesma RPC da tela de Encomendas -- nada gravado.
+export default function AgendaDeHoje({ incluirAniversarios, incluirEncomendas = false }) {
   const [itens, setItens] = useState([]);
   const [excecoes, setExcecoes] = useState([]);
   const [nascimentos, setNascimentos] = useState([]);
+  const [encomendas, setEncomendas] = useState([]);
+  const [erroEncomendas, setErroEncomendas] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -35,9 +43,10 @@ export default function AgendaDeHoje({ incluirAniversarios }) {
       setCarregando(true);
       const supabase = createClient();
 
-      const [agenda, funcionarios] = await Promise.all([
+      const [agenda, funcionarios, resultadoEncomendas] = await Promise.all([
         buscarItensDaAgenda(supabase, { inicio: hoje, fim: hoje }, { continuar: () => efeitoAtivo }),
         incluirAniversarios ? buscarNascimentosParaAgenda(supabase) : Promise.resolve({ data: [], error: null }),
+        incluirEncomendas ? carregarEncomendas(hoje, somarDias(hoje, 1), supabase) : Promise.resolve({ encomendas: [], erro: '' }),
       ]);
 
       if (!efeitoAtivo || agenda.cancelado) return;
@@ -52,6 +61,9 @@ export default function AgendaDeHoje({ incluirAniversarios }) {
       setItens(agenda.itens);
       setExcecoes(agenda.excecoes);
       setNascimentos(funcionarios.data || []);
+      // Falha só das encomendas não esconde o resto da agenda do dia.
+      setEncomendas(resultadoEncomendas.encomendas);
+      setErroEncomendas(resultadoEncomendas.erro ? 'Não foi possível carregar as encomendas de hoje/amanhã.' : '');
       setErro('');
       setCarregando(false);
     }
@@ -60,14 +72,20 @@ export default function AgendaDeHoje({ incluirAniversarios }) {
     return () => {
       efeitoAtivo = false;
     };
-  }, [hoje, incluirAniversarios]);
+  }, [hoje, incluirAniversarios, incluirEncomendas]);
 
   const resumo = useMemo(
     () =>
       resumirAgendaDoDia(
-        ocorrenciasDoDia({ itens, excecoes, funcionariosNascimento: incluirAniversarios ? nascimentos : [], dia: hoje })
+        ocorrenciasDoDia({
+          itens,
+          excecoes,
+          funcionariosNascimento: incluirAniversarios ? nascimentos : [],
+          itensAdicionais: incluirEncomendas ? itensDashboardEncomendas(encomendas, hoje) : [],
+          dia: hoje,
+        })
       ),
-    [itens, excecoes, nascimentos, incluirAniversarios, hoje]
+    [itens, excecoes, nascimentos, encomendas, incluirAniversarios, incluirEncomendas, hoje]
   );
 
   return (
@@ -109,6 +127,7 @@ export default function AgendaDeHoje({ incluirAniversarios }) {
           )}
         </>
       )}
+      {!erro && !carregando && erroEncomendas && <p className={styles.erro}>{erroEncomendas}</p>}
     </Card>
   );
 }

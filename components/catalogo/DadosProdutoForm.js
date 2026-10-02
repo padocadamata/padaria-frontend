@@ -41,6 +41,9 @@ function estadoInicial(produto) {
     // Migration 0069 (Clientes): produto novo nasce NÃO disponível -- o
     // administrador marca quando fizer sentido (mesmo DEFAULT false do banco).
     disponivel_interesse_cliente: produto ? !!produto.disponivel_interesse_cliente : false,
+    // Migration 0071 (Encomendas): mesmo princípio -- produto novo nasce NÃO
+    // encomendável (DEFAULT false do banco).
+    disponivel_encomenda: produto ? !!produto.disponivel_encomenda : false,
   };
 }
 
@@ -72,6 +75,9 @@ export function montarPayload(dados) {
     // não apaga interesses, não mexe em receita, estoque, Produção ou
     // Pedidos.
     ...(typeof dados.disponivel_interesse_cliente === 'boolean' ? { disponivel_interesse_cliente: dados.disponivel_interesse_cliente } : {}),
+    // Idem para encomendas: só controla se o produto pode entrar em NOVOS
+    // itens de encomenda -- não altera encomendas já registradas.
+    ...(typeof dados.disponivel_encomenda === 'boolean' ? { disponivel_encomenda: dados.disponivel_encomenda } : {}),
   };
 }
 
@@ -417,6 +423,7 @@ export default function DadosProdutoForm({ produto, podeEditar, onCriado, onSalv
         <CampoLeitura rotulo="Unidade-base" valor={produto.unidade_medida} />
         <CampoLeitura rotulo="Status" valor={produto.ativo ? 'Ativo' : 'Inativo'} />
         <CampoLeitura rotulo="Disponível para interesse de clientes" valor={produto.disponivel_interesse_cliente ? 'Sim' : 'Não'} />
+        <CampoLeitura rotulo="Disponível para encomenda" valor={produto.disponivel_encomenda ? 'Sim' : 'Não'} />
         <CampoLeitura
           rotulo="Produto de Produção"
           valor={producaoEstado.carregado ? (producaoEstado.ativo ? 'Sim' : 'Não') : 'Carregando...'}
@@ -520,6 +527,17 @@ export default function DadosProdutoForm({ produto, podeEditar, onCriado, onSalv
           rotulo="Disponível para interesse de clientes"
           checked={dados.disponivel_interesse_cliente}
           onChange={(e) => setDados((atual) => ({ ...atual, disponivel_interesse_cliente: e.target.checked }))}
+        />
+      </div>
+
+      {/* Migration 0071 (Encomendas): só controla se o produto pode entrar em
+          NOVOS itens de encomenda. Desmarcar não altera encomendas já
+          registradas. Conceito independente do interesse de clientes. */}
+      <div className={estilos.secao}>
+        <Checkbox
+          rotulo="Disponível para encomenda"
+          checked={dados.disponivel_encomenda}
+          onChange={(e) => setDados((atual) => ({ ...atual, disponivel_encomenda: e.target.checked }))}
         />
       </div>
 
