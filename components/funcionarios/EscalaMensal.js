@@ -6,7 +6,7 @@ import {
   formatarDataCurta,
   obterEstadoDia,
 } from '../../lib/funcionarios/escala';
-import { LIMITE_MANHA_TARDE } from '../../lib/funcionarios/escalaConfig';
+import { classificarCelulaMensal as classificarCelula, faixasDoDia } from '../../lib/funcionarios/escalaFaixas';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { cx } from '../../lib/design/cx';
 import IndicadorVinculo from './IndicadorVinculo';
@@ -21,19 +21,6 @@ function ehFimDeSemana(data) {
   return dia === 0 || dia === 6;
 }
 
-// Classifica UMA célula funcionário×dia para o desenho de planejamento
-// macro (seção 2/3 da instrução aprovada) -- não é cálculo de cobertura
-// (isso continua só em lib/funcionarios/escalaCobertura.js); é só ler o
-// EstadoDia já carregado e decidir o que a célula mostra. "Não definido" e
-// "Folga" nunca se confundem (estado null vs. tipo_dia='folga' explícito).
-function classificarCelula(estado) {
-  if (!estado) return { tipo: 'nao_definido' };
-  if (estado.tipo === 'folga') return { tipo: 'folga' };
-  const manha = estado.periodos.some((p) => formatarHora(p.hora_inicio) < LIMITE_MANHA_TARDE);
-  const tarde = estado.periodos.some((p) => formatarHora(p.hora_fim) > LIMITE_MANHA_TARDE);
-  return { tipo: 'trabalho', manha, tarde, ocorrencia: estado.ocorrencia };
-}
-
 // Tooltip nativo (hover no desktop) com os horários REAIS -- o grid em si
 // fica compacto (seção 4: "não precisa mostrar todos os horários exatos
 // escritos permanentemente").
@@ -43,8 +30,7 @@ function tituloCelula(funcionario, data, estado) {
   if (!estado) return `${cabecalho}\nNão definido`;
   if (estado.tipo === 'folga') return `${cabecalho}\nFolga`;
 
-  const doManha = estado.periodos.filter((p) => formatarHora(p.hora_inicio) < LIMITE_MANHA_TARDE);
-  const doTarde = estado.periodos.filter((p) => formatarHora(p.hora_fim) > LIMITE_MANHA_TARDE);
+  const { periodosManha: doManha, periodosTarde: doTarde } = faixasDoDia(estado.periodos);
   const linhas = [
     cabecalho,
     '',
@@ -75,8 +61,14 @@ function CelulaMensal({ funcionario, data, estado, ehHoje, onAbrir }) {
   } else {
     conteudo = (
       <div className={estilos.celulaMensalTrabalho}>
-        <span className={info.manha ? estilos.faixaMTPreenchida : estilos.faixaMTVazia}>M</span>
-        <span className={info.tarde ? estilos.faixaMTPreenchida : estilos.faixaMTVazia}>T</span>
+        {/* Só as faixas realmente programadas são desenhadas (uma letra
+            ausente não aparece mais esmaecida). Trabalho sem horário dentro
+            das faixas mostra o 1º horário real, no estilo neutro. */}
+        {info.manha && <span className={estilos.faixaMTPreenchida}>M</span>}
+        {info.tarde && <span className={estilos.faixaMTPreenchida}>T</span>}
+        {!info.manha && !info.tarde && (
+          <span className={estilos.faixaMTVazia}>{info.periodos.length > 0 ? formatarHora(info.periodos[0].hora_inicio) : 'S/h'}</span>
+        )}
         {info.ocorrencia && (
           <span className={info.ocorrencia.tipo === 'falta' ? estilos.seloMensalFalta : estilos.seloMensalAtestado}>
             {info.ocorrencia.tipo === 'falta' ? 'F' : 'A'}
