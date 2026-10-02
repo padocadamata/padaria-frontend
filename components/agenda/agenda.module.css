@@ -248,8 +248,29 @@
 }
 
 .itemCategoriaNome {
-  flex: 1;
+  flex: 1 1 8rem;
+  min-width: 8rem;
   font-size: var(--ds-fs-body);
+  overflow-wrap: anywhere;
+}
+
+/* Status + uso + Renomear/Inativar: bloco que não quebra por dentro no
+   desktop (o nome é que quebra em várias linhas se for longo); em tela
+   estreita desce inteiro para baixo do nome. */
+.itemCategoriaControles {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .itemCategoriaControles {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
 }
 
 .itemCategoriaInativa {

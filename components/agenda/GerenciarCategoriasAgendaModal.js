@@ -219,7 +219,7 @@ export default function GerenciarCategoriasAgendaModal({ aberto, onFechar, categ
   if (!aberto) return null;
 
   return (
-    <Modal titulo="Gerenciar categorias" onFechar={onFechar} largura="sm">
+    <Modal titulo="Gerenciar categorias" onFechar={onFechar} largura="md">
       {carregandoUso && <p className={estilos.detalheMeta}>Carregando informações de uso...</p>}
 
       <ul className={estilos.listaCategorias}>
@@ -252,21 +252,26 @@ export default function GerenciarCategoriasAgendaModal({ aberto, onFechar, categ
                   <span className={cx(estilos.itemCategoriaNome, !item.ativo && estilos.itemCategoriaInativa)}>
                     {item.valor}
                   </span>
-                  <Badge tom={item.ativo ? 'success' : 'neutral'}>{item.ativo ? 'Ativa' : 'Inativa'}</Badge>
-                  {usoQtd > 0 && <span className={estilos.itemCategoriaUso}>{usoQtd} em uso</span>}
-                  {podeGerenciar && (
-                    <>
-                      <Button tamanho="sm" variante="secondary" onClick={() => iniciarEdicao(item)}>Renomear</Button>
-                      <Button
-                        tamanho="sm"
-                        variante="secondary"
-                        onClick={() => alternarAtivo(item)}
-                        disabled={alternandoAtivo === item.valor || carregandoUso}
-                      >
-                        {item.ativo ? 'Inativar' : 'Ativar'}
-                      </Button>
-                    </>
-                  )}
+                  {/* Status, uso e ações formam um bloco único: no desktop ficam na
+                      mesma linha do nome; em tela estreita o bloco desce inteiro
+                      para a linha de baixo, sem esmagar o nome. */}
+                  <span className={estilos.itemCategoriaControles}>
+                    <Badge tom={item.ativo ? 'success' : 'neutral'}>{item.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                    {usoQtd > 0 && <span className={estilos.itemCategoriaUso}>{usoQtd} em uso</span>}
+                    {podeGerenciar && (
+                      <>
+                        <Button tamanho="sm" variante="secondary" onClick={() => iniciarEdicao(item)}>Renomear</Button>
+                        <Button
+                          tamanho="sm"
+                          variante="secondary"
+                          onClick={() => alternarAtivo(item)}
+                          disabled={alternandoAtivo === item.valor || carregandoUso}
+                        >
+                          {item.ativo ? 'Inativar' : 'Ativar'}
+                        </Button>
+                      </>
+                    )}
+                  </span>
                 </>
               )}
             </li>
