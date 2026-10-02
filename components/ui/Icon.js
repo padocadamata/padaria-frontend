@@ -56,6 +56,16 @@ const CAMINHOS = {
       <path d="M16 14.6c2.8 0 5 1.7 5 4.4" />
     </>
   ),
+  // Clientes (migration 0069): cartão de contato.
+  contato: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2.2" />
+      <path d="M5.8 16.5c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4" />
+      <path d="M15 10h3.5" />
+      <path d="M15 13.5h3.5" />
+    </>
+  ),
   shield: (
     <>
       <path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3Z" />

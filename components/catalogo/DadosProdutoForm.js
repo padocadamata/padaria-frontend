@@ -38,6 +38,9 @@ function estadoInicial(produto) {
     categoria_id: produto?.categoria_id || '',
     unidade_medida: produto?.unidade_medida || '',
     ativo: produto ? !!produto.ativo : true,
+    // Migration 0069 (Clientes): produto novo nasce NÃO disponível -- o
+    // administrador marca quando fizer sentido (mesmo DEFAULT false do banco).
+    disponivel_interesse_cliente: produto ? !!produto.disponivel_interesse_cliente : false,
   };
 }
 
@@ -63,6 +66,12 @@ export function montarPayload(dados) {
     categoria_id: dados.categoria_id || null,
     unidade_medida: dados.unidade_medida.trim() || null,
     ativo: dados.ativo,
+    // Só entra no payload quando o formulário completo o informa (edição
+    // inline da listagem não tem esse campo e nunca o altera). Controla
+    // apenas se o produto pode receber NOVOS interesses de clientes --
+    // não apaga interesses, não mexe em receita, estoque, Produção ou
+    // Pedidos.
+    ...(typeof dados.disponivel_interesse_cliente === 'boolean' ? { disponivel_interesse_cliente: dados.disponivel_interesse_cliente } : {}),
   };
 }
 
@@ -407,6 +416,7 @@ export default function DadosProdutoForm({ produto, podeEditar, onCriado, onSalv
         <CampoLeitura rotulo="Categoria" valor={categoriaNome} />
         <CampoLeitura rotulo="Unidade-base" valor={produto.unidade_medida} />
         <CampoLeitura rotulo="Status" valor={produto.ativo ? 'Ativo' : 'Inativo'} />
+        <CampoLeitura rotulo="Disponível para interesse de clientes" valor={produto.disponivel_interesse_cliente ? 'Sim' : 'Não'} />
         <CampoLeitura
           rotulo="Produto de Produção"
           valor={producaoEstado.carregado ? (producaoEstado.ativo ? 'Sim' : 'Não') : 'Carregando...'}
@@ -501,6 +511,17 @@ export default function DadosProdutoForm({ produto, podeEditar, onCriado, onSalv
           />
         </div>
       )}
+
+      {/* Migration 0069 (Clientes): só controla se o produto pode receber
+          NOVOS interesses de clientes. Desmarcar não remove interesses já
+          cadastrados. */}
+      <div className={estilos.secao}>
+        <Checkbox
+          rotulo="Disponível para interesse de clientes"
+          checked={dados.disponivel_interesse_cliente}
+          onChange={(e) => setDados((atual) => ({ ...atual, disponivel_interesse_cliente: e.target.checked }))}
+        />
+      </div>
 
       {/* Produto de Produção: em edição, reflete o estado REAL (banco),
           ação imediata via RPC. Em criação, estado local até o INSERT

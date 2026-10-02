@@ -58,7 +58,7 @@ function ProdutoDetalheConteudo() {
 
       const { data: produtoRow, error: erroProduto } = await supabase
         .from('produtos')
-        .select('id, nome, codigo_g3, codigo_barras, secao_id, categoria_id, unidade_medida, ativo')
+        .select('id, nome, codigo_g3, codigo_barras, secao_id, categoria_id, unidade_medida, ativo, disponivel_interesse_cliente')
         .eq('id', id)
         .single();
 
