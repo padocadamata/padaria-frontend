@@ -8,9 +8,9 @@ import {
   cpfValido,
   UNIDADES_FEDERATIVAS,
   TIPOS_CHAVE_PIX,
-  formatarCnpj,
   normalizarChavePix,
   chavePixValida,
+  formatarChavePixExibicao,
 } from '../../lib/funcionarios/normalizacao';
 import Alert from '../ui/Alert';
 import Button from '../ui/Button';
@@ -32,17 +32,6 @@ const PLACEHOLDER_CHAVE_PIX = {
   email: 'nome@exemplo.com',
   aleatoria: '123e4567-e89b-12d3-a456-426614174000',
 };
-
-// Exibe a chave já salva formatada quando o tipo tem máscara conhecida
-// (cpf/cnpj, mesmo padrão já usado para o CPF principal do funcionário) --
-// os demais tipos (celular/email/aleatória) não têm máscara de exibição,
-// mostram o valor como veio do banco.
-function formatarChavePixExibicao(tipo, valor) {
-  if (!valor) return '';
-  if (tipo === 'cpf') return formatarCpf(valor);
-  if (tipo === 'cnpj') return formatarCnpj(valor);
-  return valor;
-}
 
 // Mesmo componente para /funcionarios/novo (funcionario=null) e para a
 // aba "Dados pessoais/profissionais" de /funcionarios/[id] (funcionario

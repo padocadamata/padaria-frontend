@@ -37,7 +37,7 @@ export default function Sidebar({ principais, admin, pathname, compacta }) {
       <li key={item.chave}>
         <div className={styles.linhaItem}>
           <Link
-            href={item.rota}
+            href={item.href || item.rota}
             className={cx(styles.link, ativo && styles.ativo)}
             aria-current={ativo ? (temSub ? 'true' : 'page') : undefined}
             aria-label={compacta ? item.rotulo : undefined}

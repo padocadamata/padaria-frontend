@@ -68,7 +68,7 @@ function DashboardConteudo() {
           <ul className={styles.atalhos}>
             {atalhos.map((modulo) => (
               <li key={modulo.chave}>
-                <Link href={modulo.rota} className={styles.atalho}>
+                <Link href={modulo.href || modulo.rota} className={styles.atalho}>
                   <span className={styles.atalhoIcone}>
                     <Icon nome={modulo.icone} tamanho={22} />
                   </span>

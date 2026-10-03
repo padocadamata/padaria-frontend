@@ -57,7 +57,7 @@ function MaisSheet({ pathname, maisModulos, maisAdmin, maisPerfil, usuario, onSa
     return (
       <li key={item.chave}>
         <Link
-          href={item.rota}
+          href={item.href || item.rota}
           className={cx(styles.sheetItem, ativo && styles.sheetItemAtivo)}
           aria-current={ativo ? 'page' : undefined}
           onClick={onFechar}
@@ -150,7 +150,7 @@ export default function BottomNav({ pathname, destinos, usuario, onSair }) {
             return (
               <li key={item.chave}>
                 <Link
-                  href={item.rota}
+                  href={item.href || item.rota}
                   className={cx(styles.bottomItem, ativo && styles.bottomAtivo)}
                   aria-current={ativo ? 'page' : undefined}
                 >

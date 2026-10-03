@@ -6,6 +6,7 @@ import ConfirmarAcaoModal from '../../components/admin/ConfirmarAcaoModal';
 import PageShell from '../../components/shell/PageShell';
 import PageHeader from '../../components/ui/PageHeader';
 import Alert from '../../components/ui/Alert';
+import AcoesLinha from '../../components/ui/AcoesLinha';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import DataTable from '../../components/ui/DataTable';
@@ -160,6 +161,43 @@ function EncomendasConteudo() {
     setRecarregar((n) => n + 1);
   }
 
+  // Ações por ícone (padrão AcoesLinha: tooltip + aria-label no desktop,
+  // botões com texto no cartão mobile). Mesmas regras de antes: editar só
+  // pendente (as demais abrem para leitura), concluir/cancelar só pendente,
+  // reabrir só concluída/cancelada; cancelar continua pedindo confirmação.
+  function acoesDaLinha(e) {
+    const pendente = e.status === 'pendente';
+    const editavel = podeEditar && pendente;
+    return [
+      { chave: 'abrir', rotulo: editavel ? 'Editar' : 'Ver', icone: editavel ? 'pencil' : 'eye', onClick: () => setModal({ encomenda: e }), primaria: true },
+      podeEditar && pendente && {
+        chave: 'concluir',
+        rotulo: 'Concluir',
+        icone: 'check',
+        desabilitado: processando,
+        onClick: () => mudarStatus(e, 'concluida', `Encomenda de ${e.cliente_nome} concluída.`),
+      },
+      podeEditar && pendente && {
+        chave: 'cancelar',
+        rotulo: 'Cancelar encomenda',
+        icone: 'close',
+        destrutivo: true,
+        desabilitado: processando,
+        onClick: () => {
+          setErroAcao('');
+          setCancelamento(e);
+        },
+      },
+      podeEditar && !pendente && {
+        chave: 'reabrir',
+        rotulo: 'Reabrir',
+        icone: 'undo',
+        desabilitado: processando,
+        onClick: () => mudarStatus(e, 'pendente', `Encomenda de ${e.cliente_nome} reaberta.`),
+      },
+    ].filter(Boolean);
+  }
+
   const colunas = [
     {
       chave: 'retirada',
@@ -259,42 +297,7 @@ function EncomendasConteudo() {
             chaveLinha={(e) => e.id}
             destaque={(e) => (e.status === 'cancelada' ? 'inativo' : e.status === 'pendente' && e.data_retirada < hoje ? 'aviso' : null)}
             cartoesAte={900}
-            renderAcoes={(e) => (
-              <>
-                <Button
-                  variante="secondary"
-                  tamanho="sm"
-                  icone={podeEditar && e.status === 'pendente' ? 'pencil' : 'eye'}
-                  onClick={() => setModal({ encomenda: e })}
-                >
-                  {podeEditar && e.status === 'pendente' ? 'Editar' : 'Ver'}
-                </Button>
-                {podeEditar && e.status === 'pendente' && (
-                  <>
-                    <Button variante="secondary" tamanho="sm" icone="check" disabled={processando} onClick={() => mudarStatus(e, 'concluida', `Encomenda de ${e.cliente_nome} concluída.`)}>
-                      Concluir
-                    </Button>
-                    <Button
-                      variante="secondary"
-                      tamanho="sm"
-                      icone="close"
-                      disabled={processando}
-                      onClick={() => {
-                        setErroAcao('');
-                        setCancelamento(e);
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  </>
-                )}
-                {podeEditar && e.status !== 'pendente' && (
-                  <Button variante="secondary" tamanho="sm" icone="undo" disabled={processando} onClick={() => mudarStatus(e, 'pendente', `Encomenda de ${e.cliente_nome} reaberta.`)}>
-                    Reabrir
-                  </Button>
-                )}
-              </>
-            )}
+            renderAcoes={(e, { cartao }) => <AcoesLinha acoes={acoesDaLinha(e)} cartao={cartao} />}
           />
           <p className={estilosClientes.resumo}>
             Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total} {paginacao.total === 1 ? 'encomenda' : 'encomendas'}

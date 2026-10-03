@@ -206,3 +206,255 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ------------------------------------------------------------------
+   Visão "A Pagar" em tabela contínua (Por hora / Mensal / Regularização):
+   um <tbody> por pessoa -- cabeçalho (nome, vínculo, PIX), linhas de
+   detalhe e linha de total. Em tela estreita a tabela rola na horizontal
+   (nenhuma coluna financeira é escondida).
+   ------------------------------------------------------------------ */
+.cabecalhoSecao {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--ds-sp-3);
+}
+
+.cabecalhoSecao .tituloSecao {
+  margin: 0;
+}
+
+.campoCompetencia {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.tabelaEnvolucro {
+  overflow-x: auto;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface);
+}
+
+.tabela {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  font-size: var(--ds-fs-body);
+}
+
+.tabela th {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  text-align: left;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+  border-bottom: 1px solid var(--ds-border);
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  vertical-align: middle;
+}
+
+.colSel {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.colData {
+  white-space: nowrap;
+}
+
+.tabela .colNum {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.somenteLeitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.blocoFuncionario + .blocoFuncionario .linhaFuncionario td {
+  border-top: 2px solid var(--ds-border-strong, var(--ds-border));
+}
+
+.linhaFuncionario td {
+  background-color: var(--ds-surface-muted);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+/* Cabeçalho do BLOCO da pessoa: composição própria (não segue as colunas
+   das jornadas) -- identificação | PIX | Total a pagar | resumo. */
+.cabecalhoBloco {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.6fr) minmax(12rem, 1.4fr) minmax(11rem, auto) minmax(9rem, auto);
+  align-items: center;
+  gap: var(--ds-sp-2) var(--ds-sp-5);
+}
+
+.rotuloTotalCabecalho {
+  color: var(--ds-text-muted);
+  font-weight: var(--ds-fw-regular, 400);
+}
+
+.resumoCabecalho {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .cabecalhoBloco {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+.identificacaoFuncionario {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+}
+
+.nomeFuncionario {
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.pix {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.pixAusente {
+  color: var(--ds-text-muted);
+  font-style: italic;
+  user-select: auto;
+}
+
+.linhaDetalhe td {
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.linhaForte td {
+  font-weight: var(--ds-fw-semibold);
+}
+
+.linhaSubtitulo td {
+  padding-top: var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.valorHora {
+  display: block;
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+  color: var(--ds-text-muted);
+}
+
+.campoValor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+}
+
+.campoValor input {
+  width: 7.5rem;
+  text-align: right;
+}
+
+.linhaTotal td {
+  background-color: var(--ds-primary-soft);
+}
+
+.totalConteudo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+}
+
+.totalAcoes {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-3);
+  flex-wrap: wrap;
+}
+
+.valorTotal {
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-bold, 700);
+  color: var(--ds-text);
+}
+
+.mensagemSucesso {
+  color: var(--ds-success, var(--ds-text));
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+}
+
+/* Bloco recolhível por pessoa (seta no cabeçalho). */
+.botaoExpandir,
+.nomeBotao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.botaoExpandir {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-radius-sm, 4px);
+  color: var(--ds-text-muted);
+}
+
+.botaoExpandir:hover,
+.nomeBotao:hover .nomeFuncionario {
+  color: var(--ds-primary);
+}
+
+.nomeBotao {
+  text-align: left;
+}
+
+.totalCabecalho {
+  color: var(--ds-text);
+  white-space: nowrap;
+}
+
+.linhaFuncionarioAberta td {
+  border-bottom-color: var(--ds-border-strong, var(--ds-border));
+}
+
+.dicaCompetencia {
+  margin: 0 0 var(--ds-sp-2);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}

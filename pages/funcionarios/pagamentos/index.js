@@ -40,7 +40,8 @@ function PagamentosConteudo() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from('funcionarios')
-        .select('id, nome, ativo, tipo_vinculo')
+        // PIX (migration 0056) só para exibir na visão A Pagar -- mesma fonte do cadastro.
+        .select('id, nome, ativo, tipo_vinculo, tipo_chave_pix, chave_pix')
         .order('nome');
       if (!ativo) return;
       if (error) {
