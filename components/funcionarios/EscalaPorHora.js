@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { buscarEscalaPeriodo, ROTULO_DIA_SEMANA, formatarDataCurta, formatarPeriodoSemana, formatarHora, inicioDaSemana } from '../../lib/funcionarios/escala';
-import { resolverEstadosDoDia, calcularFaixasCobertura, obterPrimeiroNome } from '../../lib/funcionarios/escalaCobertura';
+import { resolverCoberturaPeriodo, obterPrimeiroNome } from '../../lib/funcionarios/escalaCobertura';
+import { filtrarFuncionariosEscala, funcionariosDoCargo, descreverFiltroEscala } from '../../lib/funcionarios/escalaFiltro';
+import { montarExportacaoCobertura } from '../../lib/funcionarios/escalaExportacao';
+import { exportarRelatorio } from '../../lib/exportacao/exportar';
 import { cx } from '../../lib/design/cx';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
-import Select from '../ui/Select';
 import IndicadorVinculo from './IndicadorVinculo';
+import EscalaFiltrosExportacao from './EscalaFiltrosExportacao';
 import estilos from './escala.module.css';
 
 const MAX_DIAS = 7;
@@ -179,12 +182,11 @@ function inicioDaSemanaCorrente(data) {
   return inicioDaSemana(data);
 }
 
-export default function EscalaPorHora({ funcionarios, cargos }) {
+export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroChange }) {
   const [dataInicio, setDataInicio] = useState(() => inicioDaSemanaCorrente(dataLocalHoje()));
   const [dataFim, setDataFim] = useState(() => somarDias(inicioDaSemanaCorrente(dataLocalHoje()), 6));
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
-  const [cargoId, setCargoId] = useState('');
 
   const dias = useMemo(() => intervaloDeDias(dataInicio, dataFim), [dataInicio, dataFim]);
 
@@ -205,30 +207,27 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataInicio, dataFim, funcionarios]);
 
-  const funcionariosExibidos = useMemo(
-    () => (cargoId ? funcionarios.filter((f) => f.cargo_id === cargoId) : funcionarios),
-    [cargoId, funcionarios]
-  );
+  // Semântica da Cobertura: o CÁLCULO usa a equipe do recorte de cargo
+  // (como sempre foi); o filtro de FUNCIONÁRIA só restringe as linhas
+  // individuais exibidas/exportadas -- a linha "Cobertura" nunca vira "1"
+  // só porque uma pessoa foi filtrada.
+  const funcionariosBase = useMemo(() => funcionariosDoCargo(funcionarios, filtro.cargoId), [filtro.cargoId, funcionarios]);
+  const funcionariosExibidos = useMemo(() => filtrarFuncionariosEscala(funcionarios, filtro), [filtro, funcionarios]);
 
-  // Resolve 1x por dia exibido (motor único) e organiza os resultados para
-  // consumo direto pela grade: quem cobre cada dia (por funcionario_id) e
-  // as faixas de cobertura agregada daquele dia.
+  // Resolve 1x por dia exibido (motor único, resolverCoberturaPeriodo) --
+  // quem cobre cada dia (por funcionario_id) e as faixas de cobertura
+  // agregada daquele dia; aqui só a janela horária da grade é derivada.
   const { porFuncionarioEDia, faixasPorDia, janela } = useMemo(() => {
-    const porFuncionarioEDia = new Map(); // data -> Map<funcionario_id, item>
-    const faixasPorDia = new Map(); // data -> faixas[]
-    let todosOsPeriodos = [];
-
-    for (const data of dias) {
-      const estados = resolverEstadosDoDia({ funcionarios: funcionariosExibidos, mapaEscala, data });
-      const porFuncionario = new Map();
-      for (const item of estados.escalaIndividual) porFuncionario.set(item.funcionario.funcionario_id, item);
-      porFuncionarioEDia.set(data, porFuncionario);
-      faixasPorDia.set(data, calcularFaixasCobertura(estados.periodosPrevistos, estados.periodosEfetivos));
-      todosOsPeriodos = todosOsPeriodos.concat(estados.periodosPrevistos, estados.periodosEfetivos);
-    }
-
+    const { porFuncionarioEDia, faixasPorDia, todosOsPeriodos } = resolverCoberturaPeriodo({ funcionarios: funcionariosBase, mapaEscala, dias });
     return { porFuncionarioEDia, faixasPorDia, janela: calcularJanelaHoraria(todosOsPeriodos) };
-  }, [dias, funcionariosExibidos, mapaEscala]);
+  }, [dias, funcionariosBase, mapaEscala]);
+
+  const filtroDescricao = descreverFiltroEscala(filtro, { cargos, funcionarios });
+
+  function exportar(formato) {
+    const modelo = montarExportacaoCobertura({ dias, funcionarios: funcionariosExibidos, funcionariosBase, mapaEscala, filtroDescricao });
+    return exportarRelatorio(modelo, formato);
+  }
 
   function aoMudarDataInicio(novoValor) {
     const { inicio, fim } = normalizarIntervalo(novoValor, dataFim);
@@ -278,14 +277,15 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
           <Button variante="secondary" tamanho="sm" onClick={() => deslocarPeriodo(1)}>Próximo período →</Button>
         </div>
         <h3 className={estilos.tituloSemana}>{dias.length > 0 ? formatarPeriodoSemana(dias) : ''}</h3>
-        {cargos.length > 0 && (
-          <Select value={cargoId} onChange={(e) => setCargoId(e.target.value)} aria-label="Filtrar por cargo">
-            <option value="">Todos os cargos</option>
-            {cargos.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
-            ))}
-          </Select>
-        )}
+        <EscalaFiltrosExportacao
+          cargos={cargos}
+          funcionarios={funcionarios}
+          filtro={filtro}
+          onFiltroChange={onFiltroChange}
+          rotuloVisao="Cobertura"
+          onExportar={exportar}
+          desabilitarExportacao={carregando || dias.length === 0 || funcionariosExibidos.length === 0}
+        />
       </div>
 
       <div className={estilos.controlesPeriodo}>
@@ -299,6 +299,12 @@ export default function EscalaPorHora({ funcionarios, cargos }) {
         </label>
         <span className={estilos.notaOcorrencia}>Máximo de {MAX_DIAS} dias por análise.</span>
       </div>
+
+      {filtro.funcionarioId && funcionariosExibidos.length > 0 && (
+        <p className={estilos.notaOcorrencia}>
+          A linha <strong>Cobertura</strong> continua contando toda a equipe ({filtroDescricao.cargo ? `cargo ${filtroDescricao.cargo}` : 'todos os cargos'}) -- o filtro de funcionária só restringe as linhas individuais.
+        </p>
+      )}
 
       {carregando || dias.length === 0 ? (
         <p role="status">Carregando escala...</p>

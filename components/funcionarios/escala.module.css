@@ -695,3 +695,41 @@
   color: var(--ds-warning);
   border: 1px solid var(--ds-warning);
 }
+
+/* Grupo compacto Cargo | Funcionária | PDF | Excel (EscalaFiltrosExportacao)
+   -- mesmo cabeçalho de cada visão, quebra linha em telas estreitas. */
+.filtrosExportacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.filtrosExportacao select {
+  width: auto;
+  max-width: 220px;
+}
+
+/* PDF + Excel: bloco indivisível -- nunca só um dos dois quebra de linha;
+   quando falta espaço, o par inteiro desce junto. */
+.botoesExportacao {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  white-space: nowrap;
+}
+
+.erroExportacao {
+  flex-basis: 100%;
+  color: var(--ds-danger);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .filtrosExportacao select {
+    flex: 1 1 140px;
+    max-width: none;
+  }
+}

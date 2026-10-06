@@ -198,6 +198,13 @@ const CAMINHOS = {
       <path d="M14 20v-5h5" />
     </>
   ),
+  download: (
+    <>
+      <path d="M12 4v11" />
+      <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+      <path d="M5 19h14" />
+    </>
+  ),
 };
 
 export const NOMES_DE_ICONES = Object.keys(CAMINHOS);

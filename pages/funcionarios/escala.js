@@ -8,13 +8,14 @@ import EscalaCoberturaDiaModal from '../../components/funcionarios/EscalaCobertu
 import EscalaMensal from '../../components/funcionarios/EscalaMensal';
 import EscalaPorHora from '../../components/funcionarios/EscalaPorHora';
 import IndicadorVinculo from '../../components/funcionarios/IndicadorVinculo';
+import EscalaFiltrosExportacao from '../../components/funcionarios/EscalaFiltrosExportacao';
 import PageShell from '../../components/shell/PageShell';
 import PageHeader from '../../components/ui/PageHeader';
 import Alert from '../../components/ui/Alert';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import DataTable from '../../components/ui/DataTable';
-import Select from '../../components/ui/Select';
+import EmptyState from '../../components/ui/EmptyState';
 import ConfirmarAcaoModal from '../../components/admin/ConfirmarAcaoModal';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
@@ -32,6 +33,9 @@ import {
   formatarDataCurta,
   formatarPeriodoSemana,
 } from '../../lib/funcionarios/escala';
+import { FILTRO_ESCALA_VAZIO, filtrarFuncionariosEscala, descreverFiltroEscala } from '../../lib/funcionarios/escalaFiltro';
+import { montarExportacaoSemanal, montarExportacaoMensal } from '../../lib/funcionarios/escalaExportacao';
+import { exportarRelatorio } from '../../lib/exportacao/exportar';
 import estilos from '../../components/funcionarios/escala.module.css';
 
 // Célula de UM funcionário em UMA data -- estados sempre distintos (nunca
@@ -74,13 +78,12 @@ function CelulaDia({ funcionario, data, mapaEscala, podeEditar, onAbrir }) {
   );
 }
 
-function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
+function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange }) {
   const [semanaInicio, setSemanaInicio] = useState(() => inicioDaSemana(dataLocalHoje()));
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
-  const [cargoId, setCargoId] = useState('');
 
   const [modalDia, setModalDia] = useState(null); // { funcionario, data, estado }
   const [modalLoteAberto, setModalLoteAberto] = useState(false);
@@ -93,10 +96,20 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
 
   const dias = diasDaSemana(semanaInicio);
 
-  // Filtro simples de cargo (seção 7 da instrução aprovada) -- só restringe
-  // as LINHAS exibidas na grade; ações em lote/cópia continuam operando
-  // sobre a equipe toda (cargo é análise, não escopo de escrita).
-  const funcionariosExibidos = cargoId ? funcionarios.filter((f) => f.cargo_id === cargoId) : funcionarios;
+  // Filtro de análise (cargo + funcionária, escalaFiltro.js) -- só restringe
+  // as LINHAS exibidas/exportadas; ações em lote/cópia continuam operando
+  // sobre a equipe toda (filtro é análise, não escopo de escrita).
+  const funcionariosExibidos = filtrarFuncionariosEscala(funcionarios, filtro);
+
+  function exportar(formato) {
+    const modelo = montarExportacaoSemanal({
+      dias,
+      funcionarios: funcionariosExibidos,
+      mapaEscala,
+      filtroDescricao: descreverFiltroEscala(filtro, { cargos, funcionarios }),
+    });
+    return exportarRelatorio(modelo, formato);
+  }
 
   useEffect(() => {
     let ativo = true;
@@ -261,14 +274,15 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
         </div>
         <h3 className={estilos.tituloSemana}>{formatarPeriodoSemana(dias)}</h3>
         <div className={estilos.navegacaoSemana}>
-          {cargos.length > 0 && (
-            <Select value={cargoId} onChange={(e) => setCargoId(e.target.value)} aria-label="Filtrar por cargo">
-              <option value="">Todos os cargos</option>
-              {cargos.map((c) => (
-                <option key={c.id} value={c.id}>{c.nome}</option>
-              ))}
-            </Select>
-          )}
+          <EscalaFiltrosExportacao
+            cargos={cargos}
+            funcionarios={funcionarios}
+            filtro={filtro}
+            onFiltroChange={onFiltroChange}
+            rotuloVisao="Semanal"
+            onExportar={exportar}
+            desabilitarExportacao={carregando || funcionariosExibidos.length === 0}
+          />
           {podeEditar && (
             <>
               <Button variante="secondary" tamanho="sm" onClick={prepararCopiaSemanaAnterior}>Copiar semana anterior</Button>
@@ -281,6 +295,8 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
 
       {carregando ? (
         <p role="status">Carregando escala...</p>
+      ) : funcionariosExibidos.length === 0 ? (
+        <EmptyState>Nenhum funcionário para este filtro.</EmptyState>
       ) : (
         <DataTable
           rotulo="Escala semanal"
@@ -343,11 +359,10 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar }) {
 // FullCalendar. Fetch cobre o mês INTEIRO de todos os funcionários (nunca
 // pré-filtrado por cargo), para o detalhamento do dia poder trocar de
 // cargo sem refazer a busca.
-function VisaoMensal({ funcionarios, cargos }) {
+function VisaoMensal({ funcionarios, cargos, filtro, onFiltroChange }) {
   const [mesInicio, setMesInicio] = useState(() => inicioDoMes(dataLocalHoje()));
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
-  const [cargoId, setCargoId] = useState('');
   const [detalheFuncionarioDia, setDetalheFuncionarioDia] = useState(null); // { funcionario, data, estado }
   const [diaDetalhe, setDiaDetalhe] = useState(''); // 'YYYY-MM-DD' | ''
 
@@ -370,10 +385,17 @@ function VisaoMensal({ funcionarios, cargos }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mesInicio, funcionarios]);
 
-  const funcionariosExibidos = useMemo(() => {
-    if (!cargoId) return funcionarios;
-    return funcionarios.filter((f) => f.cargo_id === cargoId);
-  }, [cargoId, funcionarios]);
+  const funcionariosExibidos = useMemo(() => filtrarFuncionariosEscala(funcionarios, filtro), [filtro, funcionarios]);
+
+  function exportar(formato) {
+    const modelo = montarExportacaoMensal({
+      dias,
+      funcionarios: funcionariosExibidos,
+      mapaEscala,
+      filtroDescricao: descreverFiltroEscala(filtro, { cargos, funcionarios }),
+    });
+    return exportarRelatorio(modelo, formato);
+  }
 
   return (
     <>
@@ -384,14 +406,15 @@ function VisaoMensal({ funcionarios, cargos }) {
           <Button variante="secondary" tamanho="sm" onClick={() => setMesInicio((atual) => inicioDoMes(somarDias(dias[dias.length - 1], 1)))}>→</Button>
         </div>
         <h3 className={estilos.tituloSemana}>{mesExibicao(mesInicio)}</h3>
-        {cargos.length > 0 && (
-          <Select value={cargoId} onChange={(e) => setCargoId(e.target.value)} aria-label="Filtrar por cargo">
-            <option value="">Todos os cargos</option>
-            {cargos.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
-            ))}
-          </Select>
-        )}
+        <EscalaFiltrosExportacao
+          cargos={cargos}
+          funcionarios={funcionarios}
+          filtro={filtro}
+          onFiltroChange={onFiltroChange}
+          rotuloVisao="Mensal"
+          onExportar={exportar}
+          desabilitarExportacao={carregando || funcionariosExibidos.length === 0}
+        />
         {carregando && <span role="status">Carregando...</span>}
       </div>
 
@@ -426,7 +449,7 @@ function VisaoMensal({ funcionarios, cargos }) {
           funcionarios={funcionarios}
           mapaEscala={mapaEscala}
           cargos={cargos}
-          cargoIdInicial={cargoId}
+          cargoIdInicial={filtro.cargoId}
           onFechar={() => setDiaDetalhe('')}
         />
       )}
@@ -442,6 +465,9 @@ function EscalaConteudo() {
   const [funcionarios, setFuncionarios] = useState([]);
   const [carregandoFuncionarios, setCarregandoFuncionarios] = useState(true);
   const [erro, setErro] = useState('');
+  // Filtro compartilhado pelas três visões (trocar de Semanal para Mensal
+  // mantém o recorte) e pelas exportações.
+  const [filtro, setFiltro] = useState(FILTRO_ESCALA_VAZIO);
 
   useEffect(() => {
     let ativo = true;
@@ -500,11 +526,11 @@ function EscalaConteudo() {
       {carregandoFuncionarios ? (
         <p role="status">Carregando...</p>
       ) : visao === 'semanal' ? (
-        <VisaoSemanal funcionarios={funcionarios} cargos={cargos} podeEditar={podeEditar} />
+        <VisaoSemanal funcionarios={funcionarios} cargos={cargos} podeEditar={podeEditar} filtro={filtro} onFiltroChange={setFiltro} />
       ) : visao === 'mensal' ? (
-        <VisaoMensal funcionarios={funcionarios} cargos={cargos} />
+        <VisaoMensal funcionarios={funcionarios} cargos={cargos} filtro={filtro} onFiltroChange={setFiltro} />
       ) : (
-        <EscalaPorHora funcionarios={funcionarios} cargos={cargos} />
+        <EscalaPorHora funcionarios={funcionarios} cargos={cargos} filtro={filtro} onFiltroChange={setFiltro} />
       )}
     </PageShell>
   );
