@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import RequireAuth from '../../components/RequireAuth';
 import PaginaPedidos from '../../components/pedidos/PaginaPedidos';
@@ -15,6 +15,16 @@ import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { buscarHistoricoComprasEmLote } from '../../lib/pedidos/historicoCompras';
+import {
+  podeSelecionarSolicitacao,
+  idsSelecionaveis,
+  estadoSelecaoTodos,
+  alternarTodos,
+  alternarUm,
+  podarSelecao,
+  executarEmLote,
+  resumirResultadoLote,
+} from '../../lib/pedidos/solicitacoesLote';
 
 // Extrai defensivamente o `id` do pedido recém-criado a partir do que
 // supabase.rpc() devolve em `data` -- criar_pedido/registrar_compra_
@@ -144,6 +154,16 @@ function SolicitacoesConteudo() {
   // NÃO cadastrada, mostramos este aviso ANTES de abrir o PedidoForm
   // (que é um overlay fixo -- um banner atrás dele nunca apareceria).
   const [avisoProdutoNaoCadastrado, setAvisoProdutoNaoCadastrado] = useState(null); // solicitacao
+
+  // Seleção múltipla (lib/pedidos/solicitacoesLote.js) -- Set de IDs de
+  // solicitação, nunca índice visual. Ações em lote reaproveitam, item a
+  // item, as MESMAS RPCs da ação individual.
+  const [selecionados, setSelecionados] = useState(() => new Set());
+  const [confirmarLote, setConfirmarLote] = useState(null); // 'concluir' | 'excluir' | null
+  const [observacaoLote, setObservacaoLote] = useState('');
+  const [executandoLote, setExecutandoLote] = useState(false);
+  const [progressoLote, setProgressoLote] = useState(null); // { feitos, total }
+  const [resultadoLote, setResultadoLote] = useState(null); // { tom, titulo, detalhes }
 
   useEffect(() => {
     let ativo = true;
@@ -277,6 +297,94 @@ function SolicitacoesConteudo() {
   }, [mensagemSucesso]);
 
   const solicitacoesVisiveis = solicitacoes.filter((s) => (mostrarRealizadas ? true : s.status === 'pendente'));
+
+  const permissoesLote = { podeRealizar, podeExcluir };
+  const selecaoHabilitada = podeRealizar || podeExcluir;
+  const idsVisiveisSelecionaveis = useMemo(
+    () => idsSelecionaveis(solicitacoesVisiveis, permissoesLote),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [solicitacoes, mostrarRealizadas, podeRealizar, podeExcluir]
+  );
+
+  // Toda vez que o conjunto exibido muda (recarga após ação, filtro), tira
+  // da seleção o que não está mais visível/selecionável -- nunca fica
+  // seleção invisível.
+  useEffect(() => {
+    setSelecionados((atual) => {
+      const podada = podarSelecao(atual, idsVisiveisSelecionaveis);
+      return podada.size === atual.size ? atual : podada;
+    });
+  }, [idsVisiveisSelecionaveis]);
+
+  function alternarMostrarRealizadas(marcado) {
+    // Mudou o conjunto exibido -> começa sem seleção (evita confusão).
+    setSelecionados(new Set());
+    setMostrarRealizadas(marcado);
+  }
+
+  // Ordem da execução = ordem da lista na tela (previsível para quem lê o resultado).
+  const idsSelecionadosOrdenados = solicitacoesVisiveis.filter((s) => selecionados.has(s.id)).map((s) => s.id);
+  const quantidadeSelecionadas = idsSelecionadosOrdenados.length;
+  const estadoTodos = estadoSelecaoTodos(idsVisiveisSelecionaveis, selecionados);
+
+  function abrirConfirmarLote(tipo) {
+    setObservacaoLote('');
+    setResultadoLote(null);
+    setConfirmarLote(tipo);
+  }
+
+  function fecharConfirmarLote() {
+    if (executandoLote) return;
+    setConfirmarLote(null);
+    setObservacaoLote('');
+  }
+
+  async function executarLote() {
+    const tipo = confirmarLote;
+    const ids = idsSelecionadosOrdenados;
+    if (!tipo || ids.length === 0) return;
+
+    const descricaoPorId = Object.fromEntries(solicitacoes.map((s) => [s.id, s.descricao]));
+    const supabase = createClient();
+    const observacao = observacaoLote.trim() || null;
+    // MESMAS RPCs/parâmetros da ação individual (confirmarRealizacaoSemPedido
+    // / confirmarExclusaoSolicitacao) -- o servidor continua validando
+    // permissão e status de cada item.
+    const acao =
+      tipo === 'concluir'
+        ? (id) => supabase.rpc('marcar_solicitacao_realizada', { p_id: id, p_observacao_realizacao: observacao })
+        : (id) => supabase.rpc('excluir_solicitacao_pendente', { p_id: id });
+
+    setExecutandoLote(true);
+    setProgressoLote({ feitos: 0, total: ids.length });
+    const resultado = await executarEmLote(ids, acao, (feitos, total) => setProgressoLote({ feitos, total }));
+    for (const f of resultado.falhas) {
+      console.error(`Erro ao ${tipo === 'concluir' ? 'concluir' : 'excluir'} solicitação em lote (${f.id}):`, f.error);
+    }
+    setExecutandoLote(false);
+    setProgressoLote(null);
+    setConfirmarLote(null);
+    setObservacaoLote('');
+
+    // Mantém selecionadas SÓ as que falharam -- a recarga abaixo poda as que
+    // não estão mais pendentes/visíveis (ex.: já realizadas por outra pessoa).
+    setSelecionados(new Set(resultado.falhas.map((f) => f.id)));
+    setResultadoLote(resumirResultadoLote(resultado, tipo, descricaoPorId));
+    setRecarregarTick((t) => t + 1);
+  }
+
+  const selecaoTabela = selecaoHabilitada
+    ? {
+        selecionados,
+        podeSelecionar: (s) => podeSelecionarSolicitacao(s, permissoesLote),
+        onAlternar: (s) => setSelecionados((atual) => alternarUm(s.id, atual)),
+        rotuloLinha: (s) => `a solicitação de ${s.descricao}`,
+        estadoTodos,
+        onAlternarTodos: () => setSelecionados((atual) => alternarTodos(idsVisiveisSelecionaveis, atual)),
+        desabilitado: executandoLote,
+        semSelecionaveis: idsVisiveisSelecionaveis.length === 0,
+      }
+    : null;
 
   function fecharModalForm() {
     setModalForm(null);
@@ -541,11 +649,64 @@ function SolicitacoesConteudo() {
         </Alert>
       )}
 
-      <Checkbox
-        rotulo="Mostrar realizadas"
-        checked={mostrarRealizadas}
-        onChange={(e) => setMostrarRealizadas(e.target.checked)}
-      />
+      {resultadoLote && (
+        <Alert tom={resultadoLote.tom} className={estilos.mensagem}>
+          <p className={estilos.resultadoLoteTitulo}>
+            <strong>{resultadoLote.titulo}</strong>
+          </p>
+          {resultadoLote.detalhes.length > 0 && (
+            <ul className={estilos.resultadoLoteLista}>
+              {resultadoLote.detalhes.map((d, i) => (
+                <li key={i}>{d}</li>
+              ))}
+            </ul>
+          )}
+          {resultadoLote.detalhes.length > 0 && selecionados.size > 0 && (
+            <p className={estilos.resultadoLoteNota}>As que ainda estão pendentes continuam selecionadas para nova tentativa.</p>
+          )}
+          <div className={estilos.botoesAviso}>
+            <Button tamanho="sm" variante="secondary" onClick={() => setResultadoLote(null)}>
+              Fechar
+            </Button>
+          </div>
+        </Alert>
+      )}
+
+      <div className={estilos.barraLista}>
+        <Checkbox
+          rotulo="Mostrar realizadas"
+          checked={mostrarRealizadas}
+          onChange={(e) => alternarMostrarRealizadas(e.target.checked)}
+          disabled={executandoLote}
+        />
+        {selecaoTabela && !carregando && idsVisiveisSelecionaveis.length > 0 && (
+          <div className={estilos.barraLote} role="group" aria-label="Ações em lote">
+            {quantidadeSelecionadas > 0 && (
+              <span className={estilos.contadorLote} aria-live="polite">
+                {quantidadeSelecionadas} {quantidadeSelecionadas === 1 ? 'selecionada' : 'selecionadas'}
+              </span>
+            )}
+            {/* Também aqui (não só no cabeçalho): nos cartões (mobile) não há cabeçalho de tabela. */}
+            <Button tamanho="sm" variante="ghost" onClick={selecaoTabela.onAlternarTodos} disabled={executandoLote}>
+              {estadoTodos === 'todos' ? 'Desmarcar todas' : `Selecionar todas (${idsVisiveisSelecionaveis.length})`}
+            </Button>
+            {quantidadeSelecionadas > 0 && (
+              <>
+                {podeRealizar && (
+                  <Button tamanho="sm" icone="check" onClick={() => abrirConfirmarLote('concluir')} disabled={executandoLote}>
+                    Concluir
+                  </Button>
+                )}
+                {podeExcluir && (
+                  <Button tamanho="sm" variante="dangerOutline" icone="trash" onClick={() => abrirConfirmarLote('excluir')} disabled={executandoLote}>
+                    Excluir
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {carregando ? (
         <p role="status">Carregando solicitações...</p>
@@ -571,6 +732,57 @@ function SolicitacoesConteudo() {
           onAbrirPedido={abrirPedido}
           onReabrirPedido={abrirConfirmarReabrirPedido}
           onExcluirPedido={abrirConfirmarExcluirPedido}
+          selecao={selecaoTabela}
+        />
+      )}
+
+      {confirmarLote === 'concluir' && (
+        <ConfirmarAcaoModal
+          modalDS
+          titulo="Concluir solicitações selecionadas"
+          corPrimaria={aparencia.corPrimaria}
+          confirmando={executandoLote}
+          textoConfirmar={executandoLote && progressoLote ? `Concluindo ${progressoLote.feitos}/${progressoLote.total}...` : `Concluir ${quantidadeSelecionadas}`}
+          mensagem={
+            <div>
+              <p>
+                Marcar <strong>{quantidadeSelecionadas}</strong> {quantidadeSelecionadas === 1 ? 'solicitação selecionada' : 'solicitações selecionadas'} como
+                realizada{quantidadeSelecionadas === 1 ? '' : 's'}, SEM criar pedido no sistema (ex.: itens já comprados por outro meio)?
+              </p>
+              <p>Cada solicitação é processada individualmente: se alguma não puder ser concluída, as demais seguem e o resultado é informado ao final.</p>
+              <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '14px' }}>
+                Observação (opcional, aplicada a todas)
+              </label>
+              <textarea
+                value={observacaoLote}
+                onChange={(e) => setObservacaoLote(e.target.value)}
+                disabled={executandoLote}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '5px', boxSizing: 'border-box', minHeight: '60px', fontFamily: 'Arial' }}
+              />
+            </div>
+          }
+          onConfirmar={executarLote}
+          onCancelar={fecharConfirmarLote}
+        />
+      )}
+
+      {confirmarLote === 'excluir' && (
+        <ConfirmarAcaoModal
+          modalDS
+          titulo="Excluir solicitações selecionadas"
+          corPrimaria={aparencia.corPrimaria}
+          perigo
+          confirmando={executandoLote}
+          textoConfirmar={executandoLote && progressoLote ? `Excluindo ${progressoLote.feitos}/${progressoLote.total}...` : `Excluir ${quantidadeSelecionadas}`}
+          mensagem={
+            <>
+              Excluir <strong>{quantidadeSelecionadas}</strong> {quantidadeSelecionadas === 1 ? 'solicitação selecionada' : 'solicitações selecionadas'} definitivamente?
+              <br />
+              Esta ação não pode ser desfeita.
+            </>
+          }
+          onConfirmar={executarLote}
+          onCancelar={fecharConfirmarLote}
         />
       )}
 

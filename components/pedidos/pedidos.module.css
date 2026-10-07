@@ -194,3 +194,40 @@
   color: var(--ds-text-muted);
   font-style: italic;
 }
+
+/* Linha acima da lista: "Mostrar realizadas" + ações em lote (seleção
+   múltipla). Compacta; quebra de linha em telas estreitas. */
+.barraLista {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2) var(--ds-sp-4);
+  margin-bottom: var(--ds-sp-2);
+}
+
+.barraLote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.contadorLote {
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  white-space: nowrap;
+}
+
+.resultadoLoteTitulo {
+  margin: 0 0 var(--ds-sp-1);
+}
+
+.resultadoLoteLista {
+  margin: 0 0 var(--ds-sp-2);
+  padding-left: var(--ds-sp-5);
+}
+
+.resultadoLoteNota {
+  margin: 0;
+}

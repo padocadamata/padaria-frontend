@@ -131,6 +131,7 @@ export default function SolicitacoesLista({
   onAbrirPedido,
   onReabrirPedido,
   onExcluirPedido,
+  selecao,
 }) {
   if (solicitacoes.length === 0) {
     return <EmptyState>Nenhuma solicitação encontrada.</EmptyState>;
@@ -240,6 +241,7 @@ export default function SolicitacoesLista({
         linhas={solicitacoes}
         chaveLinha={(s) => s.id}
         cartoesAte={1270}
+        selecao={selecao}
         renderAcoes={(s, { cartao }) => {
           const acoes = acoesDe(s);
           if (!cartao) return <AcoesLinha acoes={acoes} />;

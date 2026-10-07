@@ -196,3 +196,47 @@
 .cartaoAcoes:empty {
   display: none;
 }
+
+/* Seleção múltipla (prop `selecao`) -- só a caixa seleciona; a linha e as
+   ações mantêm o comportamento de sempre. */
+.colSelecao {
+  width: 44px;
+  padding-left: var(--ds-sp-2) !important;
+  padding-right: 0 !important;
+}
+
+.caixaSelecao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--ds-touch-min);
+  min-height: var(--ds-touch-min);
+  margin: calc(var(--ds-sp-2) * -1) 0;
+  cursor: pointer;
+}
+
+.caixaSelecao input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--ds-primary);
+  cursor: inherit;
+}
+
+.caixaSelecaoDesabilitada {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.linhaSelecionada td {
+  background-color: var(--ds-primary-soft);
+}
+
+.cartaoSelecionado {
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 1px var(--ds-primary);
+}
+
+.selecaoCartao {
+  margin: calc(var(--ds-sp-2) * -1) 0 calc(var(--ds-sp-2) * -1) calc(var(--ds-sp-3) * -1);
+}
