@@ -149,3 +149,37 @@
   justify-content: flex-end;
   margin-top: var(--ds-sp-3);
 }
+
+/* ------------------- criação / vínculo de usuário (0072) ------------------- */
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--ds-sp-3) var(--ds-sp-4);
+  margin-bottom: var(--ds-sp-3);
+}
+
+.larguraTotal {
+  grid-column: 1 / -1;
+}
+
+.rodapeModal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 768px) {
+  .rodapeModal {
+    flex-direction: column-reverse;
+  }
+  .rodapeModal > * {
+    width: 100%;
+  }
+}
+
+.secaoSemVinculo {
+  margin-top: var(--ds-sp-6);
+}

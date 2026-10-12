@@ -167,6 +167,13 @@ function UsuarioDetalheConteudo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Chegou aqui logo depois de criar/vincular (Admin > Usuários, 0072).
+  useEffect(() => {
+    if (router.query.criado === '1') {
+      setMensagemSucesso('Usuário criado com as permissões do perfil-base. Ajuste exceções individuais abaixo, se precisar.');
+    }
+  }, [router.query.criado]);
+
   function alterarLinha(codigo, patch) {
     setMensagemSucesso('');
     setEstadoEditado((atual) => {
