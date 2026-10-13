@@ -12,3 +12,71 @@
   align-items: center;
   gap: var(--ds-sp-2);
 }
+
+/* Ajuste de Estoque (migration 0074) */
+.dadosProduto {
+  display: grid;
+  gap: var(--ds-sp-2);
+  margin: 0 0 var(--ds-sp-4);
+}
+
+.dadosProduto dt {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.dadosProduto dd {
+  margin: 0;
+}
+
+.textoAux {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.resumoAjuste {
+  display: grid;
+  gap: var(--ds-sp-2);
+  margin: var(--ds-sp-3) 0;
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-muted);
+}
+
+.resumoLinha {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ds-sp-1) var(--ds-sp-3);
+}
+
+.resumoLinha > :last-child {
+  text-align: right;
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+@media (max-width: 768px) {
+  .rodape {
+    flex-direction: column-reverse;
+  }
+  .rodape > * {
+    width: 100%;
+  }
+}
+
+.detalheAjuste {
+  display: block;
+  margin-top: var(--ds-sp-1);
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}

@@ -5,6 +5,7 @@ import AbrirSacoModal from '../../components/producao/AbrirSacoModal';
 import LancarSaldoInicialModal from '../../components/producao/LancarSaldoInicialModal';
 import EditarMovimentacaoSacoModal from '../../components/producao/EditarMovimentacaoSacoModal';
 import ExcluirMovimentacaoSacoModal from '../../components/producao/ExcluirMovimentacaoSacoModal';
+import AjustarEstoqueModal from '../../components/producao/AjustarEstoqueModal';
 import Alert from '../../components/ui/Alert';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -23,6 +24,7 @@ import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { mensagemErroSacos, TIPO_MOVIMENTO_LABEL, ORIGEM_MOVIMENTO_LABEL } from '../../lib/producao/mensagensSacos';
+import { formatarComSinal } from '../../lib/producao/ajusteEstoque';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
@@ -56,6 +58,13 @@ import Paginacao from '../../components/Paginacao';
 // A busca por produto/fornecedor é resolvida sobre as configurações já
 // carregadas (nome vive na RPC, não na tabela de movimentações) e vira um
 // filtro .in('produto_fornecedor_id', ids) -- sem migration nem RPC nova.
+//
+// Ajuste de Estoque (migration 0074): ação "Ajustar estoque" na linha do
+// Saldo (é onde está o saldo que a pessoa vai conferir), gated por
+// producao_sacos.ajustar. Grava tipo=ajuste_manual via
+// registrar_ajuste_sacos; no histórico aparece como "Ajuste de estoque",
+// com sinal, saldo anterior → novo e motivo. Ajustes são imutáveis: não
+// oferecem Editar/Excluir (o banco também recusa).
 const TAMANHO_PAGINA = 20;
 const ATRASO_BUSCA_MS = 300;
 
@@ -93,7 +102,7 @@ function formatarKg(valor) {
 const TOM_MOVIMENTO = {
   entrada: 'success',
   abertura: 'warning',
-  ajuste_manual: 'info',
+  ajuste_manual: 'danger',
   saldo_inicial: 'primary',
 };
 
@@ -103,6 +112,7 @@ function SacosConteudo() {
   const podeOperar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_OPERAR);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_EDITAR);
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_EXCLUIR);
+  const podeAjustar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_SACOS_AJUSTAR);
 
   const aparencia = APARENCIA_FIXA;
 
@@ -234,7 +244,7 @@ function SacosConteudo() {
       let consulta = createClient()
         .from('sacos_fechados_movimentacoes')
         .select(
-          'id, produto_fornecedor_id, quantidade_sacos, peso_por_saco_kg_snapshot, tipo, origem, observacao, criado_por, criado_em',
+          'id, produto_fornecedor_id, quantidade_sacos, peso_por_saco_kg_snapshot, tipo, origem, observacao, motivo, saldo_anterior_sacos, criado_por, criado_em',
           { count: 'exact' }
         );
 
@@ -380,6 +390,7 @@ function SacosConteudo() {
   const [configuracaoParaSaldoInicial, setConfiguracaoParaSaldoInicial] = useState(null);
   const [movimentacaoParaEditar, setMovimentacaoParaEditar] = useState(null);
   const [movimentacaoParaExcluir, setMovimentacaoParaExcluir] = useState(null);
+  const [configuracaoParaAjustar, setConfiguracaoParaAjustar] = useState(null);
 
   const quantidadeFiltrosMov = [busca !== '', filtroTipo !== 'todos', filtroDe !== '', filtroAte !== ''].filter(Boolean).length;
 
@@ -407,17 +418,38 @@ function SacosConteudo() {
       alinhar: 'direita',
       render: (m) => (
         <strong className={m.quantidade_sacos > 0 ? estilosSacos.positivo : estilosSacos.negativo}>
-          {Math.abs(m.quantidade_sacos)}
+          {/* Ajuste pode ser + ou −: sinal sempre explícito. */}
+          {m.tipo === 'ajuste_manual' ? formatarComSinal(m.quantidade_sacos) : Math.abs(m.quantidade_sacos)}
         </strong>
       ),
     },
     { chave: 'kg', rotulo: 'Kg', alinhar: 'direita', semQuebra: true, render: (m) => `${formatarKg(m.kg)} kg` },
-    { chave: 'origem', rotulo: 'Origem', render: (m) => ORIGEM_MOVIMENTO_LABEL[m.origem] || m.origem },
+    {
+      chave: 'origem',
+      rotulo: 'Origem',
+      render: (m) =>
+        m.tipo === 'ajuste_manual' ? (
+          <>
+            {ORIGEM_MOVIMENTO_LABEL[m.origem] || m.origem}
+            {m.saldo_anterior_sacos !== null && m.saldo_anterior_sacos !== undefined && (
+              <span className={estilosSacos.detalheAjuste}>
+                Saldo {m.saldo_anterior_sacos} → {m.saldo_anterior_sacos + m.quantidade_sacos} sacos
+              </span>
+            )}
+            {m.motivo && <span className={estilosSacos.detalheAjuste}>Motivo: {m.motivo}</span>}
+            {m.observacao && <span className={estilosSacos.detalheAjuste}>Obs.: {m.observacao}</span>}
+          </>
+        ) : (
+          ORIGEM_MOVIMENTO_LABEL[m.origem] || m.origem
+        ),
+    },
     { chave: 'responsavel', rotulo: 'Responsável', render: (m) => m.responsavelNome },
   ];
 
   function acoesMovimentacao(m) {
-    const ehManual = m.tipo === 'abertura' || m.tipo === 'ajuste_manual' || m.tipo === 'saldo_inicial';
+    // Ajuste de estoque fica de fora: é imutável (0074) -- corrige-se com
+    // um novo ajuste.
+    const ehManual = m.tipo === 'abertura' || m.tipo === 'saldo_inicial';
     return [
       podeEditar && ehManual && { chave: 'editar', rotulo: 'Editar', icone: 'pencil', onClick: () => setMovimentacaoParaEditar(m) },
       podeExcluir && ehManual && { chave: 'excluir', rotulo: 'Excluir', icone: 'trash', destrutivo: true, onClick: () => setMovimentacaoParaExcluir(m) },
@@ -472,17 +504,24 @@ function SacosConteudo() {
                       linhas={configuracoesSaldoFiltradas}
                       chaveLinha={(c) => c.id}
                       renderAcoes={
-                        podeOperar
+                        podeOperar || podeAjustar
                           ? (c) => (
                               <div className={estilosSacos.acoesSaldo}>
-                                {!c.temSaldoInicial && (
+                                {podeOperar && !c.temSaldoInicial && (
                                   <Button variante="secondary" tamanho="sm" onClick={() => setConfiguracaoParaSaldoInicial(c)}>
                                     Lançar saldo inicial
                                   </Button>
                                 )}
-                                <Button tamanho="sm" icone="package" onClick={() => setConfiguracaoParaAbrir(c)}>
-                                  Abrir saco
-                                </Button>
+                                {podeAjustar && (
+                                  <Button variante="secondary" tamanho="sm" icone="pencil" onClick={() => setConfiguracaoParaAjustar(c)}>
+                                    Ajustar estoque
+                                  </Button>
+                                )}
+                                {podeOperar && (
+                                  <Button tamanho="sm" icone="package" onClick={() => setConfiguracaoParaAbrir(c)}>
+                                    Abrir saco
+                                  </Button>
+                                )}
                               </div>
                             )
                           : undefined
@@ -610,6 +649,17 @@ function SacosConteudo() {
             recarregar('Saldo inicial lançado com sucesso.');
           }}
           onCancelar={() => setConfiguracaoParaSaldoInicial(null)}
+        />
+      )}
+
+      {configuracaoParaAjustar && (
+        <AjustarEstoqueModal
+          configuracao={configuracaoParaAjustar}
+          onSalvo={() => {
+            setConfiguracaoParaAjustar(null);
+            recarregar('Ajuste de estoque registrado.');
+          }}
+          onCancelar={() => setConfiguracaoParaAjustar(null)}
         />
       )}
 
