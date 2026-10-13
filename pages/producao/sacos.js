@@ -446,6 +446,24 @@ function SacosConteudo() {
     { chave: 'responsavel', rotulo: 'Responsável', render: (m) => m.responsavelNome },
   ];
 
+  // Ações da linha do Saldo -- mesmo padrão de ações de linha do sistema
+  // (AcoesLinha: ícones com aria-label/title no desktop; botões com texto ou
+  // "Mais ações" no cartão mobile). Abrir saco é a ação de uso diário
+  // (primaria no mobile); Ajustar estoque usa a prancheta (contagem), distinta
+  // do lápis que significa "Editar" nas Movimentações.
+  function acoesSaldo(c) {
+    return [
+      podeOperar && !c.temSaldoInicial && {
+        chave: 'saldoInicial',
+        rotulo: 'Lançar saldo inicial',
+        icone: 'plus',
+        onClick: () => setConfiguracaoParaSaldoInicial(c),
+      },
+      podeAjustar && { chave: 'ajustar', rotulo: 'Ajustar estoque', icone: 'clipboard', onClick: () => setConfiguracaoParaAjustar(c) },
+      podeOperar && { chave: 'abrir', rotulo: 'Abrir saco', icone: 'package', primaria: true, onClick: () => setConfiguracaoParaAbrir(c) },
+    ].filter(Boolean);
+  }
+
   function acoesMovimentacao(m) {
     // Ajuste de estoque fica de fora: é imutável (0074) -- corrige-se com
     // um novo ajuste.
@@ -505,25 +523,7 @@ function SacosConteudo() {
                       chaveLinha={(c) => c.id}
                       renderAcoes={
                         podeOperar || podeAjustar
-                          ? (c) => (
-                              <div className={estilosSacos.acoesSaldo}>
-                                {podeOperar && !c.temSaldoInicial && (
-                                  <Button variante="secondary" tamanho="sm" onClick={() => setConfiguracaoParaSaldoInicial(c)}>
-                                    Lançar saldo inicial
-                                  </Button>
-                                )}
-                                {podeAjustar && (
-                                  <Button variante="secondary" tamanho="sm" icone="pencil" onClick={() => setConfiguracaoParaAjustar(c)}>
-                                    Ajustar estoque
-                                  </Button>
-                                )}
-                                {podeOperar && (
-                                  <Button tamanho="sm" icone="package" onClick={() => setConfiguracaoParaAbrir(c)}>
-                                    Abrir saco
-                                  </Button>
-                                )}
-                              </div>
-                            )
+                          ? (c, { cartao }) => <AcoesLinha acoes={acoesSaldo(c)} cartao={cartao} />
                           : undefined
                       }
                     />

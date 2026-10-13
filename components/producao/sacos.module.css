@@ -6,13 +6,6 @@
   color: var(--ds-danger);
 }
 
-.acoesSaldo {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ds-sp-2);
-}
-
 /* Ajuste de Estoque (migration 0074) */
 .dadosProduto {
   display: grid;
