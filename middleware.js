@@ -16,6 +16,7 @@ const ROTAS_PROTEGIDAS = [
   '/producao',
   '/perfil',
   '/admin',
+  '/financeiro',
 ];
 
 function ehRotaProtegida(pathname) {

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import Modal from '../ui/Modal';
+import SecaoPagamento from '../financeiro/SecaoPagamento';
+import { estadoPagamentoInicial, montarPagamento, totalDosItens } from '../../lib/financeiro/contasPagarRegras';
+import { argumentosFinanceiros, mensagemErroFinanceiro } from '../../lib/financeiro/contasPagar';
 
 function normalizar(texto) {
   return (texto || '').trim().toLowerCase();
@@ -298,7 +301,22 @@ const campoEstilo = {
 // nenhum INSERT em produtos_historico_compras a partir daqui. A RPC já
 // tem lock (FOR UPDATE) e atomicidade próprios; este componente nunca
 // replica lógica de persistência em múltiplos passos.
-export default function ReceberPedidoModal({ pedido, itens, fornecedorNome, produtoNomePorId, corPrimaria = '#8B4513', onConfirmado, onCancelar }) {
+//
+// Migration 0073: seção opcional "Pagamento" para quem tem
+// contas_pagar.editar. "Não lançar agora" chama receber_pedido como sempre;
+// "Pago no ato"/"A prazo" chamam receber_pedido_com_financeiro, que faz
+// recebimento + financeiro na MESMA transação (ou nada é gravado).
+export default function ReceberPedidoModal({
+  pedido,
+  itens,
+  fornecedorNome,
+  produtoNomePorId,
+  corPrimaria = '#8B4513',
+  podeLancarFinanceiro = false,
+  podePagarFinanceiro = false,
+  onConfirmado,
+  onCancelar,
+}) {
   const [carregandoConfig, setCarregandoConfig] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState('');
   const [configsPorProduto, setConfigsPorProduto] = useState({});
@@ -309,8 +327,13 @@ export default function ReceberPedidoModal({ pedido, itens, fornecedorNome, prod
 
   const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState('');
+  const [pagamento, setPagamento] = useState(() => estadoPagamentoInicial({ dataBase: dataLocalHoje() }));
 
   const hoje = dataLocalHoje();
+  // Total que o banco vai calcular (soma de round(qtd x valor, 2) por item).
+  const totalRecebido = totalDosItens(
+    itensEstado.map((item) => ({ quantidade: item.quantidadeRecebida, valorUnitario: item.valorUnitarioRecebido }))
+  );
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -387,18 +410,27 @@ export default function ReceberPedidoModal({ pedido, itens, fornecedorNome, prod
       return;
     }
 
+    const financeiro = podeLancarFinanceiro ? montarPagamento(pagamento, { total: totalRecebido, hoje }) : { semFinanceiro: true };
+    if (financeiro.erro) {
+      setErro(financeiro.erro);
+      return;
+    }
+
     setErro('');
     setConfirmando(true);
 
     const supabase = createClient();
     const payload = montarPayload(pedido.id, dataRecebimento, itensEstado, configsPorProduto);
-    const { error } = await supabase.rpc('receber_pedido', payload);
+    const { error } = financeiro.semFinanceiro
+      ? await supabase.rpc('receber_pedido', payload)
+      : await supabase.rpc('receber_pedido_com_financeiro', { ...payload, ...argumentosFinanceiros(financeiro.payload) });
 
     setConfirmando(false);
 
     if (error) {
       console.error('Erro ao confirmar recebimento:', error);
-      setErro(mensagemErroRecebimento(error));
+      const msg = error?.message || '';
+      setErro(/contas_pagar|financeiro/.test(msg) ? mensagemErroFinanceiro(error) : mensagemErroRecebimento(error));
       return;
     }
 
@@ -592,6 +624,18 @@ export default function ReceberPedidoModal({ pedido, itens, fornecedorNome, prod
                 );
               })}
             </div>
+
+            {podeLancarFinanceiro && (
+              <SecaoPagamento
+                estado={pagamento}
+                onChange={setPagamento}
+                total={totalRecebido}
+                dataBase={dataRecebimento}
+                hoje={hoje}
+                podePagar={podePagarFinanceiro}
+                desabilitado={confirmando}
+              />
+            )}
 
             {erro && <p style={{ color: '#f44336', fontWeight: 'bold', marginTop: '15px' }}>{erro}</p>}
           </>

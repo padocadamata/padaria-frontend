@@ -68,6 +68,9 @@ function SolicitacoesConteudo() {
   // esta AÇÃO específica cruza as duas por natureza).
   const podeInserirPedido = hasPermissao(permissoes, PERMISSOES.PEDIDOS_INSERIR);
   const podeReceberPedido = hasPermissao(permissoes, PERMISSOES.PEDIDOS_RECEBER);
+  // Migration 0073: Retirada criada daqui também pode lançar o financeiro.
+  const podeLancarFinanceiro = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_EDITAR);
+  const podePagarFinanceiro = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_PAGAR);
   const podeCriarPedido = podeRealizar && podeInserirPedido;
   // Reabrir/Excluir pedido a partir de uma Solicitação realizada usam as
   // MESMAS permissões de PEDIDOS de sempre (nunca pedidos_solicitacoes.*)
@@ -920,6 +923,8 @@ function SolicitacoesConteudo() {
           itensIniciais={solicitacaoParaItemPedido}
           corPrimaria={aparencia.corPrimaria}
           podeReceber={podeReceberPedido}
+          podeLancarFinanceiro={podeLancarFinanceiro}
+          podePagarFinanceiro={podePagarFinanceiro}
           onSalvo={aoPedidoCriadoDaSolicitacao}
           onCancelar={fecharCriarPedido}
         />

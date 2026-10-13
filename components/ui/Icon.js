@@ -205,6 +205,13 @@ const CAMINHOS = {
       <path d="M5 19h14" />
     </>
   ),
+  wallet: (
+    <>
+      <path d="M4 7a2 2 0 0 1 2-2h11v4" />
+      <path d="M4 7v11a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2Z" />
+      <circle cx="16" cy="14.5" r="1.2" />
+    </>
+  ),
 };
 
 export const NOMES_DE_ICONES = Object.keys(CAMINHOS);

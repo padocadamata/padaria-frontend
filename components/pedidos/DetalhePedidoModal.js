@@ -3,6 +3,7 @@ import Badge from '../ui/Badge';
 import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
 import AcoesLinha from '../ui/AcoesLinha';
+import FinanceiroDaCompra from '../financeiro/FinanceiroDaCompra';
 import { MQ_MOBILE } from '../../lib/design/breakpoints';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import styles from './DetalhePedidoModal.module.css';
@@ -83,6 +84,10 @@ export default function DetalhePedidoModal({
   podeCancelar,
   podeExcluir,
   podeReabrirRecebimento,
+  // Migration 0073: seção Financeiro só com contas_pagar.visualizar.
+  podeVerFinanceiro = false,
+  podeLancarFinanceiro = false,
+  podePagarFinanceiro = false,
   onEditar,
   onReceber,
   onCancelarPedido,
@@ -235,6 +240,10 @@ export default function DetalhePedidoModal({
 
           <DataTable rotulo="Dados do recebimento" colunas={colunasRecebimento} linhas={itens} chaveLinha={(item) => item.id} />
         </div>
+      )}
+
+      {pedido.status === 'recebido' && podeVerFinanceiro && (
+        <FinanceiroDaCompra pedidoId={pedido.id} podeLancar={podeLancarFinanceiro} podePagar={podePagarFinanceiro} />
       )}
 
       {acoes.length > 0 && (

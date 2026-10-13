@@ -93,6 +93,10 @@ function mensagemErroReaberturaRecebimento(error) {
   if (msg.includes('nao encontrado')) {
     return 'Pedido não encontrado. Recarregue a página.';
   }
+  // Migration 0073: compra com lançamento financeiro ativo não reabre.
+  if (msg.includes('lancamento financeiro ativo')) {
+    return 'Esta compra tem lançamento financeiro ativo. Em Financeiro > Contas a Pagar, estorne os pagamentos e cancele o lançamento antes de reabrir o recebimento.';
+  }
   if (msg.includes('somente pedidos recebidos podem ter o recebimento reaberto')) {
     return 'Este pedido não está mais com status Recebido. Recarregue a página.';
   }
@@ -198,6 +202,11 @@ function PedidosConteudo() {
   const podeCancelar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_CANCELAR);
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
   const podeReabrirRecebimento = hasPermissao(permissoes, PERMISSOES.PEDIDOS_REABRIR_RECEBIMENTO);
+  // Migration 0073 (Financeiro > Contas a Pagar): ver a seção Financeiro da
+  // compra, lançar o financeiro (junto do recebimento ou depois) e pagar no ato.
+  const podeVerFinanceiro = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_VISUALIZAR);
+  const podeLancarFinanceiro = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_EDITAR);
+  const podePagarFinanceiro = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_PAGAR);
   const hoje = dataLocalHoje();
 
   // Carga única (mesmo raciocínio de volume pequeno já usado em
@@ -406,7 +415,11 @@ function PedidosConteudo() {
 
     if (error) {
       console.error('Erro ao excluir pedido:', error);
-      setErroExclusaoPedido('Não foi possível excluir este pedido. Tente novamente ou avise um administrador.');
+      setErroExclusaoPedido(
+        (error.message || '').includes('historico no Financeiro')
+          ? 'Esta compra tem histórico no Financeiro (Contas a Pagar) e não pode ser excluída.'
+          : 'Não foi possível excluir este pedido. Tente novamente ou avise um administrador.'
+      );
       return;
     }
 
@@ -749,6 +762,8 @@ function PedidosConteudo() {
         <PedidoForm
           corPrimaria={aparencia.corPrimaria}
           podeReceber={podeReceber}
+          podeLancarFinanceiro={podeLancarFinanceiro}
+          podePagarFinanceiro={podePagarFinanceiro}
           onSalvo={aoCriarPedido}
           onCancelar={fecharNovoPedido}
         />
@@ -781,6 +796,9 @@ function PedidosConteudo() {
           podeCancelar={podeCancelar}
           podeExcluir={podeExcluir}
           podeReabrirRecebimento={podeReabrirRecebimento}
+          podeVerFinanceiro={podeVerFinanceiro}
+          podeLancarFinanceiro={podeLancarFinanceiro}
+          podePagarFinanceiro={podePagarFinanceiro}
           onEditar={() => abrirEdicao(pedidoDetalhe)}
           onReceber={() => abrirRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
@@ -820,6 +838,8 @@ function PedidosConteudo() {
           fornecedorNome={fornecedorNomePorId[pedidoParaReceber.fornecedor_id] || pedidoParaReceber.fornecedor_id}
           produtoNomePorId={produtoNomePorId}
           corPrimaria={aparencia.corPrimaria}
+          podeLancarFinanceiro={podeLancarFinanceiro}
+          podePagarFinanceiro={podePagarFinanceiro}
           onConfirmado={aoConfirmarRecebimento}
           onCancelar={fecharRecebimento}
         />

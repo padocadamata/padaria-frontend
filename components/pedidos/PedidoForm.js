@@ -5,6 +5,9 @@ import { diaSemanaISO, calcularDataEntrega } from '../../lib/fornecedores/regras
 import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
+import SecaoPagamento from '../financeiro/SecaoPagamento';
+import { estadoPagamentoInicial, montarPagamento, totalDosItens } from '../../lib/financeiro/contasPagarRegras';
+import { argumentosFinanceiros, mensagemErroFinanceiro } from '../../lib/financeiro/contasPagar';
 
 // Formulário ÚNICO de pedido a fornecedor -- absorve o que antes era
 // components/pedidos/CompraPresencialForm.js (removido nesta migração de
@@ -479,7 +482,20 @@ function SeletorProduto({ item, produtos, corPrimaria, onAlterarItem, ocultarUni
 //     validação -- ela reconfirma fornecedor ativo a cada chamada, então
 //     não existe o mesmo risco de contorno silencioso. Corrigir
 //     fornecedor/data faz parte do requisito funcional da 0037.
-export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B4513', podeReceber = true, onSalvo, onCancelar }) {
+// Migration 0073: na CRIAÇÃO de Retirada, quem tem contas_pagar.editar vê a
+// seção opcional "Pagamento" -- "Pago no ato"/"A prazo" usam
+// registrar_compra_presencial_com_financeiro (compra + financeiro na mesma
+// transação); "Não lançar agora" segue registrar_compra_presencial.
+export default function PedidoForm({
+  pedido,
+  itensIniciais,
+  corPrimaria = '#8B4513',
+  podeReceber = true,
+  podeLancarFinanceiro = false,
+  podePagarFinanceiro = false,
+  onSalvo,
+  onCancelar,
+}) {
   const estaEditando = pedido != null;
   const hoje = dataLocalHoje();
 
@@ -525,6 +541,7 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [pagamento, setPagamento] = useState(() => estadoPagamentoInicial({ dataBase: hoje }));
 
   const proximaChaveItem = useRef(itens.length);
   const chavesItens = useRef(itens.map((_, i) => i));
@@ -753,6 +770,10 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
         return soma + (Number.isFinite(quantidade) ? quantidade : 0) * Number(item.valorUnitario);
       }, 0)
     : null;
+  // Migration 0073: total como o banco vai gravar (round por item) e se a
+  // seção Pagamento aparece (só na criação de Retirada).
+  const totalRetirada = todosItensComPreco ? totalDosItens(itens) : null;
+  const mostrarPagamento = ehRetirada && !estaEditando && podeLancarFinanceiro;
 
   // ============================================================
   // ENTREGA -- edição existente, SEM RPC dedicada (idêntico ao
@@ -886,19 +907,31 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
     // registrar_compra_presencial(). O usuário não precisa saber que são
     // RPCs diferentes -- só escolheu "Entrega"/"Retirada" no topo.
     if (ehRetirada) {
-      const { data, error } = await supabase.rpc('registrar_compra_presencial', {
+      const financeiro = mostrarPagamento
+        ? montarPagamento(pagamento, { total: totalRetirada, hoje })
+        : { semFinanceiro: true };
+      if (financeiro.erro) {
+        setSalvando(false);
+        setErro(financeiro.erro);
+        return;
+      }
+      const argumentosCompra = {
         p_fornecedor_id: fornecedorId,
         p_data_compra: dataPedido,
         p_numero_nota_fiscal: numeroNotaFiscal.trim() || null,
         p_data_documento_fiscal: dataDocumentoFiscal || null,
         p_observacoes: observacoes.trim() || null,
         p_itens: montarPayloadItensRetirada(itens, configsPorProduto),
-      });
+      };
+      const { data, error } = financeiro.semFinanceiro
+        ? await supabase.rpc('registrar_compra_presencial', argumentosCompra)
+        : await supabase.rpc('registrar_compra_presencial_com_financeiro', { ...argumentosCompra, ...argumentosFinanceiros(financeiro.payload) });
 
       setSalvando(false);
 
       if (error) {
-        setErro(mensagemErroRetirada(error, false));
+        const msg = error?.message || '';
+        setErro(/contas_pagar|financeiro/.test(msg) ? mensagemErroFinanceiro(error) : mensagemErroRetirada(error, false));
         return;
       }
 
@@ -1328,6 +1361,18 @@ export default function PedidoForm({ pedido, itensIniciais, corPrimaria = '#8B45
                 </>
               )}
             </div>
+
+            {mostrarPagamento && (
+              <SecaoPagamento
+                estado={pagamento}
+                onChange={setPagamento}
+                total={totalRetirada}
+                dataBase={dataPedido || hoje}
+                hoje={hoje}
+                podePagar={podePagarFinanceiro}
+                desabilitado={salvando}
+              />
+            )}
 
             {erro && <p style={{ color: '#f44336', fontWeight: 'bold', marginBottom: '15px' }}>{erro}</p>}
           </>

@@ -1,0 +1,293 @@
+/* Financeiro > Contas a Pagar (migration 0073). */
+
+.secaoPagamento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  margin-top: var(--ds-sp-4);
+}
+
+.secaoTitulo {
+  margin: 0;
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}
+
+.linhaCampos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--ds-sp-3);
+  align-items: end;
+}
+
+.parcelas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.parcela {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--ds-sp-2);
+  align-items: center;
+}
+
+.numeroParcela {
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+}
+
+.conferencia {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+}
+
+.ok {
+  color: var(--ds-success);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.diferenca {
+  color: var(--ds-danger);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.dica {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.navegacaoVisoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.totais {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  padding: var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+
+.totalRotulo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.totalValor {
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-bold);
+  color: var(--ds-text);
+}
+
+.totalPerigo .totalValor {
+  color: var(--ds-danger);
+}
+
+.grupo {
+  margin-bottom: var(--ds-sp-5);
+}
+
+.grupoCabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  margin: 0 0 var(--ds-sp-2);
+}
+
+.grupoTitulo {
+  margin: 0;
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.vazio {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-style: italic;
+}
+
+.credor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sub {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  justify-content: flex-end;
+}
+
+.modalCorpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.detalheLista {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ds-sp-1) var(--ds-sp-3);
+  margin: 0;
+}
+
+.detalheLista dt {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.detalheLista dd {
+  margin: 0;
+}
+
+.listaSimples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.itemLista {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+}
+
+.estornada {
+  opacity: 0.65;
+  text-decoration: line-through;
+}
+
+.subtitulo {
+  margin: var(--ds-sp-2) 0 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-3);
+}
+
+.secaoPerigo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-3);
+  border: 1px solid var(--ds-danger-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-danger-soft);
+}
+
+.equacao {
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.financeiroPedido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+  padding: var(--ds-sp-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.financeiroCabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+.categoriaLinha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) 0;
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.novaCategoria {
+  display: flex;
+  gap: var(--ds-sp-2);
+  align-items: flex-end;
+}
+
+.novaCategoria > *:first-child {
+  flex: 1;
+}
+
+@media (max-width: 640px) {
+  .parcela {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+
+  .parcela > *:last-child {
+    grid-column: 2;
+  }
+
+  .detalheLista {
+    grid-template-columns: 1fr;
+  }
+}
