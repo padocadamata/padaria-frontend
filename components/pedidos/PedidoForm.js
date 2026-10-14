@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { nomeExibicaoFornecedor } from '../../lib/fornecedores/nomeExibicao';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { diaSemanaISO, calcularDataEntrega } from '../../lib/fornecedores/regrasPedido';
 import { buscarProdutosPorRelevancia } from '../../lib/pedidos/buscaProduto';
@@ -631,7 +633,7 @@ export default function PedidoForm({
       }
 
       setProdutos(produtosResp.data || []);
-      setFornecedores(fornecedoresResp?.data || []);
+      setFornecedores(ordenarOpcoes(fornecedoresResp?.data || [], nomeExibicaoFornecedor));
       setRegras(regrasResp?.data || []);
       setCarregandoDados(false);
     }
@@ -1034,7 +1036,7 @@ export default function PedidoForm({
                       <option value="">Selecione</option>
                       {fornecedores.map((f) => (
                         <option key={f.id} value={f.id}>
-                          {f.nome_fantasia || f.razao_social || f.nome}
+                          {nomeExibicaoFornecedor(f)}
                         </option>
                       ))}
                     </select>

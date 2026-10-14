@@ -23,6 +23,10 @@ import { useAuth } from '../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../lib/data/dataLocal';
 import { APARENCIA_FIXA } from '../lib/branding/tema';
 import { JANELA_RECEBIDOS_DIAS } from '../lib/pedidos/resumoConfig';
+import { lerEmLotes } from '../lib/supabase/lerEmLotes';
+import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
+import { nomeExibicaoFornecedor } from '../lib/fornecedores/nomeExibicao';
 
 // A URL (?filtro=<chave>) é a ÚNICA fonte persistente do filtro de
 // Status -- não existe mais um useState('filtroStatus') separado que
@@ -157,6 +161,8 @@ function PedidosConteudo() {
   // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS dos
   // filtros -- ver `paginacao` abaixo).
   const [pagina, setPagina] = useState(1);
+  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
 
   // "Ver pedido" (somente leitura).
   const [pedidoDetalhe, setPedidoDetalhe] = useState(null);
@@ -222,22 +228,33 @@ function PedidosConteudo() {
 
       const supabase = createClient();
 
+      // Pedidos, itens e produtos crescem sem limite: leitura COMPLETA em
+      // lotes (lib/supabase/lerEmLotes) -- um select único seria cortado em
+      // silêncio nas 1000 linhas do PostgREST (itens sumiriam do detalhe e
+      // do total; filtros/ordenação veriam só parte). Ordem por id só para
+      // os lotes serem determinísticos; a exibição usa `ordenados` abaixo.
       const [pedidosResp, itensResp, fornecedoresResp, produtosResp] = await Promise.all([
-        supabase
-          .from('pedidos')
-          .select(
-            'id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, recebido_em, criado_em, modalidade_compra, numero_nota_fiscal, data_documento_fiscal'
-          ),
-        supabase
-          .from('pedido_itens')
-          .select(
-            'id, pedido_id, produto_id, descricao, quantidade_pedida, unidade, valor_unitario, unidade_recebida, quantidade_recebida, valor_unitario_recebido, valor_total_recebido'
-          ),
+        lerEmLotes(() =>
+          supabase
+            .from('pedidos')
+            .select(
+              'id, fornecedor_id, data_pedido, previsao_entrega, status, observacoes, motivo_cancelamento, recebido_em, criado_em, modalidade_compra, numero_nota_fiscal, data_documento_fiscal'
+            )
+            .order('id')
+        ),
+        lerEmLotes(() =>
+          supabase
+            .from('pedido_itens')
+            .select(
+              'id, pedido_id, produto_id, descricao, quantidade_pedida, unidade, valor_unitario, unidade_recebida, quantidade_recebida, valor_unitario_recebido, valor_total_recebido'
+            )
+            .order('id')
+        ),
         supabase.from('fornecedores').select('id, nome, nome_fantasia, razao_social'),
         // Sem filtro de ativo: um item de pedido já lançado precisa continuar
         // mostrando o nome do produto mesmo que ele seja desativado depois
         // (mesmo raciocínio de receitaNomePorId em pages/producao/historico.js).
-        supabase.from('produtos').select('id, nome'),
+        lerEmLotes(() => supabase.from('produtos').select('id, nome').order('id')),
       ]);
 
       if (!efeitoAtivo) return;
@@ -256,7 +273,7 @@ function PedidosConteudo() {
 
       const nomePorId = {};
       for (const f of fornecedoresResp.data || []) {
-        nomePorId[f.id] = f.nome_fantasia || f.razao_social || f.nome || f.id;
+        nomePorId[f.id] = nomeExibicaoFornecedor(f, f.id);
       }
 
       const produtoNomePorIdCarregado = {};
@@ -545,9 +562,9 @@ function PedidosConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
-  const fornecedoresDisponiveis = Array.from(new Set(pedidos.map((p) => p.fornecedor_id)))
-    .map((id) => ({ id, nome: fornecedorNomePorId[id] || id }))
-    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const fornecedoresDisponiveis = ordenarOpcoes(
+    Array.from(new Set(pedidos.map((p) => p.fornecedor_id))).map((id) => ({ id, nome: fornecedorNomePorId[id] || id }))
+  );
 
   const cutoffRecebidosRecentes = somarDias(hoje, -JANELA_RECEBIDOS_DIAS);
 
@@ -574,13 +591,6 @@ function PedidosConteudo() {
     return true;
   });
 
-  // Paginação VISUAL (client-side, 20 por página) -- só APÓS os filtros: a
-  // lista completa continua em memória e os filtros continuam no navegador;
-  // aqui só se fatia o resultado já filtrado e ordenado. Tabela (desktop) e
-  // cartões (mobile) recebem exatamente este mesmo subconjunto.
-  const paginacao = paginarLista(pedidosFiltrados, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
   // Qualquer mudança de filtro volta para a página 1.
   function alterarFiltro(setter) {
     return (valor) => {
@@ -589,12 +599,7 @@ function PedidosConteudo() {
     };
   }
 
-  // O resultado encolheu (filtro, exclusão, recarga) ou o ?filtro= mudou por
-  // fora (voltar/avançar do navegador): corrige a página guardada / volta à 1.
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
-
+  // O ?filtro= mudou por fora (voltar/avançar do navegador): volta à página 1.
   useEffect(() => {
     setPagina(1);
   }, [filtroStatus]);
@@ -618,6 +623,16 @@ function PedidosConteudo() {
     if (filtroStatus !== 'todos') aoMudarFiltroStatus('todos');
   }
 
+  // Total estimado de um pedido: só existe quando TODOS os itens têm preço
+  // (mesma regra de DetalhePedidoModal/PedidoForm) -- usado na exibição e
+  // na ordenação da coluna (sem total = vazio, sempre no fim).
+  function totalEstimado(pedido) {
+    const itensDoPedido = itensPorPedido[pedido.id] || [];
+    const todosComValor = itensDoPedido.length > 0 && itensDoPedido.every((item) => item.valor_unitario != null);
+    if (!todosComValor) return null;
+    return itensDoPedido.reduce((soma, item) => soma + item.quantidade_pedida * item.valor_unitario, 0);
+  }
+
   // UMA definição de colunas para a tabela (desktop) e os cartões (mobile).
   const colunas = [
     {
@@ -625,6 +640,7 @@ function PedidosConteudo() {
       rotulo: 'Fornecedor',
       mobile: 'titulo',
       cartaoOrdem: 0,
+      ordenavel: { valor: (pedido) => fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id },
       render: (pedido) => (
         <>
           {fornecedorNomePorId[pedido.fornecedor_id] || pedido.fornecedor_id}
@@ -636,12 +652,25 @@ function PedidosConteudo() {
         </>
       ),
     },
-    { chave: 'data', rotulo: 'Data do pedido', semQuebra: true, mobile: 'titulo', cartaoOrdem: 1, render: (pedido) => formatarDataExibicao(pedido.data_pedido) },
-    { chave: 'previsao', rotulo: 'Previsão de entrega', semQuebra: true, render: (pedido) => formatarDataExibicao(pedido.previsao_entrega) },
-    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 2, render: (pedido) => <BadgeStatusPedido pedido={pedido} hoje={hoje} /> },
+    { chave: 'data', rotulo: 'Data do pedido', semQuebra: true, mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'data', valor: (pedido) => pedido.data_pedido }, render: (pedido) => formatarDataExibicao(pedido.data_pedido) },
+    { chave: 'previsao', rotulo: 'Previsão de entrega', semQuebra: true, ordenavel: { tipo: 'data', valor: (pedido) => pedido.previsao_entrega }, render: (pedido) => formatarDataExibicao(pedido.previsao_entrega) },
+    {
+      chave: 'status',
+      rotulo: 'Status',
+      mobile: 'titulo',
+      cartaoOrdem: 2,
+      // Ordem semântica: Atrasado (o que pede ação) antes de Aguardando,
+      // depois Recebido e Cancelado -- o mesmo status exibido no selo.
+      ordenavel: {
+        valor: (pedido) => (estaAtrasado(pedido, hoje) ? 'atrasado' : pedido.status),
+        ordem: ['atrasado', 'aguardando_entrega', 'recebido', 'cancelado'],
+      },
+      render: (pedido) => <BadgeStatusPedido pedido={pedido} hoje={hoje} />,
+    },
     {
       chave: 'itens',
       rotulo: 'Itens',
+      ordenavel: { tipo: 'numero', valor: (pedido) => (itensPorPedido[pedido.id] || []).length },
       render: (pedido) => {
         const quantidade = (itensPorPedido[pedido.id] || []).length;
         return `${quantidade} ${quantidade === 1 ? 'item' : 'itens'}`;
@@ -651,21 +680,30 @@ function PedidosConteudo() {
       chave: 'total',
       rotulo: 'Total estimado',
       alinhar: 'direita',
+      ordenavel: { tipo: 'moeda', valor: totalEstimado },
       render: (pedido) => {
-        const itensDoPedido = itensPorPedido[pedido.id] || [];
-        // Mesma regra de DetalhePedidoModal/PedidoForm: só existe um total
-        // quando TODOS os itens têm preço -- somar só os precificados e
-        // chamar isso de "total" seria enganoso (pareceria completo sem
-        // estar).
-        const todosComValor = itensDoPedido.length > 0 && itensDoPedido.every((item) => item.valor_unitario != null);
-        const algumComValor = itensDoPedido.some((item) => item.valor_unitario != null);
-        if (todosComValor) {
-          return formatarMoeda(itensDoPedido.reduce((soma, item) => soma + item.quantidade_pedida * item.valor_unitario, 0));
-        }
+        // Somar só os precificados e chamar isso de "total" seria enganoso
+        // (pareceria completo sem estar) -- ver totalEstimado().
+        const total = totalEstimado(pedido);
+        if (total != null) return formatarMoeda(total);
+        const algumComValor = (itensPorPedido[pedido.id] || []).some((item) => item.valor_unitario != null);
         return <span title={algumComValor ? 'Nem todos os itens têm preço informado.' : undefined}>—</span>;
       },
     },
   ];
+
+  // Paginação VISUAL (client-side, 20 por página) -- só APÓS os filtros e a
+  // ordenação: a lista completa continua em memória; a ordem padrão (data
+  // do pedido mais recente primeiro) ou a coluna escolhida no cabeçalho é
+  // aplicada ao conjunto filtrado INTEIRO e só então se fatia a página.
+  // Tabela (desktop) e cartões (mobile) recebem exatamente este subconjunto.
+  const paginacao = paginarLista(ordenacao.ordenar(pedidosFiltrados, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // O resultado encolheu (filtro, exclusão, recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   return (
     <PaginaPedidos
@@ -741,6 +779,7 @@ function PedidosConteudo() {
             chaveLinha={(pedido) => pedido.id}
             destaque={(pedido) => (estaAtrasado(pedido, hoje) ? 'aviso' : null)}
             cartoesAte={1270}
+            ordenacao={ordenacao.props}
             renderAcoes={(pedido) => (
               <Button variante="secondary" tamanho="sm" icone="eye" onClick={() => abrirDetalhe(pedido)}>
                 Ver pedido

@@ -20,6 +20,8 @@ import Paginacao, { paginarLista } from '../components/Paginacao';
 import estilos from '../components/catalogo/catalogo.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
+import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
 import { useAuth } from '../hooks/useAuth';
 
 // Lote pequeno e conservador de propósito: fica bem abaixo do db-max-rows
@@ -104,53 +106,6 @@ function BadgeProducao({ ativo }) {
   return <Badge tom={ativo ? 'info' : 'neutral'}>{ativo ? 'Em Produção' : 'Fora de Produção'}</Badge>;
 }
 
-// Comparação de texto para ordenação: vazio/nulo sempre por último,
-// independente da direção escolhida (evita que "crescente" jogue todos
-// os produtos sem Seção/Categoria pro topo, o que seria confuso). pt-BR
-// + sensitivity 'base' trata acentuação/caixa como equivalentes para fins
-// de ordenação (Café ~ cafe ~ CAFÉ ficam juntos).
-function compararTexto(a, b) {
-  const x = (a || '').trim();
-  const y = (b || '').trim();
-  if (!x && !y) return 0;
-  if (!x) return 1;
-  if (!y) return -1;
-  return x.localeCompare(y, 'pt-BR', { sensitivity: 'base' });
-}
-
-// 'secaoNome'/'categoriaNome' são campos DERIVADOS (calculados a partir
-// de secao_id/categoria_id + o cadastro estruturado), nunca as colunas
-// de texto legado -- ver produtosComNomes dentro do componente.
-const CAMPOS_TEXTO_ORDENAVEIS = new Set(['nome', 'codigo_g3', 'codigo_barras', 'secaoNome', 'categoriaNome', 'unidade_medida']);
-
-// Ordem coerente para Status: Ativo antes de Inativo no sentido
-// crescente -- não há uma ordem "alfabética" natural para um booleano,
-// então esta é a convenção explícita adotada (produto habilitado para
-// uso é tratado como "menor"/primeiro).
-function compararProdutos(a, b, ordenacao) {
-  let resultado;
-
-  if (ordenacao.campo === 'ativo') {
-    resultado = a.ativo === b.ativo ? 0 : a.ativo ? -1 : 1;
-  } else if (CAMPOS_TEXTO_ORDENAVEIS.has(ordenacao.campo)) {
-    resultado = compararTexto(a[ordenacao.campo], b[ordenacao.campo]);
-  } else {
-    resultado = 0;
-  }
-
-  return ordenacao.direcao === 'asc' ? resultado : -resultado;
-}
-
-function CabecalhoOrdenavel({ campo, label, ordenacao, aoClicar }) {
-  const ativo = ordenacao.campo === campo;
-  return (
-    <button type="button" className={estilos.cabecalhoOrdenavel} onClick={() => aoClicar(campo)} title="Clique para ordenar">
-      {label}
-      {ativo && <span aria-hidden="true">{ordenacao.direcao === 'asc' ? ' ▲' : ' ▼'}</span>}
-    </button>
-  );
-}
-
 // Mesmo princípio já usado em mensagemErroReaberturaRecebimento (pages/
 // pedidos.js) e mensagemErroExclusaoClassificacao (GerenciarClassificacoesModal.js):
 // NUNCA mostrar error.message bruto na UI -- só reconhecer os textos
@@ -229,7 +184,11 @@ function CatalogoConteudo() {
   // filtros/busca/ordenação -- mesmo padrão de pages/fornecedores.js).
   const [pagina, setPagina] = useState(1);
 
-  const [ordenacao, setOrdenacao] = useState({ campo: 'nome', direcao: 'asc' });
+  // Ordenação do cabeçalho (lib/ordenacao): estado local, nunca salvo. O
+  // Catálogo sempre abriu ordenado por Produto A → Z com a seta visível --
+  // `inicial` preserva isso. Ativo antes de Inativo no crescente; Seção/
+  // Categoria pelos nomes DERIVADOS (secaoNome/categoriaNome), vazios no fim.
+  const ordenacao = useOrdenacao({ inicial: { chave: 'nome', direcao: 'asc' }, aoMudar: () => setPagina(1) });
 
   // Edição inline: uma linha por produto.id em edicoes[] entra em modo
   // edição. Múltiplas linhas podem estar em edição ao mesmo tempo -- cada
@@ -261,8 +220,8 @@ function CatalogoConteudo() {
       const supabase = createClient();
       const resultado = await carregarClassificacoes(supabase);
       if (!efeitoAtivo) return;
-      setSecoes(resultado.secoes);
-      setCategorias(resultado.categorias);
+      setSecoes(ordenarOpcoes(resultado.secoes));
+      setCategorias(ordenarOpcoes(resultado.categorias));
     }
 
     carregar();
@@ -370,18 +329,6 @@ function CatalogoConteudo() {
     return nome.includes(buscaNormalizada) || codigoG3.includes(buscaNormalizada) || codigoBarras.includes(buscaNormalizada);
   });
 
-  // Ordenação aplicada sobre o resultado JÁ filtrado (não sobre o
-  // conjunto bruto) -- funciona em conjunto com os filtros, como pedido.
-  const produtosOrdenados = [...produtosFiltrados].sort((a, b) => compararProdutos(a, b, ordenacao));
-
-  // Paginação VISUAL (client-side, 20 por página): a lista já vem inteira
-  // do banco (filtro de Status na consulta; Seção/Categoria/Buscar no
-  // navegador) e aqui só se fatia o resultado já filtrado e ordenado.
-  // Tabela (desktop) e cartões (mobile) recebem exatamente este mesmo
-  // subconjunto -- mesmo padrão de pages/fornecedores.js.
-  const paginacao = paginarLista(produtosOrdenados, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
   // Qualquer mudança de filtro/busca volta para a página 1.
   function alterarFiltro(setter) {
     return (valor) => {
@@ -389,11 +336,6 @@ function CatalogoConteudo() {
       setPagina(1);
     };
   }
-
-  // Resultado encolheu (filtro, exclusão, recarga): corrige a página guardada.
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
 
   const quantidadeFiltrosAtivos = [
     filtroStatus !== 'ativos',
@@ -417,15 +359,6 @@ function CatalogoConteudo() {
   // inativo com utilização não pode. Quem decide de fato é sempre a RPC
   // (excluir_produto_catalogo), o botão só controla se a AÇÃO aparece.
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.CATALOGO_PRODUTOS_EXCLUIR);
-
-  function alternarOrdenacao(campo) {
-    setOrdenacao((atual) => {
-      if (atual.campo === campo) {
-        return { campo, direcao: atual.direcao === 'asc' ? 'desc' : 'asc' };
-      }
-      return { campo, direcao: 'asc' };
-    });
-  }
 
   function abrirEdicao(produto) {
     setEdicoes((atual) => ({
@@ -579,7 +512,8 @@ function CatalogoConteudo() {
   const colunas = [
     {
       chave: 'nome',
-      rotulo: <CabecalhoOrdenavel campo="nome" label="Produto" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Produto',
+      ordenavel: true,
       mobile: 'titulo',
       cartaoOrdem: 0,
       render: (produto) => {
@@ -598,7 +532,8 @@ function CatalogoConteudo() {
     },
     {
       chave: 'ativo',
-      rotulo: <CabecalhoOrdenavel campo="ativo" label="Status" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Status',
+      ordenavel: { tipo: 'booleano', valor: (produto) => produto.ativo },
       mobile: 'titulo',
       cartaoOrdem: 1,
       render: (produto) => {
@@ -619,7 +554,8 @@ function CatalogoConteudo() {
     },
     {
       chave: 'codigo_g3',
-      rotulo: <CabecalhoOrdenavel campo="codigo_g3" label="Código G3" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Código G3',
+      ordenavel: true,
       soCartao: true, // some da tabela desktop (simplificação pedida); continua nos cartões mobile, na busca, no cadastro e no detalhe
       render: (produto) => {
         const dados = edicoes[produto.id];
@@ -638,7 +574,8 @@ function CatalogoConteudo() {
     },
     {
       chave: 'codigo_barras',
-      rotulo: <CabecalhoOrdenavel campo="codigo_barras" label="Cód. barras" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Cód. barras',
+      ordenavel: true,
       soCartao: true, // some da tabela desktop (simplificação pedida); continua nos cartões mobile, na busca, no cadastro e no detalhe
       render: (produto) => {
         const dados = edicoes[produto.id];
@@ -657,7 +594,8 @@ function CatalogoConteudo() {
     },
     {
       chave: 'secaoNome',
-      rotulo: <CabecalhoOrdenavel campo="secaoNome" label="Seção" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Seção',
+      ordenavel: true,
       render: (produto) => {
         const dados = edicoes[produto.id];
         if (!dados) return produto.secaoNome || '—';
@@ -678,7 +616,8 @@ function CatalogoConteudo() {
     },
     {
       chave: 'categoriaNome',
-      rotulo: <CabecalhoOrdenavel campo="categoriaNome" label="Categoria" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Categoria',
+      ordenavel: true,
       render: (produto) => {
         const dados = edicoes[produto.id];
         if (!dados) return produto.categoriaNome || '—';
@@ -699,7 +638,8 @@ function CatalogoConteudo() {
     },
     {
       chave: 'unidade_medida',
-      rotulo: <CabecalhoOrdenavel campo="unidade_medida" label="Unidade" ordenacao={ordenacao} aoClicar={alternarOrdenacao} />,
+      rotulo: 'Unidade',
+      ordenavel: true,
       render: (produto) => {
         const dados = edicoes[produto.id];
         if (!dados) return produto.unidade_medida || '—';
@@ -718,9 +658,24 @@ function CatalogoConteudo() {
     {
       chave: 'producao',
       rotulo: 'Produção',
+      ordenavel: { tipo: 'booleano', valor: (produto) => produto.producaoAtiva },
       render: (produto) => <BadgeProducao ativo={produto.producaoAtiva} />,
     },
   ];
+
+  // Ordenação aplicada sobre o resultado JÁ filtrado (nunca sobre o conjunto
+  // bruto) e ANTES da paginação VISUAL (client-side, 20 por página): a lista
+  // já vem inteira do banco (em lotes; filtro de Status na consulta; Seção/
+  // Categoria/Buscar no navegador). Tabela (desktop) e cartões (mobile)
+  // recebem exatamente este mesmo subconjunto.
+  const produtosOrdenados = ordenacao.ordenar(produtosFiltrados, colunas);
+  const paginacao = paginarLista(produtosOrdenados, pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Resultado encolheu (filtro, exclusão, recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   function acoesDaLinha(produto) {
     const emEdicao = !!edicoes[produto.id];
@@ -810,6 +765,7 @@ function CatalogoConteudo() {
             chaveLinha={(produto) => produto.id}
             destaque={(produto) => (produto.ativo ? null : 'inativo')}
             cartoesAte={1180}
+            ordenacao={ordenacao.props}
             linhaExtra={(produto) => (erroPorId[produto.id] ? <p className={estilos.linhaErro}>{erroPorId[produto.id]}</p> : null)}
             renderAcoes={(produto, { cartao }) => <AcoesLinha acoes={acoesDaLinha(produto)} cartao={cartao} />}
           />

@@ -15,9 +15,16 @@
   min-width: 150px;
 }
 
+.diaCurto {
+  display: inline-block;
+  min-width: 2.4em;
+  margin-right: var(--ds-sp-1);
+  color: var(--ds-text-muted);
+}
+
 .sugestaoLinha {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* tabela (desktop): numa linha só; cartões: quebra (abaixo) */
   align-items: center;
   gap: var(--ds-sp-2);
 }
@@ -103,7 +110,7 @@
   margin-top: var(--ds-sp-4);
 }
 
-@media (max-width: 1439px) {
+@media (max-width: 1023px) {
   /* Em cartões os campos ocupam a largura toda: fácil de tocar e digitar. */
   .campoQuantidade,
   .campoObservacao {
@@ -111,6 +118,9 @@
   }
   .sugestao {
     min-width: 0;
+  }
+  .sugestaoLinha {
+    flex-wrap: wrap;
   }
   .acoes,
   .botoes {

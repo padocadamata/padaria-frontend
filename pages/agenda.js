@@ -16,6 +16,7 @@ import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
+import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
 import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
 import { buscarItensDaAgenda, buscarNascimentosParaAgenda } from '../lib/agenda/consultasAgenda';
@@ -84,7 +85,7 @@ function AgendaConteudo() {
         console.error('Erro ao carregar categorias da Agenda:', erroCategorias);
         return;
       }
-      setCategorias(data || []);
+      setCategorias(ordenarOpcoes(data || [], (c) => c.valor));
     }
     carregarCategorias();
     return () => {

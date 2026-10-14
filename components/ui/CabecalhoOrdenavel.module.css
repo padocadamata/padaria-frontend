@@ -1,0 +1,61 @@
+/* Cabeçalho de coluna ordenável (DataTable e tabelas próprias). */
+
+.botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: var(--ds-sp-2) 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.botaoDir {
+  flex-direction: row-reverse;
+}
+
+.botao:hover,
+.botaoAtivo {
+  color: var(--ds-text);
+}
+
+.botao:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+  border-radius: var(--ds-radius-sm);
+}
+
+.rotulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A seta tem largura FIXA sempre: invisível nas colunas inativas (aparece
+   esmaecida no hover/foco, indicando que dá para ordenar), visível na ativa. */
+.seta {
+  display: inline-flex;
+  flex: 0 0 14px;
+  width: 14px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.botao:hover .seta,
+.botao:focus-visible .seta {
+  opacity: 0.45;
+}
+
+.botaoAtivo .seta,
+.botaoAtivo:hover .seta {
+  opacity: 1;
+  color: var(--ds-primary);
+}
+

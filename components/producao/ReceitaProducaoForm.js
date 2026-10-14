@@ -3,6 +3,7 @@ import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import Modal from '../ui/Modal';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 // Formulário SOMENTE da extensão operacional de Produção (public.receitas).
 // Desde a unificação Catálogo x Produção (receitas.catalogo_produto_id,
@@ -133,7 +134,7 @@ function opcoesClassificacaoProducao(itens, valorAtual) {
   const ativos = itens.filter((item) => item.ativo);
   const atualInativo = valorAtual ? itens.find((item) => item.valor === valorAtual && !item.ativo) : null;
   const lista = atualInativo ? [...ativos, atualInativo] : ativos;
-  return [...lista].sort((a, b) => a.valor.localeCompare(b.valor, 'pt-BR'));
+  return ordenarOpcoes(lista, (item) => item.valor);
 }
 
 export default function ReceitaProducaoForm({ receita, tiposProducao = [], gruposProducao = [], onFechar, onSalvo }) {

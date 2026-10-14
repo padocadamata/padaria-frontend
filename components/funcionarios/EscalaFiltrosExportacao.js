@@ -3,6 +3,7 @@ import Button from '../ui/Button';
 import Select from '../ui/Select';
 import { funcionariasDisponiveisNoFiltro, normalizarFiltroEscala } from '../../lib/funcionarios/escalaFiltro';
 import estilos from './escala.module.css';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 // Grupo compacto "Cargo | Funcionária | PDF | Excel" -- entra no MESMO
 // cabeçalho de cada visão da Escala (no lugar do antigo select de cargo),
@@ -28,7 +29,7 @@ export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, 
 
   // Funcionária depende do cargo: lista só as compatíveis e, ao trocar
   // para um cargo incompatível, a seleção é limpa (normalizarFiltroEscala).
-  const funcionariasDisponiveis = funcionariasDisponiveisNoFiltro(funcionarios, filtro.cargoId);
+  const funcionariasDisponiveis = ordenarOpcoes(funcionariasDisponiveisNoFiltro(funcionarios, filtro.cargoId));
   function mudarFiltro(parcial) {
     onFiltroChange(normalizarFiltroEscala({ ...filtro, ...parcial }, funcionarios));
   }

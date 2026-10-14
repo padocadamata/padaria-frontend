@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { useAuth } from '../../hooks/useAuth';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import Alert from '../ui/Alert';
@@ -223,8 +224,8 @@ export default function DadosProdutoForm({ produto, podeEditar, onCriado, onSalv
       ]);
       if (!efeitoAtivo) return;
 
-      setSecoes(secoesData || []);
-      setCategorias(categoriasData || []);
+      setSecoes(ordenarOpcoes(secoesData || []));
+      setCategorias(ordenarOpcoes(categoriasData || []));
     }
 
     carregarClassificacoes();

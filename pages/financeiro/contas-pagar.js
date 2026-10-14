@@ -21,6 +21,8 @@ import { descreverOrigem, formatarData } from '../../components/financeiro/forma
 import estilos from '../../components/financeiro/financeiro.module.css';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { useAuth } from '../../hooks/useAuth';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { dataLocalHoje, inicioDoMes } from '../../lib/data/dataLocal';
 import {
   FORMAS_PAGAMENTO, GRUPOS_A_PAGAR, centavos, classificarParcela, deCentavos, formatarReais, rotuloForma, totalizarAPagar,
@@ -80,6 +82,12 @@ function ContasPagarConteudo() {
   const [lancando, setLancando] = useState(null);
   const [novaDespesa, setNovaDespesa] = useState(false);
   const [gerenciarCategorias, setGerenciarCategorias] = useState(false);
+  // Ordenação do cabeçalho: estado local, UM por visão (cada aba guarda a
+  // sua escolha enquanto a tela estiver aberta; nunca salvo). Em "A Pagar"
+  // a mesma escolha vale dentro de cada grupo de situação.
+  const ordenacaoAPagar = useOrdenacao();
+  const ordenacaoPagas = useOrdenacao();
+  const ordenacaoSemLancamento = useOrdenacao();
 
   // ?conta=<id> abre o detalhe (link vindo do detalhe da compra).
   useEffect(() => {
@@ -139,7 +147,7 @@ function ContasPagarConteudo() {
   const filtrosAtivos = Object.values(filtros).filter(Boolean).length;
 
   const credores = useMemo(
-    () => Array.from(new Set(linhas.map((l) => l.credor_exibicao || l.fornecedor_nome).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    () => ordenarOpcoes(Array.from(new Set(linhas.map((l) => l.credor_exibicao || l.fornecedor_nome).filter(Boolean)))),
     [linhas]
   );
 
@@ -172,30 +180,36 @@ function ContasPagarConteudo() {
   }, [visao, filtradas, hoje]);
 
   const colunasAPagar = [
-    { chave: 'vencimento', rotulo: 'Vencimento', semQuebra: true, render: (l) => formatarData(l.vencimento) },
-    { chave: 'credor', rotulo: 'Fornecedor / credor', mobile: 'titulo', render: (l) => <CredorCelula linha={l} /> },
-    { chave: 'parcela', rotulo: 'Parcela', render: (l) => `${l.numero}/${l.total_parcelas}` },
-    { chave: 'forma', rotulo: 'Forma prevista', render: (l) => rotuloForma(l.forma_prevista) },
-    { chave: 'valor', rotulo: 'Valor', alinhar: 'direita', render: (l) => <strong>{formatarReais(l.valor)}</strong> },
+    { chave: 'vencimento', rotulo: 'Vencimento', semQuebra: true, ordenavel: { tipo: 'data', valor: (l) => l.vencimento }, render: (l) => formatarData(l.vencimento) },
+    { chave: 'credor', rotulo: 'Fornecedor / credor', mobile: 'titulo', ordenavel: { valor: (l) => l.credor_exibicao }, render: (l) => <CredorCelula linha={l} /> },
+    { chave: 'parcela', rotulo: 'Parcela', ordenavel: { tipo: 'numero', valor: (l) => l.numero }, render: (l) => `${l.numero}/${l.total_parcelas}` },
+    { chave: 'forma', rotulo: 'Forma prevista', ordenavel: { valor: (l) => rotuloForma(l.forma_prevista) }, render: (l) => rotuloForma(l.forma_prevista) },
+    { chave: 'valor', rotulo: 'Valor', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (l) => l.valor }, render: (l) => <strong>{formatarReais(l.valor)}</strong> },
   ];
 
+  const acrescimos = (l) => deCentavos(centavos(l.juros) + centavos(l.multa));
   const colunasPagas = [
-    { chave: 'pago_em', rotulo: 'Pago em', semQuebra: true, render: (l) => formatarData(l.pago_em) },
-    { chave: 'credor', rotulo: 'Fornecedor / credor', mobile: 'titulo', render: (l) => <CredorCelula linha={l} /> },
-    { chave: 'parcela', rotulo: 'Parcela', render: (l) => `${l.numero}/${l.total_parcelas}${l.condicao === 'no_ato' ? ' · no ato' : ''}` },
-    { chave: 'forma', rotulo: 'Forma', render: (l) => rotuloForma(l.forma_pagamento) },
-    { chave: 'original', rotulo: 'Original', alinhar: 'direita', render: (l) => formatarReais(l.valor) },
-    { chave: 'acrescimos', rotulo: 'Juros + multa', alinhar: 'direita', render: (l) => formatarReais(deCentavos(centavos(l.juros) + centavos(l.multa))) },
-    { chave: 'desconto', rotulo: 'Desconto', alinhar: 'direita', render: (l) => formatarReais(l.desconto) },
-    { chave: 'pago', rotulo: 'Pago', alinhar: 'direita', render: (l) => <strong>{formatarReais(l.valor_pago)}</strong> },
+    { chave: 'pago_em', rotulo: 'Pago em', semQuebra: true, ordenavel: { tipo: 'data', valor: (l) => l.pago_em }, render: (l) => formatarData(l.pago_em) },
+    { chave: 'credor', rotulo: 'Fornecedor / credor', mobile: 'titulo', ordenavel: { valor: (l) => l.credor_exibicao }, render: (l) => <CredorCelula linha={l} /> },
+    { chave: 'parcela', rotulo: 'Parcela', ordenavel: { tipo: 'numero', valor: (l) => l.numero }, render: (l) => `${l.numero}/${l.total_parcelas}${l.condicao === 'no_ato' ? ' · no ato' : ''}` },
+    { chave: 'forma', rotulo: 'Forma', ordenavel: { valor: (l) => rotuloForma(l.forma_pagamento) }, render: (l) => rotuloForma(l.forma_pagamento) },
+    { chave: 'original', rotulo: 'Original', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (l) => l.valor }, render: (l) => formatarReais(l.valor) },
+    { chave: 'acrescimos', rotulo: 'Juros + multa', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: acrescimos }, render: (l) => formatarReais(acrescimos(l)) },
+    { chave: 'desconto', rotulo: 'Desconto', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (l) => l.desconto }, render: (l) => formatarReais(l.desconto) },
+    { chave: 'pago', rotulo: 'Pago', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (l) => l.valor_pago }, render: (l) => <strong>{formatarReais(l.valor_pago)}</strong> },
   ];
 
   const colunasSemLancamento = [
-    { chave: 'data', rotulo: 'Data da compra', semQuebra: true, render: (l) => formatarData(l.data_compra) },
-    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', render: (l) => <strong>{l.fornecedor_nome}</strong> },
-    { chave: 'modalidade', rotulo: 'Modalidade', render: (l) => (l.modalidade_compra === 'compra_presencial' ? 'Retirada' : 'Entrega') },
-    { chave: 'nf', rotulo: 'Nota fiscal', render: (l) => l.numero_nota_fiscal || '—' },
-    { chave: 'total', rotulo: 'Total', alinhar: 'direita', render: (l) => <strong>{formatarReais(l.total)}</strong> },
+    { chave: 'data', rotulo: 'Data da compra', semQuebra: true, ordenavel: { tipo: 'data', valor: (l) => l.data_compra }, render: (l) => formatarData(l.data_compra) },
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', ordenavel: { valor: (l) => l.fornecedor_nome }, render: (l) => <strong>{l.fornecedor_nome}</strong> },
+    {
+      chave: 'modalidade',
+      rotulo: 'Modalidade',
+      ordenavel: { valor: (l) => l.modalidade_compra, ordem: ['pedido_com_entrega', 'compra_presencial'] },
+      render: (l) => (l.modalidade_compra === 'compra_presencial' ? 'Retirada' : 'Entrega'),
+    },
+    { chave: 'nf', rotulo: 'Nota fiscal', ordenavel: { valor: (l) => l.numero_nota_fiscal }, render: (l) => l.numero_nota_fiscal || '—' },
+    { chave: 'total', rotulo: 'Total', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (l) => l.total }, render: (l) => <strong>{formatarReais(l.total)}</strong> },
   ];
 
   const acoesParcela = (l) => (
@@ -288,7 +302,7 @@ function ContasPagarConteudo() {
             <Field label="Categoria">
               <Select value={filtros.categoria} onChange={alterarFiltro('categoria')}>
                 <option value="">Todas</option>
-                {categorias.map((c) => (
+                {ordenarOpcoes(categorias).map((c) => (
                   <option key={c.id} value={c.id}>{c.nome}</option>
                 ))}
               </Select>
@@ -339,6 +353,9 @@ function ContasPagarConteudo() {
           GRUPOS_A_PAGAR.map((g) => {
             const doGrupo = filtradas.filter((l) => classificarParcela(l, hoje) === g.chave);
             if (doGrupo.length === 0) return null;
+            // A mesma ordenação vale para todos os grupos: nos cartões, o
+            // "Ordenar por" aparece só no primeiro grupo exibido.
+            const primeiroGrupo = GRUPOS_A_PAGAR.find((x) => filtradas.some((l) => classificarParcela(l, hoje) === x.chave))?.chave === g.chave;
             return (
               <section key={g.chave} className={estilos.grupo} aria-label={g.rotulo}>
                 <div className={estilos.grupoCabecalho}>
@@ -347,7 +364,16 @@ function ContasPagarConteudo() {
                   </h2>
                   <strong>{formatarReais(deCentavos(doGrupo.reduce((s, l) => s + centavos(l.valor), 0)))}</strong>
                 </div>
-                <DataTable rotulo={g.rotulo} colunas={colunasAPagar} linhas={doGrupo} chaveLinha={(l) => l.id} renderAcoes={acoesParcela} destaque={() => (g.chave === 'vencida' ? 'aviso' : undefined)} />
+                <DataTable
+                  rotulo={g.rotulo}
+                  colunas={colunasAPagar}
+                  linhas={ordenacaoAPagar.ordenar(doGrupo, colunasAPagar)}
+                  chaveLinha={(l) => l.id}
+                  renderAcoes={acoesParcela}
+                  destaque={() => (g.chave === 'vencida' ? 'aviso' : undefined)}
+                  ordenacao={ordenacaoAPagar.props}
+                  semControleCartoes={!primeiroGrupo}
+                />
               </section>
             );
           })
@@ -356,14 +382,28 @@ function ContasPagarConteudo() {
         filtradas.length === 0 ? (
           <p className={estilos.vazio}>Nenhum pagamento no período/filtro.</p>
         ) : (
-          <DataTable rotulo="Pagas" colunas={colunasPagas} linhas={filtradas} chaveLinha={(l) => l.id} renderAcoes={acoesParcela} />
+          <DataTable
+            rotulo="Pagas"
+            colunas={colunasPagas}
+            linhas={ordenacaoPagas.ordenar(filtradas, colunasPagas)}
+            chaveLinha={(l) => l.id}
+            renderAcoes={acoesParcela}
+            ordenacao={ordenacaoPagas.props}
+          />
         )
       ) : filtradas.length === 0 ? (
         <p className={estilos.vazio}>Nenhuma compra recebida sem lançamento financeiro.</p>
       ) : (
         <>
           <p className={estilos.dica}>Compras recebidas desde a implantação do Financeiro, com valores completos, ainda sem condição de pagamento lançada.</p>
-          <DataTable rotulo="Compras sem lançamento" colunas={colunasSemLancamento} linhas={filtradas} chaveLinha={(l) => l.pedido_id} renderAcoes={acoesCompra} />
+          <DataTable
+            rotulo="Compras sem lançamento"
+            colunas={colunasSemLancamento}
+            linhas={ordenacaoSemLancamento.ordenar(filtradas, colunasSemLancamento)}
+            chaveLinha={(l) => l.pedido_id}
+            renderAcoes={acoesCompra}
+            ordenacao={ordenacaoSemLancamento.props}
+          />
         </>
       )}
 

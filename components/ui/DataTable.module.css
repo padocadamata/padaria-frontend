@@ -240,3 +240,81 @@
 .selecaoCartao {
   margin: calc(var(--ds-sp-2) * -1) 0 calc(var(--ds-sp-2) * -1) calc(var(--ds-sp-3) * -1);
 }
+
+/* ------------------------- ordenação (prop `ordenacao`) ------------------------- */
+
+/* O botão ocupa a célula inteira do cabeçalho (área de clique generosa) sem
+   mudar o padding visual da tabela. */
+.thOrdenavel {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Cartões: "Ordenar por" + direção, numa linha acima da lista. */
+.ordenacaoCartoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-3);
+}
+
+.ordenacaoCampo {
+  display: flex;
+  flex: 1 1 180px;
+  max-width: 320px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ordenacaoRotulo {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+}
+
+.ordenacaoDirecao {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  min-height: var(--ds-control-h);
+  padding: 0 var(--ds-sp-3);
+  border: var(--ds-border-w) solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface);
+  color: var(--ds-text);
+  font: inherit;
+  font-size: var(--ds-fs-control);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ordenacaoDirecao:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 0;
+}
+
+/* ------------------------- layout fixo (prop `layoutFixo`) ------------------------- */
+
+/* Larguras vêm do <colgroup>; o conteúdo quebra DENTRO da coluna (nunca a
+   alarga). O cabeçalho continua numa linha, com reticências se faltar espaço. */
+.tabelaFixa {
+  table-layout: fixed;
+}
+
+.tabelaFixa td {
+  overflow-wrap: anywhere;
+}
+
+/* Cabeçalho pode quebrar em 2 linhas (ex.: "Solicitado em") em vez de
+   cortar o texto. */
+.tabelaFixa th {
+  white-space: normal;
+}
+
+.tabelaFixa th button {
+  white-space: normal;
+  text-align: left;
+}

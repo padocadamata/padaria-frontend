@@ -37,6 +37,13 @@ import { FILTRO_ESCALA_VAZIO, filtrarFuncionariosEscala, descreverFiltroEscala }
 import { montarExportacaoSemanal, montarExportacaoMensal } from '../../lib/funcionarios/escalaExportacao';
 import { exportarRelatorio } from '../../lib/exportacao/exportar';
 import estilos from '../../components/funcionarios/escala.module.css';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+
+// Grade semanal/mensal: só Funcionário (e Vínculo, na semanal) ordenam --
+// as colunas de dia são células de escala, não valores comparáveis.
+const COLUNAS_ORDENACAO_MENSAL = [{ chave: 'nome', ordenavel: true }];
 
 // Célula de UM funcionário em UMA data -- estados sempre distintos (nunca
 // confundidos): não definido (sem linha em funcionarios_escala_dias),
@@ -93,6 +100,9 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
   const [copiandoSemana, setCopiandoSemana] = useState(false);
   const [erroCopiaSemana, setErroCopiaSemana] = useState('');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
+  // Ordenação do cabeçalho (Funcionário/Vínculo): estado local, nunca salvo.
+  // Só muda a ORDEM das linhas exibidas; exportação e ações continuam iguais.
+  const ordenacao = useOrdenacao();
 
   const dias = diasDaSemana(semanaInicio);
 
@@ -243,12 +253,14 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
       rotulo: 'Funcionário',
       mobile: 'titulo',
       cartaoOrdem: 0,
+      ordenavel: true,
       render: (f) => f.nome,
     },
     {
       chave: 'vinculo',
       rotulo: 'Vínculo',
       alinhar: 'centro',
+      ordenavel: { valor: (f) => f.tipo_vinculo, ordem: OPCOES_VINCULO.map((o) => o.valor) },
       render: (f) => <IndicadorVinculo tipoVinculo={f.tipo_vinculo} />,
     },
     ...dias.map((data) => ({
@@ -301,8 +313,9 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
         <DataTable
           rotulo="Escala semanal"
           colunas={colunas}
-          linhas={funcionariosExibidos}
+          linhas={ordenacao.ordenar(funcionariosExibidos, colunas)}
           chaveLinha={(f) => f.id}
+          ordenacao={ordenacao.props}
           cartoesAte={900}
         />
       )}
@@ -365,6 +378,8 @@ function VisaoMensal({ funcionarios, cargos, filtro, onFiltroChange }) {
   const [carregando, setCarregando] = useState(true);
   const [detalheFuncionarioDia, setDetalheFuncionarioDia] = useState(null); // { funcionario, data, estado }
   const [diaDetalhe, setDiaDetalhe] = useState(''); // 'YYYY-MM-DD' | ''
+  // Ordenação pelo cabeçalho "Funcionário" da grade: estado local.
+  const ordenacao = useOrdenacao();
 
   const dias = useMemo(() => diasDoMes(mesInicio), [mesInicio]);
 
@@ -422,7 +437,8 @@ function VisaoMensal({ funcionarios, cargos, filtro, onFiltroChange }) {
         <p role="status">Carregando escala...</p>
       ) : (
         <EscalaMensal
-          funcionarios={funcionariosExibidos}
+          funcionarios={ordenacao.ordenar(funcionariosExibidos, COLUNAS_ORDENACAO_MENSAL)}
+          ordenacao={ordenacao.props}
           mapaEscala={mapaEscala}
           dias={dias}
           onAbrirFuncionarioDia={(funcionario, data, estado) => setDetalheFuncionarioDia({ funcionario, data, estado })}
@@ -504,7 +520,7 @@ function EscalaConteudo() {
         porId.set(f.cargo_id, { id: f.cargo_id, nome: f.funcionarios_cargos?.nome || '' });
       }
     }
-    return Array.from(porId.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+    return ordenarOpcoes(Array.from(porId.values()));
   }, [funcionarios]);
 
   return (

@@ -19,6 +19,8 @@ import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 function formatarRendimento(quantidade, unidade) {
   if (quantidade == null || !unidade) {
@@ -54,6 +56,8 @@ function ProdutosProducaoConteudo() {
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
+  // Ordenação do cabeçalho: estado local (nunca salvo); mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
 
   const [modalAberto, setModalAberto] = useState(false);
   const [receitaEmEdicao, setReceitaEmEdicao] = useState(null);
@@ -203,13 +207,9 @@ function ProdutosProducaoConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
-  const tiposDisponiveis = Array.from(
-    new Set(receitas.map((r) => r.tipo).filter((v) => v != null && v !== ''))
-  ).sort();
+  const tiposDisponiveis = ordenarOpcoes(Array.from(new Set(receitas.map((r) => r.tipo).filter((v) => v != null && v !== ''))));
 
-  const gruposDisponiveis = Array.from(
-    new Set(receitas.map((r) => r.grupo).filter((v) => v != null && v !== ''))
-  ).sort();
+  const gruposDisponiveis = ordenarOpcoes(Array.from(new Set(receitas.map((r) => r.grupo).filter((v) => v != null && v !== ''))));
 
   const buscaNormalizada = busca.trim().toLowerCase();
 
@@ -237,14 +237,6 @@ function ProdutosProducaoConteudo() {
     return true;
   });
 
-  // Paginação VISUAL (client-side, 20 por página): a lista completa já
-  // precisa estar em memória -- as opções de Tipo/Grupo saem de TODAS as
-  // receitas (inclusive inativas) e o filtro de status usa produtos.ativo
-  // (embed), então uma consulta paginada quebraria os filtros. O volume é
-  // limitado ao subconjunto do Catálogo marcado como Produto de Produção.
-  const paginacao = paginarLista(receitasFiltradas, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
   const quantidadeFiltrosAtivos = [
     filtroStatus !== 'ativos',
     filtroTelaHoje !== 'todas',
@@ -271,21 +263,31 @@ function ProdutosProducaoConteudo() {
     };
   }
 
+  const colunas = [
+    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', ordenavel: { valor: (r) => r.produtos?.nome }, render: (r) => r.produtos?.nome || '—' },
+    { chave: 'codigo', rotulo: 'Código G3', ordenavel: { valor: (r) => r.produtos?.codigo_g3 }, render: (r) => r.produtos?.codigo_g3 || '—' },
+    { chave: 'tipo', rotulo: 'Tipo', ordenavel: { valor: (r) => r.tipo }, render: (r) => r.tipo || '—' },
+    { chave: 'grupo', rotulo: 'Grupo', ordenavel: { valor: (r) => r.grupo }, render: (r) => r.grupo || '—' },
+    { chave: 'ativo', rotulo: 'Ativo', ordenavel: { tipo: 'booleano', valor: (r) => !!r.ativo && !!r.produtos?.ativo }, render: (r) => <BadgeAtivo ativo={!!r.ativo && !!r.produtos?.ativo} /> },
+    { chave: 'telaHoje', rotulo: 'Tela Hoje', ordenavel: { tipo: 'booleano', valor: (r) => !!r.controlado_producao }, render: (r) => <BadgeTelaHoje naTelaHoje={r.controlado_producao} /> },
+    { chave: 'rendimento', rotulo: 'Rendimento', ordenavel: { tipo: 'numero', valor: (r) => r.rendimento_quantidade }, render: (r) => formatarRendimento(r.rendimento_quantidade, r.unidade_medida_saida) },
+  ];
+
+  // Paginação VISUAL (client-side, 20 por página): a lista completa já
+  // precisa estar em memória -- as opções de Tipo/Grupo saem de TODAS as
+  // receitas (inclusive inativas) e o filtro de status usa produtos.ativo
+  // (embed), então uma consulta paginada quebraria os filtros. O volume é
+  // limitado ao subconjunto do Catálogo marcado como Produto de Produção.
+  // A ordenação escolhida vale para o conjunto filtrado INTEIRO (antes de
+  // fatiar); sem escolha, fica a ordem padrão (nome do produto).
+  const paginacao = paginarLista(ordenacao.ordenar(receitasFiltradas, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
   // Total encolheu (filtro, edição que inativa o produto, recarga):
   // corrige a página guardada.
   useEffect(() => {
     if (pagina !== paginaAtual) setPagina(paginaAtual);
   }, [pagina, paginaAtual]);
-
-  const colunas = [
-    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', render: (r) => r.produtos?.nome || '—' },
-    { chave: 'codigo', rotulo: 'Código G3', render: (r) => r.produtos?.codigo_g3 || '—' },
-    { chave: 'tipo', rotulo: 'Tipo', render: (r) => r.tipo || '—' },
-    { chave: 'grupo', rotulo: 'Grupo', render: (r) => r.grupo || '—' },
-    { chave: 'ativo', rotulo: 'Ativo', render: (r) => <BadgeAtivo ativo={!!r.ativo && !!r.produtos?.ativo} /> },
-    { chave: 'telaHoje', rotulo: 'Tela Hoje', render: (r) => <BadgeTelaHoje naTelaHoje={r.controlado_producao} /> },
-    { chave: 'rendimento', rotulo: 'Rendimento', render: (r) => formatarRendimento(r.rendimento_quantidade, r.unidade_medida_saida) },
-  ];
 
   return (
     <PaginaProducao
@@ -366,6 +368,7 @@ function ProdutosProducaoConteudo() {
             linhas={paginacao.itens}
             chaveLinha={(r) => r.id}
             cartoesAte={1100}
+            ordenacao={ordenacao.props}
             renderAcoes={
               podeEscrever
                 ? (r) => (

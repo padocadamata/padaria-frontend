@@ -9,6 +9,7 @@ import IconButton from '../ui/IconButton';
 import SectionHeader from '../ui/SectionHeader';
 import { createClient } from '../../lib/supabase/client';
 import estilos from './catalogo.module.css';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 
 function formatarData(dataYYYYMMDD) {
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
@@ -46,6 +47,8 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
   const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState(null);
   const [excluindo, setExcluindo] = useState(false);
   const [erroExclusao, setErroExclusao] = useState('');
+  // Ordenação do cabeçalho: estado local (nunca salvo).
+  const ordenacao = useOrdenacao();
 
   function abrirNovoLancamento() {
     setLancamentoEmEdicao(null);
@@ -111,13 +114,13 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
   }
 
   const colunas = [
-    { chave: 'data', rotulo: 'Data', mobile: 'titulo', render: (l) => formatarData(l.data_compra) },
-    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', render: (l) => l.fornecedorNome },
-    { chave: 'unidade', rotulo: 'Unidade', render: (l) => l.unidade_comercial },
-    { chave: 'quantidade', rotulo: 'Quantidade', render: (l) => l.quantidade_comercial },
-    { chave: 'precoUnitario', rotulo: 'Preço unitário', render: (l) => formatarMoeda(l.preco_unitario_comercial) },
-    { chave: 'precoBase', rotulo: 'Preço-base', render: (l) => (l.preco_unitario_base != null ? formatarMoeda(l.preco_unitario_base) : '—') },
-    { chave: 'origem', rotulo: 'Origem', render: (l) => ORIGEM_LABEL[l.origem] || l.origem },
+    { chave: 'data', rotulo: 'Data', mobile: 'titulo', ordenavel: { tipo: 'data', valor: (l) => l.data_compra }, render: (l) => formatarData(l.data_compra) },
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', ordenavel: { valor: (l) => l.fornecedorNome }, render: (l) => l.fornecedorNome },
+    { chave: 'unidade', rotulo: 'Unidade', ordenavel: { valor: (l) => l.unidade_comercial }, render: (l) => l.unidade_comercial },
+    { chave: 'quantidade', rotulo: 'Quantidade', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_comercial }, render: (l) => l.quantidade_comercial },
+    { chave: 'precoUnitario', rotulo: 'Preço unitário', ordenavel: { tipo: 'moeda', valor: (l) => l.preco_unitario_comercial }, render: (l) => formatarMoeda(l.preco_unitario_comercial) },
+    { chave: 'precoBase', rotulo: 'Preço-base', ordenavel: { tipo: 'moeda', valor: (l) => l.preco_unitario_base }, render: (l) => (l.preco_unitario_base != null ? formatarMoeda(l.preco_unitario_base) : '—') },
+    { chave: 'origem', rotulo: 'Origem', ordenavel: { valor: (l) => ORIGEM_LABEL[l.origem] || l.origem }, render: (l) => ORIGEM_LABEL[l.origem] || l.origem },
   ];
 
   return (
@@ -135,8 +138,9 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
         <DataTable
           rotulo="Histórico de compras"
           colunas={colunas}
-          linhas={lancamentos}
+          linhas={ordenacao.ordenar(lancamentos, colunas)}
           chaveLinha={(l) => l.id}
+          ordenacao={ordenacao.props}
           cartoesAte={700}
           renderAcoes={
             podeEditar

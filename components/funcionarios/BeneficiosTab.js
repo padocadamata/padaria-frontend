@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
 import Alert from '../ui/Alert';
 import Badge from '../ui/Badge';
@@ -82,7 +83,7 @@ export default function BeneficiosTab({ funcionarioId, podeEditar }) {
     } else {
       setBeneficios(beneficiosData || []);
     }
-    setTipos(tiposData || []);
+    setTipos(ordenarOpcoes(tiposData || []));
     setCarregando(false);
   }
 

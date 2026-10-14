@@ -12,6 +12,7 @@ import { lerValorMonetario } from '../../lib/funcionarios/pagamentosCalculo';
 import { competenciaDe, estadoPagamentoInicial, montarPagamento, normalizarNomeCurto } from '../../lib/financeiro/contasPagarRegras';
 import { criarDespesaManual, editarConta } from '../../lib/financeiro/contasPagar';
 import estilos from './financeiro.module.css';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 // Nova despesa manual (aluguel, energia, contador...) ou edição do
 // cabeçalho de uma despesa existente (migration 0073). Fornecedor
@@ -33,8 +34,8 @@ export default function DespesaModal({ conta = null, categorias, fornecedores, p
   const [erro, setErro] = useState('');
 
   // Categoria inativa só aparece se já for a da conta em edição.
-  const opcoesCategoria = useMemo(() => categorias.filter((c) => c.ativo || c.id === conta?.categoria_id), [categorias, conta]);
-  const opcoesFornecedor = useMemo(() => fornecedores.filter((f) => f.ativo || f.id === conta?.fornecedor_id), [fornecedores, conta]);
+  const opcoesCategoria = useMemo(() => ordenarOpcoes(categorias.filter((c) => c.ativo || c.id === conta?.categoria_id)), [categorias, conta]);
+  const opcoesFornecedor = useMemo(() => ordenarOpcoes(fornecedores.filter((f) => f.ativo || f.id === conta?.fornecedor_id)), [fornecedores, conta]);
 
   async function salvar() {
     setErro('');

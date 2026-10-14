@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import {
   normalizarMaiusculas,
   normalizarEmail,
@@ -196,7 +197,7 @@ export default function DadosFuncionarioForm({ funcionario, podeEditar, onCriado
       ]);
       if (!efeitoAtivo) return;
 
-      setCargos(cargosData || []);
+      setCargos(ordenarOpcoes(cargosData || []));
 
       const vinculados = new Set((vinculosData || []).map((v) => v.usuario_id));
       // O próprio usuário já vinculado a ESTE funcionário continua
@@ -204,7 +205,7 @@ export default function DadosFuncionarioForm({ funcionario, podeEditar, onCriado
       const disponiveis = (usuariosData || []).filter(
         (u) => !vinculados.has(u.id) || u.id === funcionario?.usuario_id
       );
-      setUsuariosDisponiveis(disponiveis);
+      setUsuariosDisponiveis(ordenarOpcoes(disponiveis));
       setCarregandoAuxiliares(false);
     }
 

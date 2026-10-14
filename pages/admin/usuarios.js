@@ -13,6 +13,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import { PERMISSOES } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import estilos from '../../components/admin/usuarios.module.css';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 
 function BadgeStatus({ ativo }) {
   return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
@@ -38,6 +39,9 @@ function UsuariosConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [modal, setModal] = useState(null); // { modo: 'novo' } | { modo: 'vincular', login }
+  // Ordenação do cabeçalho de cada tabela: estado local (nunca salvo).
+  const ordenacaoUsuarios = useOrdenacao();
+  const ordenacaoSemVinculo = useOrdenacao();
 
   async function carregar() {
     const supabase = createClient();
@@ -81,22 +85,23 @@ function UsuariosConteudo() {
   }
 
   const colunas = [
-    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, render: (u) => u.nome || '—' },
-    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (u) => <BadgeStatus ativo={u.ativo} /> },
-    { chave: 'email', rotulo: 'Email', render: (u) => u.email || '—' },
-    { chave: 'perfil', rotulo: 'Perfil', render: (u) => u.perfil },
-    { chave: 'ultimoAcesso', rotulo: 'Último acesso', render: (u) => formatarDataHora(u.ultimo_acesso_em) },
+    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, ordenavel: true, render: (u) => u.nome || '—' },
+    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'booleano', valor: (u) => u.ativo }, render: (u) => <BadgeStatus ativo={u.ativo} /> },
+    { chave: 'email', rotulo: 'Email', ordenavel: true, render: (u) => u.email || '—' },
+    { chave: 'perfil', rotulo: 'Perfil', ordenavel: true, render: (u) => u.perfil },
+    { chave: 'ultimoAcesso', rotulo: 'Último acesso', ordenavel: { tipo: 'data', valor: (u) => u.ultimo_acesso_em }, render: (u) => formatarDataHora(u.ultimo_acesso_em) },
   ];
 
   const colunasSemVinculo = [
-    { chave: 'email', rotulo: 'E-mail do login', mobile: 'titulo', cartaoOrdem: 0, render: (l) => l.email || '—' },
-    { chave: 'criado', rotulo: 'Criado em', render: (l) => formatarDataHora(l.criado_em, '—') },
+    { chave: 'email', rotulo: 'E-mail do login', mobile: 'titulo', cartaoOrdem: 0, ordenavel: true, render: (l) => l.email || '—' },
+    { chave: 'criado', rotulo: 'Criado em', ordenavel: { tipo: 'data', valor: (l) => l.criado_em }, render: (l) => formatarDataHora(l.criado_em, '—') },
     {
       chave: 'confirmado',
       rotulo: 'E-mail confirmado',
+      ordenavel: { tipo: 'booleano', valor: (l) => !!l.email_confirmado_em },
       render: (l) => (l.email_confirmado_em ? 'Sim' : <Badge tom="warning">Não</Badge>),
     },
-    { chave: 'login', rotulo: 'Último login', render: (l) => formatarDataHora(l.ultimo_login_em) },
+    { chave: 'login', rotulo: 'Último login', ordenavel: { tipo: 'data', valor: (l) => l.ultimo_login_em }, render: (l) => formatarDataHora(l.ultimo_login_em) },
   ];
 
   return (
@@ -129,8 +134,9 @@ function UsuariosConteudo() {
           <DataTable
             rotulo="Usuários"
             colunas={colunas}
-            linhas={usuarios}
+            linhas={ordenacaoUsuarios.ordenar(usuarios, colunas)}
             chaveLinha={(u) => u.id}
+            ordenacao={ordenacaoUsuarios.props}
             destaque={(u) => (u.ativo ? null : 'inativo')}
             cartoesAte={900}
             renderAcoes={(u) => (
@@ -152,8 +158,9 @@ function UsuariosConteudo() {
             <DataTable
               rotulo="Logins sem vínculo"
               colunas={colunasSemVinculo}
-              linhas={semVinculo}
+              linhas={ordenacaoSemVinculo.ordenar(semVinculo, colunasSemVinculo)}
               chaveLinha={(l) => l.id}
+              ordenacao={ordenacaoSemVinculo.props}
               cartoesAte={900}
               renderAcoes={(l) => (
                 <Button tamanho="sm" onClick={() => setModal({ modo: 'vincular', login: l })} disabled={perfis.length === 0}>

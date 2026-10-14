@@ -22,6 +22,7 @@ import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, diaDaSemanaExibicao } from '../../lib/data/dataLocal';
 import { formatarTelefone } from '../../lib/clientes/telefone';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 import { carregarEncomendas, definirStatusEncomenda, LIMITE_ENCOMENDAS } from '../../lib/encomendas/encomendas';
 import {
   encomendaPassaFiltro,
@@ -70,6 +71,8 @@ function EncomendasConteudo() {
   const [filtroStatus, setFiltroStatus] = useState('pendente');
   const [filtroProduto, setFiltroProduto] = useState('');
   const [pagina, setPagina] = useState(1);
+  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
 
   const [encomendas, setEncomendas] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -116,13 +119,6 @@ function EncomendasConteudo() {
     () => encomendas.filter((e) => encomendaPassaFiltro(e, { termo: busca, status: filtroStatus, produto: filtroProduto })),
     [encomendas, busca, filtroStatus, filtroProduto]
   );
-  const paginacao = paginarLista(listaFiltrada, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
-
   function alterarFiltro(setter) {
     return (valor) => {
       setter(valor);
@@ -204,6 +200,7 @@ function EncomendasConteudo() {
       rotulo: 'Retirada',
       mobile: 'titulo',
       cartaoOrdem: 0,
+      ordenavel: { tipo: 'data', valor: (e) => (e.data_retirada ? `${e.data_retirada}T${e.hora_retirada || '00:00'}` : null) },
       render: (e) => (
         <span className={estilos.dataCelula} title={diaDaSemanaExibicao(e.data_retirada)}>
           {formatarData(e.data_retirada)} · {formatarHora(e.hora_retirada)}
@@ -211,12 +208,21 @@ function EncomendasConteudo() {
         </span>
       ),
     },
-    { chave: 'cliente', rotulo: 'Cliente', mobile: 'titulo', cartaoOrdem: 1, render: (e) => e.cliente_nome },
+    { chave: 'cliente', rotulo: 'Cliente', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { valor: (e) => e.cliente_nome }, render: (e) => e.cliente_nome },
     { chave: 'telefone', rotulo: 'Telefone', render: (e) => <span className={estilosClientes.telefone}>{formatarTelefone(e.cliente_telefone)}</span> },
     { chave: 'itens', rotulo: 'Itens', render: (e) => <ItensDaEncomenda itens={e.itens} /> },
-    { chave: 'pedido', rotulo: 'Pedido em', render: (e) => formatarData(e.data_pedido) },
-    { chave: 'status', rotulo: 'Status', render: (e) => <Badge tom={STATUS_ENCOMENDA[e.status].tom}>{STATUS_ENCOMENDA[e.status].rotulo}</Badge> },
+    { chave: 'pedido', rotulo: 'Pedido em', ordenavel: { tipo: 'data', valor: (e) => e.data_pedido }, render: (e) => formatarData(e.data_pedido) },
+    { chave: 'status', rotulo: 'Status', ordenavel: { valor: (e) => e.status, ordem: Object.keys(STATUS_ENCOMENDA) }, render: (e) => <Badge tom={STATUS_ENCOMENDA[e.status].tom}>{STATUS_ENCOMENDA[e.status].rotulo}</Badge> },
   ];
+
+  // Ordem padrão da tela, ou a coluna escolhida no cabeçalho -- aplicada ao
+  // conjunto filtrado INTEIRO, antes de fatiar a página.
+  const paginacao = paginarLista(ordenacao.ordenar(listaFiltrada, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   return (
     <PageShell titulo="Clientes">
@@ -297,6 +303,7 @@ function EncomendasConteudo() {
             chaveLinha={(e) => e.id}
             destaque={(e) => (e.status === 'cancelada' ? 'inativo' : e.status === 'pendente' && e.data_retirada < hoje ? 'aviso' : null)}
             cartoesAte={900}
+            ordenacao={ordenacao.props}
             renderAcoes={(e, { cartao }) => <AcoesLinha acoes={acoesDaLinha(e)} cartao={cartao} />}
           />
           <p className={estilosClientes.resumo}>

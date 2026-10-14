@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import ConfirmarAcaoModal from '../admin/ConfirmarAcaoModal';
 import Button from '../ui/Button';
 import IconButton from '../ui/IconButton';
@@ -30,7 +31,7 @@ import estilos from './catalogo.module.css';
 // de produtos.
 
 function ordenarPorNome(itens) {
-  return [...itens].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+  return ordenarOpcoes(itens);
 }
 
 function mensagemErroClassificacao(error, nomeSingular) {

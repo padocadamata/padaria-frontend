@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import { cx } from '../../lib/design/cx';
 import styles from './dashboard.module.css';
+import { nomeExibicaoFornecedor } from '../../lib/fornecedores/nomeExibicao';
 
 const LIMITE_VISIVEL = 5;
 
@@ -60,7 +61,7 @@ export default function RecebimentosPrevistos() {
 
       const nomePorFornecedorId = {};
       for (const f of fornecedoresResp.data || []) {
-        nomePorFornecedorId[f.id] = f.nome_fantasia || f.razao_social || f.nome || f.id;
+        nomePorFornecedorId[f.id] = nomeExibicaoFornecedor(f, f.id);
       }
 
       const hoje = dataLocalHoje();

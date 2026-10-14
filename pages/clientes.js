@@ -20,6 +20,7 @@ import { useAuth } from '../hooks/useAuth';
 import { carregarClientes, definirStatusCliente } from '../lib/clientes/clientes';
 import { clientePassaFiltro, produtosComInteresse, rotuloSituacaoProduto } from '../lib/clientes/filtros';
 import { formatarTelefone } from '../lib/clientes/telefone';
+import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
 
 const MAX_PRODUTOS_NA_LINHA = 3;
 
@@ -65,6 +66,8 @@ function ClientesConteudo() {
   const [filtroProduto, setFiltroProduto] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('ativos');
   const [pagina, setPagina] = useState(1);
+  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
   const [modal, setModal] = useState(null); // { cliente } | { cliente: null } para novo
 
   async function carregar() {
@@ -93,13 +96,6 @@ function ClientesConteudo() {
     () => clientes.filter((c) => clientePassaFiltro(c, { termo: busca, produto: filtroProduto, status: filtroStatus })),
     [clientes, busca, filtroProduto, filtroStatus]
   );
-
-  const paginacao = paginarLista(listaFiltrada, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
 
   function alterarFiltro(setter) {
     return (valor) => {
@@ -134,11 +130,20 @@ function ClientesConteudo() {
   }
 
   const colunas = [
-    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, render: (c) => c.nome },
+    { chave: 'nome', rotulo: 'Nome', mobile: 'titulo', cartaoOrdem: 0, ordenavel: true, render: (c) => c.nome },
     { chave: 'telefone', rotulo: 'Telefone', render: (c) => <span className={estilos.telefone}>{formatarTelefone(c.telefone)}</span> },
     { chave: 'produtos', rotulo: 'Produtos de interesse', render: (c) => <ProdutosDoCliente produtos={c.produtos} destacado={filtroProduto} /> },
-    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (c) => <BadgeStatus ativo={c.ativo} /> },
+    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'booleano', valor: (c) => c.ativo }, render: (c) => <BadgeStatus ativo={c.ativo} /> },
   ];
+
+  // Ordem padrão da tela, ou a coluna escolhida no cabeçalho -- aplicada ao
+  // conjunto filtrado INTEIRO, antes de fatiar a página.
+  const paginacao = paginarLista(ordenacao.ordenar(listaFiltrada, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   return (
     <PageShell titulo="Clientes">
@@ -204,6 +209,7 @@ function ClientesConteudo() {
             chaveLinha={(c) => c.id}
             destaque={(c) => (c.ativo ? null : 'inativo')}
             cartoesAte={900}
+            ordenacao={ordenacao.props}
             renderAcoes={(c) => (
               <>
                 <Button variante="secondary" tamanho="sm" icone={podeEditar ? 'pencil' : 'eye'} onClick={() => setModal({ cliente: c })}>

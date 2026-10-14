@@ -132,6 +132,7 @@ export default function SolicitacoesLista({
   onReabrirPedido,
   onExcluirPedido,
   selecao,
+  ordenacao,
 }) {
   if (solicitacoes.length === 0) {
     return <EmptyState>Nenhuma solicitação encontrada.</EmptyState>;
@@ -181,6 +182,7 @@ export default function SolicitacoesLista({
       rotulo: 'Produto/Descrição',
       mobile: 'titulo',
       cartaoOrdem: 0,
+      ordenavel: { valor: (s) => s.descricao },
       render: (s) => (
         <>
           {s.descricao}
@@ -193,11 +195,21 @@ export default function SolicitacoesLista({
         </>
       ),
     },
-    { chave: 'data', rotulo: 'Solicitado em', semQuebra: true, mobile: 'titulo', cartaoOrdem: 2, render: (s) => formatarDataExibicao(s.data_solicitacao) },
+    {
+      chave: 'data',
+      rotulo: 'Solicitado em',
+      semQuebra: true,
+      mobile: 'titulo',
+      cartaoOrdem: 2,
+      largura: '96px',
+      ordenavel: { tipo: 'data', valor: (s) => s.data_solicitacao },
+      render: (s) => formatarDataExibicao(s.data_solicitacao),
+    },
     {
       chave: 'historico',
       rotulo: 'Histórico de compras',
-      minLargura: '220px',
+      // Sem ordenação: a célula reúne dois indicadores (menor preço 3 meses e
+      // última compra) -- não existe um valor único que a represente.
       render: (s) => (
         <CelulaHistorico
           solicitacao={s}
@@ -208,11 +220,13 @@ export default function SolicitacoesLista({
         />
       ),
     },
-    { chave: 'quantidade', rotulo: 'Quantidade', alinhar: 'direita', render: (s) => s.quantidade },
-    { chave: 'solicitante', rotulo: 'Solicitante', render: (s) => nomePorId[s.criado_por] || '—' },
+    { chave: 'quantidade', rotulo: 'Quantidade', alinhar: 'direita', largura: '104px', ordenavel: { tipo: 'numero', valor: (s) => s.quantidade }, render: (s) => s.quantidade },
+    { chave: 'solicitante', rotulo: 'Solicitante', largura: '108px', ordenavel: { valor: (s) => nomePorId[s.criado_por] }, render: (s) => nomePorId[s.criado_por] || '—' },
     {
       chave: 'observacao',
       rotulo: 'Observação',
+      // Texto livre: sem ordenação. Na tabela, no máximo 2 linhas (o resto
+      // fica no tooltip e na edição) -- nunca altera a geometria da tabela.
       render: (s) => (
         <span className={estilos.observacaoCelula} title={s.observacao || ''}>
           {s.observacao || '—'}
@@ -224,6 +238,8 @@ export default function SolicitacoesLista({
       rotulo: 'Status',
       mobile: 'titulo',
       cartaoOrdem: 1,
+      largura: '96px',
+      ordenavel: { valor: (s) => s.status, ordem: ['pendente', 'realizada'] },
       render: (s) => <Badge tom={s.status === 'pendente' ? 'warning' : 'success'}>{s.status === 'pendente' ? 'Pendente' : 'Realizada'}</Badge>,
     },
   ];
@@ -233,15 +249,24 @@ export default function SolicitacoesLista({
   // Histórico, Quantidade, Solicitante, Observação, Status.
   const colunasTabela = [colunas[1], colunas[0], colunas[2], colunas[3], colunas[4], colunas[5], colunas[6]];
 
+  // Geometria ESTÁVEL no desktop (layoutFixo): colunas compactas com largura
+  // fixa (seleção, data, quantidade, solicitante, status, ações) e Produto/
+  // Descrição, Histórico e Observação dividindo o restante em partes iguais
+  // -- texto longo quebra dentro da própria coluna e nunca desloca as
+  // demais. Cartões (<= 1270px) não são afetados.
   return (
     <div className={estilos.superficie}>
       <DataTable
         rotulo="Solicitações de compra"
         colunas={colunasTabela}
-        linhas={solicitacoes}
+        linhas={ordenacao ? ordenacao.ordenar(solicitacoes, colunasTabela) : solicitacoes}
         chaveLinha={(s) => s.id}
         cartoesAte={1270}
         selecao={selecao}
+        ordenacao={ordenacao?.props}
+        layoutFixo
+        larguraAcoes="152px"
+        denso
         renderAcoes={(s, { cartao }) => {
           const acoes = acoesDe(s);
           if (!cartao) return <AcoesLinha acoes={acoes} />;

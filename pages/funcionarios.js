@@ -21,6 +21,8 @@ import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { OPCOES_VINCULO, rotuloVinculo, tomVinculo } from '../lib/funcionarios/vinculo';
 import { funcionarioPassaFiltro } from '../lib/funcionarios/filtros';
+import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
 
 function BadgeStatus({ ativo }) {
   return <Badge tom={ativo ? 'success' : 'neutral'}>{ativo ? 'Ativo' : 'Inativo'}</Badge>;
@@ -46,6 +48,8 @@ function FuncionariosConteudo() {
   // iguais; nenhum registro fica de fora dos cálculos porque tudo já está
   // em memória (`funcionarios`), só a EXIBIÇÃO é paginada.
   const [pagina, setPagina] = useState(1);
+  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
   const [modalCargosAberto, setModalCargosAberto] = useState(false);
 
   async function carregar() {
@@ -67,7 +71,7 @@ function FuncionariosConteudo() {
     } else {
       setFuncionarios(funcionariosData || []);
     }
-    setCargos(cargosData || []);
+    setCargos(ordenarOpcoes(cargosData || []));
     setCarregando(false);
   }
 
@@ -79,19 +83,12 @@ function FuncionariosConteudo() {
     return funcionarios.filter((f) => funcionarioPassaFiltro(f, { termo: busca, status: filtroStatus, vinculo: filtroVinculo }));
   }, [funcionarios, filtroStatus, filtroVinculo, busca]);
 
-  const paginacao = paginarLista(listaFiltrada, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
   function alterarFiltro(setter) {
     return (valor) => {
       setter(valor);
       setPagina(1);
     };
   }
-
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
 
   const quantidadeFiltrosAtivos = [filtroStatus !== 'ativos', filtroVinculo !== '', busca !== ''].filter(Boolean).length;
 
@@ -108,13 +105,23 @@ function FuncionariosConteudo() {
       rotulo: 'Nome',
       mobile: 'titulo',
       cartaoOrdem: 0,
+      ordenavel: true,
       render: (f) => f.nome,
     },
-    { chave: 'vinculo', rotulo: 'Vínculo', render: (f) => <Badge tom={tomVinculo(f.tipo_vinculo)}>{rotuloVinculo(f.tipo_vinculo)}</Badge> },
-    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, render: (f) => <BadgeStatus ativo={f.ativo} /> },
-    { chave: 'cargo', rotulo: 'Cargo', render: (f) => f.funcionarios_cargos?.nome || '—' },
+    { chave: 'vinculo', rotulo: 'Vínculo', ordenavel: { valor: (f) => f.tipo_vinculo, ordem: OPCOES_VINCULO.map((o) => o.valor) }, render: (f) => <Badge tom={tomVinculo(f.tipo_vinculo)}>{rotuloVinculo(f.tipo_vinculo)}</Badge> },
+    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'booleano', valor: (f) => f.ativo }, render: (f) => <BadgeStatus ativo={f.ativo} /> },
+    { chave: 'cargo', rotulo: 'Cargo', ordenavel: { valor: (f) => f.funcionarios_cargos?.nome }, render: (f) => f.funcionarios_cargos?.nome || '—' },
     { chave: 'chave_pix', rotulo: 'Chave PIX', render: (f) => f.chave_pix || '—' },
   ];
+
+  // Ordem padrão da tela, ou a coluna escolhida no cabeçalho -- aplicada ao
+  // conjunto filtrado INTEIRO, antes de fatiar a página.
+  const paginacao = paginarLista(ordenacao.ordenar(listaFiltrada, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   return (
     <PageShell titulo="Folha de Pagamento">
@@ -175,6 +182,7 @@ function FuncionariosConteudo() {
             chaveLinha={(f) => f.id}
             destaque={(f) => (f.ativo ? null : 'inativo')}
             cartoesAte={900}
+            ordenacao={ordenacao.props}
             renderAcoes={(f) => (
               <Button variante="secondary" tamanho="sm" icone={podeEditar ? 'pencil' : 'eye'} onClick={() => router.push(`/funcionarios/${f.id}`)}>
                 {podeEditar ? 'Editar' : 'Ver'}

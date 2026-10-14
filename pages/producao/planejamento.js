@@ -21,6 +21,14 @@ import { dataLocalHoje, diaDaSemanaExibicao } from '../../lib/data/dataLocal';
 import { calcularSugestaoProducao } from '../../lib/producao/sugestaoProducao';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
+import { useMediaQuery } from '../../lib/design/useMediaQuery';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { lerEmLotes } from '../../lib/supabase/lerEmLotes';
+
+// Tabela a partir de 1024px (notebooks 1366/1440 inclusive); abaixo disso
+// (tablet 769-1023 e celular) continuam os cartões de sempre.
+const CARTOES_ATE = 1023;
 
 const TURNOS = [
   { chave: 'manha', label: 'Manhã' },
@@ -176,6 +184,15 @@ function PlanejamentoConteudo() {
   const [filtroProduto, setFiltroProduto] = useState('todos');
   const [filtroTurno, setFiltroTurno] = useState('todos');
   const [pagina, setPagina] = useState(1);
+  // Ordenação do cabeçalho (Data, Grupo, Produto, Turno): estado local,
+  // nunca salvo; mudar volta para a página 1. Quantidade/Observação são
+  // campos em edição e Sugestão é calculada -- sem ordenação (as linhas
+  // não podem "pular" enquanto se digita).
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Mesma media query do DataTable abaixo: só decide detalhes de
+  // apresentação da célula Sugestão (resumo em linha nos cartões; no
+  // tooltip na tabela).
+  const modoCartoes = useMediaQuery(`(max-width: ${CARTOES_ATE}px)`);
 
   const aparencia = APARENCIA_FIXA;
 
@@ -228,15 +245,24 @@ function PlanejamentoConteudo() {
 
       const idsControlados = produtosAchatados.map((p) => p.id);
 
+      // Histórico fechado COMPLETO, em lotes (lib/supabase/lerEmLotes): um
+      // select único seria cortado em silêncio nas 1000 linhas do PostgREST
+      // e as sugestões passariam a usar só parte do histórico. Mesmos
+      // filtros de antes; ordem por id só para os lotes serem
+      // determinísticos -- o motor de sugestão ordena por data por conta
+      // própria (calcularSugestaoProducao), então nada no cálculo muda.
       const historicoResp =
         idsControlados.length > 0
-          ? await supabase
-              .from('producao_registros')
-              .select(
-                'id, data, turno, receita_id, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, houve_falta'
-              )
-              .eq('status', 'fechado')
-              .in('receita_id', idsControlados)
+          ? await lerEmLotes(() =>
+              supabase
+                .from('producao_registros')
+                .select(
+                  'id, data, turno, receita_id, status, quantidade_produzida, quantidade_vendida, sobra_total, sobra_aproveitavel, perda_descarte, houve_falta'
+                )
+                .eq('status', 'fechado')
+                .in('receita_id', idsControlados)
+                .order('id')
+            )
           : { data: [], error: null };
 
       if (historicoResp.error) {
@@ -468,9 +494,8 @@ function PlanejamentoConteudo() {
     setMensagemSucesso('Planejamento salvo.');
   }
 
-  const gruposDisponiveis = Array.from(
-    new Set(produtos.map((p) => p.grupo).filter((g) => g != null && g !== ''))
-  ).sort();
+  const gruposDisponiveis = ordenarOpcoes(Array.from(new Set(produtos.map((p) => p.grupo).filter((g) => g != null && g !== ''))));
+  const produtosOpcoes = ordenarOpcoes(produtos);
 
   const produtosFiltrados = produtos.filter((p) => {
     if (filtroGrupo !== 'todos' && p.grupo !== filtroGrupo) return false;
@@ -506,20 +531,6 @@ function PlanejamentoConteudo() {
     }
   }
 
-  // Paginação VISUAL (client-side, 20 linhas por página): `slots` são
-  // linhas calculadas (data x turno x produto), não registros do banco, e
-  // as edições não salvas vivem em `edicoes` (chave do slot), fora da
-  // linha renderizada -- trocar de página só muda quais linhas aparecem;
-  // nada é recalculado, perdido nem salvo. Sugestões continuam sendo
-  // calculadas sobre o histórico inteiro em memória.
-  const paginacao = paginarLista(slots, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
-  // Total encolheu (filtro/período/recarga): corrige a página guardada.
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
-
   const carregando = carregandoBase || carregandoPeriodo;
 
   // Alteração ainda não salva: o que está digitado difere do último valor
@@ -539,9 +550,15 @@ function PlanejamentoConteudo() {
       rotulo: 'Data',
       semQuebra: true,
       mobile: 'oculta',
-      minLargura: 110,
+      minLargura: 130,
+      ordenavel: { tipo: 'data', valor: (slot) => slot.data },
+      // Dia da semana abreviado na própria célula (antes: coluna separada
+      // "Dia da semana", redundante com a data e com o agrupamento por dia).
       render: (slot) => (
         <>
+          <span className={estilosPlan.diaCurto} title={capitalizar(diaDaSemanaExibicao(slot.data))}>
+            {capitalizar(diaDaSemanaExibicao(slot.data)).slice(0, 3)}
+          </span>
           {formatarDataExibicao(slot.data)}
           {feriados[slot.data] && (
             <span
@@ -556,10 +573,16 @@ function PlanejamentoConteudo() {
         </>
       ),
     },
-    { chave: 'dia', rotulo: 'Dia da semana', semQuebra: true, mobile: 'oculta', render: (slot) => capitalizar(diaDaSemanaExibicao(slot.data)) },
-    { chave: 'grupo', rotulo: 'Grupo', render: (slot) => slot.grupo || '—' },
-    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, minLargura: 150, render: (slot) => slot.produtoNome },
-    { chave: 'turno', rotulo: 'Turno', mobile: 'titulo', cartaoOrdem: 1, render: (slot) => <Badge tom="neutral">{slot.turnoLabel}</Badge> },
+    { chave: 'grupo', rotulo: 'Grupo', ordenavel: { valor: (slot) => slot.grupo }, render: (slot) => slot.grupo || '—' },
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, minLargura: 150, ordenavel: { valor: (slot) => slot.produtoNome }, render: (slot) => slot.produtoNome },
+    {
+      chave: 'turno',
+      rotulo: 'Turno',
+      mobile: 'titulo',
+      cartaoOrdem: 1,
+      ordenavel: { valor: (slot) => slot.turno, ordem: TURNOS.map((t) => t.chave) },
+      render: (slot) => <Badge tom="neutral">{slot.turnoLabel}</Badge>,
+    },
     {
       chave: 'sugestao',
       rotulo: 'Sugestão',
@@ -574,8 +597,12 @@ function PlanejamentoConteudo() {
           diasFechados,
         });
         const resumo = resumoCompacto(resultado);
+        // Tabela (desktop): uma linha só -- quantidade, confiança e o botão
+        // de detalhes (só ícone); o resumo vai para o tooltip. Cartões: como
+        // antes (botão com texto e resumo em linha). Mesmo cálculo e mesmo
+        // modal de justificativa nos dois.
         return (
-          <div className={estilosPlan.sugestao}>
+          <div className={estilosPlan.sugestao} title={!modoCartoes && resumo ? resumo : undefined}>
             <div className={estilosPlan.sugestaoLinha}>
               {resultado.quantidadeSugerida != null ? (
                 <strong>{resultado.quantidadeSugerida} un</strong>
@@ -588,12 +615,13 @@ function PlanejamentoConteudo() {
                 className={estilosPlan.detalhes}
                 onClick={() => setDetalheAberto({ slot, resultado })}
                 title="Ver justificativa completa"
+                aria-label={`Ver justificativa completa da sugestão — ${slot.produtoNome}, ${formatarDataExibicao(slot.data)}, ${slot.turnoLabel}`}
               >
                 <Icon nome="info" tamanho={16} />
-                Detalhes
+                {modoCartoes && 'Detalhes'}
               </button>
             </div>
-            {resumo && <p className={estilosPlan.resumoSugestao}>{resumo}</p>}
+            {modoCartoes && resumo && <p className={estilosPlan.resumoSugestao}>{resumo}</p>}
           </div>
         );
       },
@@ -636,6 +664,28 @@ function PlanejamentoConteudo() {
       },
     },
   ];
+
+  // Paginação VISUAL (client-side, 20 linhas por página): `slots` são
+  // linhas calculadas (data x turno x produto), não registros do banco, e
+  // as edições não salvas vivem em `edicoes` (chave do slot), fora da
+  // linha renderizada -- trocar de página (ou de ordenação) só muda quais
+  // linhas aparecem; nada é recalculado, perdido nem salvo. Sugestões
+  // continuam sendo calculadas sobre o histórico inteiro em memória. A
+  // ordenação escolhida vale para TODOS os slots do período, antes de
+  // fatiar a página.
+  const paginacao = paginarLista(ordenacao.ordenar(slots, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Total encolheu (filtro/período/recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
+  // Agrupamento por dia (divisória na tabela, título nos cartões): só faz
+  // sentido enquanto as linhas estão em ordem de data -- ordenar por
+  // Grupo/Produto/Turno mistura os dias, então os separadores saem (a data
+  // continua visível em cada linha da tabela e no título do cartão).
+  const agrupadoPorDia = !ordenacao.ordenacao || ordenacao.ordenacao.chave === 'data';
 
   function renderAcoes(slot, { cartao }) {
     const chave = chaveSlot(slot.data, slot.turno, slot.receitaId);
@@ -700,7 +750,7 @@ function PlanejamentoConteudo() {
         <Field label="Produto">
           <Select value={filtroProduto} onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}>
             <option value="todos">Todos</option>
-            {produtos.map((p) => (
+            {produtosOpcoes.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}
               </option>
@@ -747,16 +797,17 @@ function PlanejamentoConteudo() {
               const mensagem = erroLinha[chaveSlot(slot.data, slot.turno, slot.receitaId)];
               return mensagem ? <Alert tom="danger">{mensagem}</Alert> : null;
             }}
-            grupo={{
+            grupo={agrupadoPorDia ? {
               chave: (slot) => slot.data,
               rotulo: (slot) =>
                 `${capitalizar(diaDaSemanaExibicao(slot.data))}, ${formatarDataExibicao(slot.data)}${
                   feriados[slot.data] ? ` · Feriado: ${feriados[slot.data]}` : ''
                 }${diasFechados.has(slot.data) ? ' · Dia fechado' : ''}`,
-            }}
-            cartoesAte={1439}
+            } : undefined}
+            cartoesAte={CARTOES_ATE}
             denso
             renderAcoes={renderAcoes}
+            ordenacao={ordenacao.props}
           />
 
           {paginacao.total > 0 && (

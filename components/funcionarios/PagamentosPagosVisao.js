@@ -11,6 +11,8 @@ import { buscarHistoricoPagamentos, formatarMoeda, formatarCompetencia, rotuloNa
 import { rotuloTipoLancamento, centavos } from '../../lib/funcionarios/pagamentosCalculo';
 import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import estilosPagamentos from './pagamentos.module.css';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 function formatarDataExibicao(dataYYYYMMDD) {
   if (!dataYYYYMMDD) return '—';
@@ -32,6 +34,8 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   const [pagamentos, setPagamentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [detalhe, setDetalhe] = useState(null);
+  // Ordenação do cabeçalho: estado local (nunca salvo).
+  const ordenacao = useOrdenacao();
 
   async function carregar() {
     setCarregando(true);
@@ -65,21 +69,29 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   }, [pagamentos]);
 
   const colunas = [
-    { chave: 'data_efetiva', rotulo: 'Data efetiva', render: (p) => formatarDataExibicao(p.data_efetiva) },
-    { chave: 'funcionario', rotulo: 'Pessoa', mobile: 'titulo', render: (p) => p.funcionarios?.nome || '—' },
-    { chave: 'vinculo', rotulo: 'Vínculo', render: (p) => <IndicadorVinculo tipoVinculo={p.tipo_vinculo_snapshot} /> },
+    { chave: 'data_efetiva', rotulo: 'Data efetiva', ordenavel: { tipo: 'data', valor: (p) => p.data_efetiva }, render: (p) => formatarDataExibicao(p.data_efetiva) },
+    { chave: 'funcionario', rotulo: 'Pessoa', mobile: 'titulo', ordenavel: { valor: (p) => p.funcionarios?.nome }, render: (p) => p.funcionarios?.nome || '—' },
+    {
+      chave: 'vinculo',
+      rotulo: 'Vínculo',
+      ordenavel: { valor: (p) => p.tipo_vinculo_snapshot, ordem: OPCOES_VINCULO.map((o) => o.valor) },
+      render: (p) => <IndicadorVinculo tipoVinculo={p.tipo_vinculo_snapshot} />,
+    },
     {
       chave: 'natureza',
       rotulo: 'Forma',
+      // Mesma ordem do filtro "Forma": Por hora, Mensal, Regularização.
+      ordenavel: { valor: (p) => p.natureza, ordem: ['por_hora', 'mensal', 'regularizacao_historica'] },
       render: (p) =>
         p.natureza === 'mensal' ? `Mensal ${formatarCompetencia(p.competencia)} · ${rotuloTipoLancamento(p.tipo_lancamento)}` : rotuloNaturezaPagamento(p.natureza),
     },
-    { chave: 'bruto', rotulo: 'Bruto', alinhar: 'direita', render: (p) => formatarMoeda(p.valor_bruto) },
-    { chave: 'descontos', rotulo: 'Descontos', alinhar: 'direita', render: (p) => formatarMoeda(p.total_descontos) },
-    { chave: 'liquido', rotulo: 'Líquido', alinhar: 'direita', render: (p) => formatarMoeda(p.valor_liquido) },
+    { chave: 'bruto', rotulo: 'Bruto', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (p) => p.valor_bruto }, render: (p) => formatarMoeda(p.valor_bruto) },
+    { chave: 'descontos', rotulo: 'Descontos', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (p) => p.total_descontos }, render: (p) => formatarMoeda(p.total_descontos) },
+    { chave: 'liquido', rotulo: 'Líquido', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (p) => p.valor_liquido }, render: (p) => formatarMoeda(p.valor_liquido) },
     {
       chave: 'status',
       rotulo: 'Status',
+      ordenavel: { valor: (p) => p.status, ordem: ['confirmado', 'cancelado'] },
       render: (p) => <Badge tom={p.status === 'cancelado' ? 'danger' : 'success'}>{p.status === 'cancelado' ? 'Cancelado' : 'Confirmado'}</Badge>,
     },
   ];
@@ -96,7 +108,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
         <Field label="Pessoa">
           <Select value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
             <option value="">Todas</option>
-            {funcionarios.map((f) => (
+            {ordenarOpcoes(funcionarios).map((f) => (
               <option key={f.id} value={f.id}>
                 {f.nome}
                 {f.ativo === false ? ' (inativo)' : ''}
@@ -146,8 +158,9 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           <DataTable
             rotulo="Pagamentos"
             colunas={colunas}
-            linhas={pagamentos}
+            linhas={ordenacao.ordenar(pagamentos, colunas)}
             chaveLinha={(p) => p.id}
+            ordenacao={ordenacao.props}
             destaque={(p) => (p.status === 'cancelado' ? 'inativo' : undefined)}
             renderAcoes={(p) => (
               <Button variante="secondary" tamanho="sm" onClick={() => setDetalhe(p)}>

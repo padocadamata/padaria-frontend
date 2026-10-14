@@ -28,6 +28,7 @@ import { formatarComSinal } from '../../lib/producao/ajusteEstoque';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 
 // Controle de Sacos Fechados (migrations 0041/0042 + complementar de
 // operação inicial). Leitura via RPC listar_sacos_fechados_configuracoes
@@ -138,6 +139,16 @@ function SacosConteudo() {
   const [filtroDe, setFiltroDe] = useState('');
   const [filtroAte, setFiltroAte] = useState('');
   const [pagina, setPagina] = useState(1);
+  // Ordenação pelo cabeçalho (estado local, nunca salvo). Saldo: lista
+  // inteira em memória, ordenada no navegador. Movimentações: paginadas NA
+  // CONSULTA -- só a Data (criado_em, campo da própria tabela) pode ser
+  // ordenada corretamente sobre o conjunto inteiro; Produto/Fornecedor/
+  // Responsável vêm de outras tabelas, Kg é calculado e Movimento/Origem/
+  // Quantidade são exibidos por rótulo/valor absoluto (a ordem do banco não
+  // bateria com o que se vê) -- ficam sem ordenação.
+  const ordenacaoSaldo = useOrdenacao();
+  const ordenacaoMov = useOrdenacao({ aoMudar: () => setPagina(1) });
+  const ordenacaoMovEscolhida = ordenacaoMov.ordenacao;
 
   // Carga "base": configurações (RPC), nomes de usuários e quais
   // configurações já têm saldo inicial. Não depende de filtro/página.
@@ -253,10 +264,13 @@ function SacosConteudo() {
       if (filtroDe) consulta = consulta.gte('criado_em', limiteInicioDia(filtroDe));
       if (filtroAte) consulta = consulta.lt('criado_em', limiteFimDia(filtroAte));
 
+      // Padrão: mais recente primeiro; com a Data escolhida no cabeçalho, o
+      // sentido escolhido. id no mesmo sentido = desempate estável.
+      const ascendente = ordenacaoMovEscolhida?.chave === 'data' && ordenacaoMovEscolhida.direcao === 'asc';
       const inicio = (pagina - 1) * TAMANHO_PAGINA;
       const { data, count, error } = await consulta
-        .order('criado_em', { ascending: false })
-        .order('id', { ascending: false })
+        .order('criado_em', { ascending: ascendente })
+        .order('id', { ascending: ascendente })
         .range(inicio, inicio + TAMANHO_PAGINA - 1);
 
       if (!efeitoAtivo) return;
@@ -290,7 +304,7 @@ function SacosConteudo() {
     };
     // idsBusca entra via idsBuscaChave (mesmo conteúdo = mesma consulta).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseCarregada, recarregarTick, pagina, filtroTipo, filtroDe, filtroAte, idsBuscaChave, periodoInvertido]);
+  }, [baseCarregada, recarregarTick, pagina, filtroTipo, filtroDe, filtroAte, idsBuscaChave, periodoInvertido, ordenacaoMovEscolhida]);
 
   useEffect(() => {
     if (!mensagemSucesso) return undefined;
@@ -396,15 +410,15 @@ function SacosConteudo() {
 
   // Saldo: UMA definição de colunas para tabela e cartão.
   const colunasSaldo = [
-    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (c) => c.produtoNome },
-    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 1, render: (c) => c.fornecedorNome },
-    { chave: 'saldo', rotulo: 'Sacos fechados', alinhar: 'direita', render: (c) => <strong>{c.saldoSacos}</strong> },
-    { chave: 'peso', rotulo: 'Kg/saco', alinhar: 'direita', semQuebra: true, render: (c) => `${c.pesoPorSacoKg} kg` },
-    { chave: 'kgTotal', rotulo: 'Kg total', alinhar: 'direita', semQuebra: true, render: (c) => `${formatarKg(c.kgTotal)} kg` },
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, ordenavel: { valor: (c) => (c.produtoNome === '—' ? null : c.produtoNome) }, render: (c) => c.produtoNome },
+    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { valor: (c) => (c.fornecedorNome === '—' ? null : c.fornecedorNome) }, render: (c) => c.fornecedorNome },
+    { chave: 'saldo', rotulo: 'Sacos fechados', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (c) => c.saldoSacos }, render: (c) => <strong>{c.saldoSacos}</strong> },
+    { chave: 'peso', rotulo: 'Kg/saco', alinhar: 'direita', semQuebra: true, ordenavel: { tipo: 'numero', valor: (c) => c.pesoPorSacoKg }, render: (c) => `${c.pesoPorSacoKg} kg` },
+    { chave: 'kgTotal', rotulo: 'Kg total', alinhar: 'direita', semQuebra: true, ordenavel: { tipo: 'numero', valor: (c) => c.kgTotal }, render: (c) => `${formatarKg(c.kgTotal)} kg` },
   ];
 
   const colunasMov = [
-    { chave: 'data', rotulo: 'Data', semQuebra: true, mobile: 'titulo', cartaoOrdem: 2, render: (m) => formatarDataHora(m.criado_em) },
+    { chave: 'data', rotulo: 'Data', semQuebra: true, mobile: 'titulo', cartaoOrdem: 2, ordenavel: { tipo: 'data', campoConsulta: 'criado_em' }, render: (m) => formatarDataHora(m.criado_em) },
     { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (m) => m.produtoNome },
     { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 1, render: (m) => m.fornecedorNome },
     {
@@ -519,8 +533,9 @@ function SacosConteudo() {
                     <DataTable
                       rotulo="Saldo de sacos fechados"
                       colunas={colunasSaldo}
-                      linhas={configuracoesSaldoFiltradas}
+                      linhas={ordenacaoSaldo.ordenar(configuracoesSaldoFiltradas, colunasSaldo)}
                       chaveLinha={(c) => c.id}
+                      ordenacao={ordenacaoSaldo.props}
                       renderAcoes={
                         podeOperar || podeAjustar
                           ? (c, { cartao }) => <AcoesLinha acoes={acoesSaldo(c)} cartao={cartao} />
@@ -602,6 +617,7 @@ function SacosConteudo() {
                     linhas={movimentacoes}
                     chaveLinha={(m) => m.id}
                     cartoesAte={1200}
+                    ordenacao={ordenacaoMov.props}
                     renderAcoes={(m, { cartao }) => <AcoesLinha acoes={acoesMovimentacao(m)} cartao={cartao} />}
                   />
                 </div>

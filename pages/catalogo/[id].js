@@ -12,13 +12,15 @@ import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { nomeExibicaoFornecedor as nomeFornecedor } from '../../lib/fornecedores/nomeExibicao';
 import { useAuth } from '../../hooks/useAuth';
 import estilos from '../../components/catalogo/catalogo.module.css';
 
 // Mesmo critério de nome de exibição já usado em pages/fornecedores.js
 // (nome_fantasia como principal, nome legado como fallback).
 function nomeExibicaoFornecedor(fornecedor) {
-  return fornecedor.nome_fantasia || fornecedor.nome || '(sem nome)';
+  return nomeFornecedor(fornecedor, '(sem nome)');
 }
 
 // Página dedicada de detalhe/edição -- não modal, não abas -- em cards
@@ -76,7 +78,7 @@ function ProdutoDetalheConteudo() {
         { data: lancamentosRows },
         { data: resumoRow },
       ] = await Promise.all([
-        supabase.from('fornecedores').select('id, nome, nome_fantasia, ativo').order('nome_fantasia', { ascending: true, nullsFirst: false }),
+        supabase.from('fornecedores').select('id, nome, nome_fantasia, razao_social, ativo').order('nome_fantasia', { ascending: true, nullsFirst: false }),
         supabase
           .from('produto_fornecedores')
           .select('id, fornecedor_id, unidade_comercial, apresentacao, quantidade_embalagem, codigo_produto_fornecedor, observacao, ativo, controla_sacos_fechados, peso_por_saco_kg')
@@ -129,7 +131,7 @@ function ProdutoDetalheConteudo() {
     );
   }
 
-  const fornecedoresAtivos = fornecedores.filter((f) => f.ativo).map((f) => ({ id: f.id, nome: nomeExibicaoFornecedor(f) }));
+  const fornecedoresAtivos = ordenarOpcoes(fornecedores.filter((f) => f.ativo).map((f) => ({ id: f.id, nome: nomeExibicaoFornecedor(f) })));
   const fornecedoresPorId = Object.fromEntries(fornecedores.map((f) => [f.id, nomeExibicaoFornecedor(f)]));
   const configuracoesAtivas = configuracoes.filter((c) => c.ativo);
 

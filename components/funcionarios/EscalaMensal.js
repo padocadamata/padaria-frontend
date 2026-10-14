@@ -10,6 +10,7 @@ import { classificarCelulaMensal as classificarCelula, faixasDoDia } from '../..
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { cx } from '../../lib/design/cx';
 import IndicadorVinculo from './IndicadorVinculo';
+import CabecalhoOrdenavel, { ariaSort } from '../ui/CabecalhoOrdenavel';
 import estilos from './escala.module.css';
 
 // Identifica sábado/domingo pela DATA real (0=domingo, 6=sábado -- mesma
@@ -94,14 +95,23 @@ function CelulaMensal({ funcionario, data, estado, ehHoje, onAbrir }) {
 // qualquer .fc-event, ver isValidDateDownEl no core). Clique simples de
 // <button>, sem biblioteca de calendário -- nunca mais sujeito a esse tipo
 // de bloqueio.
-export default function EscalaMensal({ funcionarios, mapaEscala, dias, onAbrirFuncionarioDia, onAbrirDia }) {
+// ordenacao (opcional): { chave, direcao, onOrdenar } -- só a coluna
+// Funcionário ordena (A → Z / Z → A); quem ordena as linhas é a página.
+export default function EscalaMensal({ funcionarios, mapaEscala, dias, onAbrirFuncionarioDia, onAbrirDia, ordenacao }) {
   const hoje = dataLocalHoje();
+  const nomeAtivo = ordenacao?.chave === 'nome';
   return (
     <div className={estilos.envolucroMensal}>
       <table className={estilos.gradeMensal}>
         <thead>
           <tr>
-            <th className={estilos.colFuncionarioFixa}>Funcionário</th>
+            <th className={estilos.colFuncionarioFixa} aria-sort={ariaSort(nomeAtivo, ordenacao?.direcao)}>
+              {ordenacao ? (
+                <CabecalhoOrdenavel rotulo="Funcionário" ativa={nomeAtivo} direcao={ordenacao.direcao} onOrdenar={() => ordenacao.onOrdenar('nome')} />
+              ) : (
+                'Funcionário'
+              )}
+            </th>
             <th className={estilos.colVinculoMensal}>Vínculo</th>
             {dias.map((data) => (
               <th key={data} className={cx(estilos.colDiaMensal, ehFimDeSemana(data) && estilos.colDiaMensalFimDeSemana, data === hoje && estilos.colDiaMensalHoje)}>

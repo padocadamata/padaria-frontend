@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import Alert from '../ui/Alert';
 import Button from '../ui/Button';
@@ -164,7 +165,7 @@ export default function LancarCompraForm({ produtoId, fornecedoresAtivos, config
         <Field label="Usar configuração cadastrada (opcional)" dica="Só preenche os campos abaixo — não cria nenhum vínculo entre este lançamento e a configuração." className={estilos.secao}>
           <Select defaultValue="" onChange={(e) => preencherDeConfiguracao(e.target.value)}>
             <option value="">Preencher manualmente</option>
-            {configuracoesComerciais.map((c) => (
+            {ordenarOpcoes(configuracoesComerciais, (c) => `${c.fornecedorNome} ${c.unidade_comercial || ''}`).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.fornecedorNome} — {c.unidade_comercial}
                 {c.apresentacao ? ` (${c.apresentacao})` : ''}

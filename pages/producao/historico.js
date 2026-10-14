@@ -28,6 +28,21 @@ import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+
+// Ordenação pelo cabeçalho com paginação NA CONSULTA: só colunas que são
+// campos da própria producao_registros podem ser ordenadas corretamente
+// sobre o conjunto inteiro (o banco ordena, depois pagina). Produto (nome
+// vem de outra tabela), % Venda (calculado), Status/Origem e Obs. ficam
+// SEM ordenação -- ordenar só a página atual seria enganoso.
+const CAMPOS_ORDENACAO = {
+  data: 'data',
+  turno: 'turno',
+  produzido: 'quantidade_produzida',
+  vendido: 'quantidade_vendida',
+  sobra: 'sobra_total',
+};
 
 const TURNO_LABEL = { manha: 'Manhã', tarde: 'Tarde' };
 
@@ -120,6 +135,9 @@ function HistoricoConteudo() {
   const [erro, setErro] = useState('');
   const [erroRegistros, setErroRegistros] = useState('');
   const [pagina, setPagina] = useState(1);
+  // Estado local (nunca salvo); mudar a ordenação volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  const ordenacaoEscolhida = ordenacao.ordenacao;
 
   const [registroVisualizado, setRegistroVisualizado] = useState(null);
   // tipo: 'reabrir' | 'fechar' | 'sobras' | 'completar_retroativo' | 'editar_producao' | 'excluir'
@@ -210,9 +228,7 @@ function HistoricoConteudo() {
 
       // Achata para {id, nome} -- mesma forma usada por LancarProducaoRetroativaModal
       // antes da unificação. Ordenado no cliente por nome.
-      const produtosAtivosAchatados = (produtosAtivosResp.data || [])
-        .map((p) => ({ id: p.id, nome: p.produtos?.nome || '' }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+      const produtosAtivosAchatados = ordenarOpcoes((produtosAtivosResp.data || []).map((p) => ({ id: p.id, nome: p.produtos?.nome || '' })));
 
       setReceitaIdsComRegistro(idsComRegistroResp.data || []);
       setReceitaNomePorId(mapa);
@@ -307,6 +323,14 @@ function HistoricoConteudo() {
       if (filtroStatus !== 'todos') consulta = consulta.eq('status', filtroStatus);
       if (datasDiaSemana) consulta = consulta.in('data', datasDiaSemana);
 
+      // Coluna escolhida no cabeçalho (se houver) primeiro, vazios sempre no
+      // fim; depois a ordem padrão (data mais recente, manhã antes de tarde)
+      // e id como desempate final -- paginação estável entre páginas.
+      const campoEscolhido = ordenacaoEscolhida ? CAMPOS_ORDENACAO[ordenacaoEscolhida.chave] : null;
+      if (campoEscolhido) {
+        consulta = consulta.order(campoEscolhido, { ascending: ordenacaoEscolhida.direcao === 'asc', nullsFirst: false });
+      }
+
       const inicioLinha = (pagina - 1) * TAMANHO_PAGINA;
       const { data, count, error } = await consulta
         .order('data', { ascending: false })
@@ -352,6 +376,7 @@ function HistoricoConteudo() {
     filtroTurno,
     filtroStatus,
     filtroDiaSemana,
+    ordenacaoEscolhida,
   ]);
 
   // Qualquer mudança de filtro volta para a página 1.
@@ -425,9 +450,7 @@ function HistoricoConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
-  const produtosDisponiveis = receitaIdsComRegistro
-    .map((id) => ({ id, nome: receitaNomePorId[id] || id }))
-    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const produtosDisponiveis = ordenarOpcoes(receitaIdsComRegistro.map((id) => ({ id, nome: receitaNomePorId[id] || id })));
 
   // Rota A (decisão de 2026-08-24): historico.editar é o gate de TELA das
   // ações de edição do Histórico; a RLS real de producao_registros continua
@@ -523,13 +546,13 @@ function HistoricoConteudo() {
 
   // UMA definição de colunas para tabela (desktop) e cartões (mobile).
   const colunas = [
-    { chave: 'data', rotulo: 'Data', semQuebra: true, mobile: 'titulo', cartaoOrdem: 1, render: (r) => formatarDataExibicao(r.data) },
+    { chave: 'data', rotulo: 'Data', semQuebra: true, mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'data', campoConsulta: CAMPOS_ORDENACAO.data }, render: (r) => formatarDataExibicao(r.data) },
     { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (r) => receitaNomePorId[r.receita_id] || r.receita_id },
-    { chave: 'turno', rotulo: 'Turno', mobile: 'titulo', cartaoOrdem: 2, render: (r) => TURNO_LABEL[r.turno] || r.turno },
-    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', render: (r) => r.quantidade_produzida },
-    { chave: 'vendido', rotulo: 'Vendido', alinhar: 'direita', render: (r) => r.quantidade_vendida ?? '—' },
+    { chave: 'turno', rotulo: 'Turno', mobile: 'titulo', cartaoOrdem: 2, ordenavel: { campoConsulta: CAMPOS_ORDENACAO.turno }, render: (r) => TURNO_LABEL[r.turno] || r.turno },
+    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', ordenavel: { tipo: 'numero', campoConsulta: CAMPOS_ORDENACAO.produzido }, render: (r) => r.quantidade_produzida },
+    { chave: 'vendido', rotulo: 'Vendido', alinhar: 'direita', ordenavel: { tipo: 'numero', campoConsulta: CAMPOS_ORDENACAO.vendido }, render: (r) => r.quantidade_vendida ?? '—' },
     { chave: 'percentual', rotulo: '% Venda', alinhar: 'direita', render: (r) => formatarPercentualVenda(r.quantidade_vendida, r.quantidade_produzida) },
-    { chave: 'sobra', rotulo: 'Sobra total', alinhar: 'direita', render: (r) => r.sobra_total ?? '—' },
+    { chave: 'sobra', rotulo: 'Sobra total', alinhar: 'direita', ordenavel: { tipo: 'numero', campoConsulta: CAMPOS_ORDENACAO.sobra }, render: (r) => r.sobra_total ?? '—' },
     {
       chave: 'status',
       rotulo: 'Status/Origem',
@@ -640,6 +663,7 @@ function HistoricoConteudo() {
               chaveLinha={(r) => r.id}
               destaque={(r) => (r.status !== 'fechado' ? 'aviso' : null)}
               cartoesAte={1300}
+              ordenacao={ordenacao.props}
               renderAcoes={(r, { cartao }) => <AcoesLinha acoes={acoesDoRegistro(r)} cartao={cartao} />}
             />
           </div>

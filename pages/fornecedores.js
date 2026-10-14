@@ -16,6 +16,8 @@ import Paginacao, { paginarLista } from '../components/Paginacao';
 import estilos from '../components/fornecedores/fornecedores.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
+import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { nomeExibicaoFornecedor } from '../lib/fornecedores/nomeExibicao';
 import { useAuth } from '../hooks/useAuth';
 
 function apenasDigitos(valor) {
@@ -94,6 +96,9 @@ function FornecedoresConteudo() {
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
+  // Ordenação escolhida no cabeçalho: estado local desta tela (nunca salvo);
+  // mudar a ordenação volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -237,13 +242,6 @@ function FornecedoresConteudo() {
     }
   );
 
-  // Paginação VISUAL (client-side, 20 por página): a lista já vem inteira do
-  // banco (filtro de Status na consulta; Modalidade e Buscar no navegador) e
-  // aqui só se fatia o resultado já filtrado e ordenado. Tabela (desktop) e
-  // cartões (mobile) recebem exatamente este mesmo subconjunto.
-  const paginacao = paginarLista(fornecedoresFiltrados, pagina);
-  const paginaAtual = paginacao.paginaAtual;
-
   // Qualquer mudança de filtro/busca volta para a página 1.
   function alterarFiltro(setter) {
     return (valor) => {
@@ -251,11 +249,6 @@ function FornecedoresConteudo() {
       setPagina(1);
     };
   }
-
-  // Resultado encolheu (filtro, recarga): corrige a página guardada.
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
 
   const quantidadeFiltrosAtivos = [
     filtroStatus !== 'ativos',
@@ -281,20 +274,22 @@ function FornecedoresConteudo() {
       rotulo: 'Nome',
       mobile: 'titulo',
       cartaoOrdem: 0,
-      render: (fornecedor) =>
-        fornecedor.nome_fantasia || fornecedor.razao_social || fornecedor.nome || '-',
+      ordenavel: { valor: (fornecedor) => nomeExibicaoFornecedor(fornecedor) },
+      render: (fornecedor) => nomeExibicaoFornecedor(fornecedor, '-'),
     },
     {
       chave: 'status',
       rotulo: 'Status',
       mobile: 'titulo',
       cartaoOrdem: 1,
+      ordenavel: { tipo: 'booleano', valor: (fornecedor) => fornecedor.ativo },
       render: (fornecedor) => <BadgeStatus ativo={fornecedor.ativo} />,
     },
     {
       chave: 'documento',
       rotulo: 'Documento',
       semQuebra: true,
+      ordenavel: { valor: (fornecedor) => fornecedor.documento },
       render: (fornecedor) => formatarDocumento(fornecedor.documento, fornecedor.tipo_documento),
     },
     {
@@ -305,10 +300,11 @@ function FornecedoresConteudo() {
         <span className={estilos.contato}>{formatarContato(fornecedor.telefone, fornecedor.whatsapp)}</span>
       ),
     },
-    { chave: 'pagamento', rotulo: 'Forma de pagamento', render: (fornecedor) => fornecedor.forma_pagamento || '-' },
+    { chave: 'pagamento', rotulo: 'Forma de pagamento', ordenavel: { valor: (fornecedor) => fornecedor.forma_pagamento }, render: (fornecedor) => fornecedor.forma_pagamento || '-' },
     {
       chave: 'modalidade',
       rotulo: 'Modalidade',
+      ordenavel: { valor: (fornecedor) => fornecedor.modalidade_compra, ordem: ['pedido_com_entrega', 'compra_presencial'] },
       render: (fornecedor) => <BadgeModalidade modalidade={fornecedor.modalidade_compra} />,
     },
   ];
@@ -316,6 +312,19 @@ function FornecedoresConteudo() {
   // Ordem das colunas na tabela (como antes): Nome, Documento, Contato,
   // Forma de pagamento, Modalidade, Status.
   const colunasTabela = [colunas[0], colunas[2], colunas[3], colunas[4], colunas[5], colunas[1]];
+
+  // Paginação VISUAL (client-side, 20 por página): a lista já vem inteira do
+  // banco (filtro de Status na consulta; Modalidade e Buscar no navegador) e
+  // aqui só se fatia o resultado já filtrado e ORDENADO (ordem padrão da
+  // consulta, ou a coluna escolhida no cabeçalho -- aplicada ao conjunto
+  // inteiro, antes de fatiar). Tabela e cartões recebem o mesmo subconjunto.
+  const paginacao = paginarLista(ordenacao.ordenar(fornecedoresFiltrados, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Resultado encolheu (filtro, recarga): corrige a página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
 
   function abrirNovoFornecedor() {
     setFornecedorEmEdicao(null);
@@ -403,6 +412,7 @@ function FornecedoresConteudo() {
             chaveLinha={(fornecedor) => fornecedor.id}
             destaque={(fornecedor) => (fornecedor.ativo ? null : 'inativo')}
             cartoesAte={1180}
+            ordenacao={ordenacao.props}
             renderAcoes={
               podeEditar
                 ? (fornecedor) => (

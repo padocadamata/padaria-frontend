@@ -1,11 +1,6 @@
 import { useState } from 'react';
-import { PERMISSOES, hasPermissao, isAdmin } from '../../lib/auth/permissoes';
-import IniciarProducaoForm from './IniciarProducaoForm';
-import AdicionarProducaoForm from './AdicionarProducaoForm';
-import FechamentoTurnoForm from './FechamentoTurnoForm';
-import ReaberturaModal from './ReaberturaModal';
-import GerenciarSobrasModal from './GerenciarSobrasModal';
 import MarcadorFalta from './MarcadorFalta';
+import { permissoesTurno, acoesDoTurno, ModalTurno } from './turnoProducao';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import Alert from '../ui/Alert';
@@ -42,7 +37,8 @@ function ResumoFechadoCompacto({ registro }) {
 // abrem um modal dedicado e, ao terminar com sucesso, chamam
 // onAtualizado() para o componente pai recarregar os dados do banco — o
 // card nunca guarda estado de negócio próprio além de qual modal está
-// aberto.
+// aberto. Permissões, ações e modais vêm de ./turnoProducao (os mesmos da
+// tabela do desktop, TabelaHoje).
 export default function CardTurno({
   turno,
   label,
@@ -66,23 +62,18 @@ export default function CardTurno({
     onAtualizado();
   }
 
-  const podeInserir = hasPermissao(permissoes, PERMISSOES.PRODUCAO_INSERIR);
-  const podeEditar = hasPermissao(permissoes, PERMISSOES.PRODUCAO_EDITAR);
-  const podeReabrir = registro
-    ? registro.origem === 'historico'
-      ? isAdmin(perfilUsuario)
-      : hasPermissao(permissoes, PERMISSOES.PRODUCAO_CANCELAR)
-    : false;
-  // Gerenciar sobras: mesma distinção manual/histórico da reabertura, mas
-  // usando producao.editar (não producao.cancelar) para manual — é uma
-  // ação operacional (destinar sobra), não uma correção estrutural
-  // sensível. Continua exigindo admin para histórico (RPC + trigger
-  // 0015 reforçam isso no backend, independente deste cálculo de UI).
-  const podeGerenciarSobras = registro
-    ? registro.origem === 'historico'
-      ? isAdmin(perfilUsuario)
-      : podeEditar
-    : false;
+  const perms = permissoesTurno({ registro, permissoes, perfilUsuario });
+  const acoes = acoesDoTurno(registro, perms);
+  const botoes =
+    acoes.length > 0 ? (
+      <div className={styles.acoes}>
+        {acoes.map((a) => (
+          <Button key={a.acao} variante={a.variante} onClick={() => setAcaoAberta(a.acao)}>
+            {a.rotulo}
+          </Button>
+        ))}
+      </div>
+    ) : null;
 
   const classeEstado = !registro ? styles.semRegistro : styles[registro.status];
 
@@ -98,11 +89,7 @@ export default function CardTurno({
       {!registro && (
         <>
           <p className={styles.vazio}>Nenhuma produção lançada</p>
-          {podeInserir && (
-            <div className={styles.acoes}>
-              <Button onClick={() => setAcaoAberta('iniciar')}>Iniciar produção</Button>
-            </div>
-          )}
+          {botoes}
         </>
       )}
 
@@ -112,34 +99,16 @@ export default function CardTurno({
             <span className={styles.quantidadeRotulo}>Produzido</span>
             <strong className={styles.quantidadeValor}>{registro.quantidade_produzida}</strong>
           </div>
-          <div className={styles.acoes}>
-            {podeEditar && (
-              <Button variante="secondary" onClick={() => setAcaoAberta('adicionar')}>
-                + Adicionar produção
-              </Button>
-            )}
-            {podeEditar && <Button onClick={() => setAcaoAberta('fechar')}>Fechar turno</Button>}
-          </div>
+          {botoes}
         </>
       )}
 
       {registro?.status === 'fechado' && (
         <>
           <ResumoFechadoCompacto registro={registro} />
-          <div className={styles.acoes}>
-            {podeGerenciarSobras && (
-              <Button variante="secondary" onClick={() => setAcaoAberta('sobras')}>
-                Gerenciar sobras
-              </Button>
-            )}
-            {podeReabrir && (
-              <Button variante="ghost" onClick={() => setAcaoAberta('reabrir')}>
-                Reabrir
-              </Button>
-            )}
-          </div>
+          {botoes}
           <div className={styles.falta}>
-            <MarcadorFalta registro={registro} podeEditar={podeEditar} onAtualizado={onAtualizado} />
+            <MarcadorFalta registro={registro} podeEditar={perms.podeEditar} onAtualizado={onAtualizado} />
             <span>Houve falta de produto</span>
           </div>
           {registro.observacoes && <p className={styles.observacoes}>{registro.observacoes}</p>}
@@ -152,70 +121,22 @@ export default function CardTurno({
           <div className={styles.linhaResumo}><span>Produzido (atual)</span><strong>{registro.quantidade_produzida}</strong></div>
           <div className={styles.linhaResumo}><span>Sobra aproveitável (atual)</span><strong>{registro.sobra_aproveitavel}</strong></div>
           <div className={styles.linhaResumo}><span>Perda/descarte (atual)</span><strong>{registro.perda_descarte}</strong></div>
-          {podeEditar && (
-            <div className={styles.acoes}>
-              <Button onClick={() => setAcaoAberta('corrigir')}>Corrigir e fechar</Button>
-            </div>
-          )}
+          {botoes}
         </>
       )}
 
-      {acaoAberta === 'iniciar' && (
-        <IniciarProducaoForm
-          data={data}
-          turno={turno}
-          receitaId={receitaId}
-          receitaNome={receitaNome}
-          turnoLabel={label}
-          corPrimaria={corPrimaria}
-          onCriado={concluido}
-          onCancelar={fechar}
-        />
-      )}
-
-      {acaoAberta === 'adicionar' && registro && (
-        <AdicionarProducaoForm
-          registro={registro}
-          receitaNome={receitaNome}
-          turnoLabel={label}
-          corPrimaria={corPrimaria}
-          onAdicionado={concluido}
-          onCancelar={fechar}
-        />
-      )}
-
-      {(acaoAberta === 'fechar' || acaoAberta === 'corrigir') && registro && (
-        <FechamentoTurnoForm
-          registro={registro}
-          receitaNome={receitaNome}
-          turnoLabel={label}
-          corPrimaria={corPrimaria}
-          onFechado={concluido}
-          onCancelar={fechar}
-        />
-      )}
-
-      {acaoAberta === 'reabrir' && registro && (
-        <ReaberturaModal
-          registro={registro}
-          receitaNome={receitaNome}
-          turnoLabel={label}
-          corPrimaria={corPrimaria}
-          onReaberto={concluido}
-          onCancelar={fechar}
-        />
-      )}
-
-      {acaoAberta === 'sobras' && registro && (
-        <GerenciarSobrasModal
-          registro={registro}
-          receitaNome={receitaNome}
-          turnoLabel={label}
-          corPrimaria={corPrimaria}
-          onAtualizado={concluido}
-          onCancelar={fechar}
-        />
-      )}
+      <ModalTurno
+        acaoAberta={acaoAberta}
+        registro={registro}
+        data={data}
+        turno={turno}
+        receitaId={receitaId}
+        receitaNome={receitaNome}
+        label={label}
+        corPrimaria={corPrimaria}
+        onConcluido={concluido}
+        onFechar={fechar}
+      />
     </article>
   );
 }

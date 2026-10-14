@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import RequireAuth from '../components/RequireAuth';
 import CardTurno from '../components/producao/CardTurno';
+import TabelaHoje from '../components/producao/TabelaHoje';
 import BannerPendencias from '../components/producao/BannerPendencias';
 import SeletorOutroProduto from '../components/producao/SeletorOutroProduto';
 import PaginaProducao from '../components/producao/PaginaProducao';
@@ -12,6 +13,13 @@ import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { dataLocalHoje, dataLocalExibicao } from '../lib/data/dataLocal';
 import { APARENCIA_FIXA } from '../lib/branding/tema';
+import { useMediaQuery } from '../lib/design/useMediaQuery';
+import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
+
+// Desktop (>= 1280px): tabela, uma linha por produto com Manhã/Tarde lado a
+// lado. Abaixo disso (tablet e celular) continuam os cartões de sempre.
+// As duas apresentações usam as MESMAS ações/modais (turnoProducao.js).
+const CARTOES_ATE = 1279;
 
 const TURNOS = [
   { chave: 'manha', label: 'Manhã' },
@@ -39,6 +47,7 @@ function ProducaoConteudo() {
   // Não é persistido em lugar nenhum — ao recarregar a página, só volta a
   // aparecer se já existir registro de hoje para aquele produto.
   const [produtosExtras, setProdutosExtras] = useState([]);
+  const modoCartoes = useMediaQuery(`(max-width: ${CARTOES_ATE}px)`);
 
   const carregarDados = useCallback(async () => {
     setCarregando(true);
@@ -87,9 +96,7 @@ function ProducaoConteudo() {
     // Achata para {id, nome} -- mesma forma usada por todo o restante do
     // arquivo (receitaNomePorId, frances, SeletorOutroProduto) antes da
     // unificação, preservado para não precisar alterar essa lógica.
-    const receitasAchatadas = (receitasResp.data || [])
-      .map((r) => ({ id: r.id, nome: r.produtos?.nome || '' }))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    const receitasAchatadas = ordenarOpcoes((receitasResp.data || []).map((r) => ({ id: r.id, nome: r.produtos?.nome || '' })));
     setReceitasAtivas(receitasAchatadas);
     setCarregando(false);
   }, []);
@@ -168,7 +175,18 @@ function ProducaoConteudo() {
             onAtualizado={carregarDados}
           />
 
-          {blocosProduto.map((bloco) => (
+          {!modoCartoes ? (
+            <TabelaHoje
+              blocos={blocosProduto}
+              turnos={TURNOS}
+              registroDoBloco={registroDoBloco}
+              data={hoje}
+              corPrimaria={aparencia.corPrimaria}
+              permissoes={permissoes}
+              perfilUsuario={perfilUsuario}
+              onAtualizado={carregarDados}
+            />
+          ) : blocosProduto.map((bloco) => (
             <section key={bloco.receitaId} className={styles.bloco} aria-label={bloco.receitaNome}>
               <SectionHeader titulo={bloco.receitaNome} />
               <div className={styles.turnos}>

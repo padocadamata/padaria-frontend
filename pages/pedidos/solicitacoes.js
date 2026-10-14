@@ -13,6 +13,8 @@ import ConfirmarAcaoModal from '../../components/admin/ConfirmarAcaoModal';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
+import { lerEmLotes } from '../../lib/supabase/lerEmLotes';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { buscarHistoricoComprasEmLote } from '../../lib/pedidos/historicoCompras';
 import {
@@ -115,6 +117,10 @@ function SolicitacoesConteudo() {
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
   const [mostrarRealizadas, setMostrarRealizadas] = useState(false);
+  // Ordenação do cabeçalho da lista: estado local desta tela (nunca salvo).
+  // Fica aqui (e não dentro da lista) para sobreviver a filtros que esvaziam
+  // a lista momentaneamente.
+  const ordenacaoLista = useOrdenacao();
 
   const [modalForm, setModalForm] = useState(null); // { modo: 'criar'|'editar', solicitacao }
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);
@@ -176,11 +182,17 @@ function SolicitacoesConteudo() {
       const supabase = createClient();
 
       const [solicitacoesResp, usuariosResp] = await Promise.all([
-        supabase
-          .from('pedidos_solicitacoes')
-          .select(
-            'id, produto_id, descricao, unidade, quantidade, data_solicitacao, observacao, status, pedido_id, realizado_em, realizado_por, observacao_realizacao, criado_por, criado_em'
-          ),
+        // Leitura COMPLETA em lotes (lib/supabase/lerEmLotes): um select
+        // único seria cortado em silêncio nas 1000 linhas do PostgREST e as
+        // solicitações mais novas (pendentes inclusive) sumiriam da lista.
+        lerEmLotes(() =>
+          supabase
+            .from('pedidos_solicitacoes')
+            .select(
+              'id, produto_id, descricao, unidade, quantidade, data_solicitacao, observacao, status, pedido_id, realizado_em, realizado_por, observacao_realizacao, criado_por, criado_em'
+            )
+            .order('id')
+        ),
         // Resolve nomes de solicitante/quem realizou -- mesmo padrão de
         // join manual via mapa já usado em pages/pedidos.js
         // (fornecedorNomePorId). Se a RLS de public.usuarios não liberar
@@ -736,6 +748,7 @@ function SolicitacoesConteudo() {
           onReabrirPedido={abrirConfirmarReabrirPedido}
           onExcluirPedido={abrirConfirmarExcluirPedido}
           selecao={selecaoTabela}
+          ordenacao={ordenacaoLista}
         />
       )}
 

@@ -7,6 +7,7 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import { cx } from '../../lib/design/cx';
 import styles from './dashboard.module.css';
+import { nomeExibicaoFornecedor } from '../../lib/fornecedores/nomeExibicao';
 
 // 1=segunda .. 7=domingo — mesma convenção de public.fornecedor_regras_pedido
 // (migration 0007) e de components/fornecedores/FornecedorRegras.js.
@@ -114,7 +115,7 @@ export default function ProximosPedidos() {
 
       const nomePorFornecedorId = {};
       for (const f of fornecedoresResp.data || []) {
-        nomePorFornecedorId[f.id] = f.nome_fantasia || f.razao_social || f.nome || f.id;
+        nomePorFornecedorId[f.id] = nomeExibicaoFornecedor(f, f.id);
       }
 
       // Só regras de fornecedor ainda ativo.

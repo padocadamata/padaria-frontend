@@ -301,18 +301,6 @@
   margin: var(--ds-sp-1) 0 0 26px;
 }
 
-.cabecalhoOrdenavel {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  font-weight: var(--ds-fw-semibold);
-  color: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
 .campoInline {
   min-width: 90px;
 }

@@ -15,6 +15,9 @@ import { createClient } from '../../lib/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { JANELA_RECEBIDOS_DIAS } from '../../lib/pedidos/resumoConfig';
+import { lerEmLotes } from '../../lib/supabase/lerEmLotes';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { nomeExibicaoFornecedor } from '../../lib/fornecedores/nomeExibicao';
 
 // Resumo operacional de Pedidos (auditoria aprovada, seções 3-6): "o que
 // precisa de atenção", sem gráficos -- cards de contagem + 1 tabela
@@ -87,6 +90,8 @@ function ResumoConteudo() {
   const [fornecedorNomePorId, setFornecedorNomePorId] = useState({});
   const [carregandoPedidos, setCarregandoPedidos] = useState(podeVerPedidos);
   const [erroPedidos, setErroPedidos] = useState('');
+  // Ordenação do cabeçalho da tabela de atenção: estado local (nunca salvo).
+  const ordenacao = useOrdenacao();
 
   const [totalSolicitacoesPendentes, setTotalSolicitacoesPendentes] = useState(null);
   const [carregandoSolicitacoes, setCarregandoSolicitacoes] = useState(podeVerSolicitacoes);
@@ -104,9 +109,14 @@ function ResumoConteudo() {
       const supabase = createClient();
 
       const [pedidosResp, fornecedoresResp] = await Promise.all([
-        supabase
-          .from('pedidos')
-          .select('id, fornecedor_id, data_pedido, previsao_entrega, status, modalidade_compra, recebido_em'),
+        // Contagens e tabela precisam de TODOS os pedidos: leitura em lotes
+        // (um select único seria cortado em 1000 linhas pelo PostgREST).
+        lerEmLotes(() =>
+          supabase
+            .from('pedidos')
+            .select('id, fornecedor_id, data_pedido, previsao_entrega, status, modalidade_compra, recebido_em')
+            .order('id')
+        ),
         supabase.from('fornecedores').select('id, nome, nome_fantasia, razao_social'),
       ]);
 
@@ -121,7 +131,7 @@ function ResumoConteudo() {
 
       const nomePorId = {};
       for (const f of fornecedoresResp.data || []) {
-        nomePorId[f.id] = f.nome_fantasia || f.razao_social || f.nome || f.id;
+        nomePorId[f.id] = nomeExibicaoFornecedor(f, f.id);
       }
 
       setPedidos(pedidosResp.data || []);
@@ -191,15 +201,32 @@ function ResumoConteudo() {
   }
 
   const colunas = [
-    { chave: 'fornecedor', rotulo: 'Fornecedor', mobile: 'titulo', cartaoOrdem: 0, render: (p) => fornecedorNomePorId[p.fornecedor_id] || p.fornecedor_id },
-    { chave: 'data', rotulo: 'Pedido/Data', semQuebra: true, render: (p) => formatarDataExibicao(p.data_pedido) },
-    { chave: 'modalidade', rotulo: 'Modalidade', render: (p) => MODALIDADE_LABEL[p.modalidade_compra] || p.modalidade_compra },
-    { chave: 'previsao', rotulo: 'Previsão', semQuebra: true, render: (p) => formatarDataExibicao(p.previsao_entrega) },
+    {
+      chave: 'fornecedor',
+      rotulo: 'Fornecedor',
+      mobile: 'titulo',
+      cartaoOrdem: 0,
+      ordenavel: { valor: (p) => fornecedorNomePorId[p.fornecedor_id] || p.fornecedor_id },
+      render: (p) => fornecedorNomePorId[p.fornecedor_id] || p.fornecedor_id,
+    },
+    { chave: 'data', rotulo: 'Pedido/Data', semQuebra: true, ordenavel: { tipo: 'data', valor: (p) => p.data_pedido }, render: (p) => formatarDataExibicao(p.data_pedido) },
+    {
+      chave: 'modalidade',
+      rotulo: 'Modalidade',
+      ordenavel: { valor: (p) => p.modalidade_compra, ordem: Object.keys(MODALIDADE_LABEL) },
+      render: (p) => MODALIDADE_LABEL[p.modalidade_compra] || p.modalidade_compra,
+    },
+    { chave: 'previsao', rotulo: 'Previsão', semQuebra: true, ordenavel: { tipo: 'data', valor: (p) => p.previsao_entrega }, render: (p) => formatarDataExibicao(p.previsao_entrega) },
     {
       chave: 'status',
       rotulo: 'Status',
       mobile: 'titulo',
       cartaoOrdem: 1,
+      // Mesma ordem semântica da tabela padrão: Atrasado, Previsto hoje, Aguardando.
+      ordenavel: {
+        valor: (p) => (idsAtrasados.has(p.id) ? 'atrasado' : idsPrevistos.has(p.id) ? 'previsto_hoje' : 'aguardando'),
+        ordem: ['atrasado', 'previsto_hoje', 'aguardando'],
+      },
       render: (p) => {
         const atrasado = idsAtrasados.has(p.id);
         const previstoHoje = idsPrevistos.has(p.id);
@@ -264,8 +291,9 @@ function ResumoConteudo() {
                     <DataTable
                       rotulo="Pedidos que precisam de atenção"
                       colunas={colunas}
-                      linhas={tabelaOperacional}
+                      linhas={ordenacao.ordenar(tabelaOperacional, colunas)}
                       chaveLinha={(p) => p.id}
+                      ordenacao={ordenacao.props}
                       tituloAcoes="Ação"
                       destaque={(p) => (idsAtrasados.has(p.id) ? 'aviso' : null)}
                       renderAcoes={(p) => (

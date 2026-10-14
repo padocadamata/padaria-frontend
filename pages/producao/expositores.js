@@ -28,6 +28,8 @@ import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { mensagemErroLoteExpositor } from '../../lib/producao/mensagensExpositor';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
+import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 // Controle de Expositores (migration 0030). "Situação" NUNCA é lida do
 // banco (não existe coluna para isso) -- é sempre derivada aqui,
@@ -167,9 +169,9 @@ function ExpositoresConteudo() {
 
       // Achata para {id, nome, prazo_expositor_dias} -- mesma forma usada
       // pelo restante do arquivo antes da unificação. Ordenado no cliente.
-      const produtosAchatados = (produtosData || [])
-        .map((p) => ({ id: p.id, nome: p.produtos?.nome || '', prazo_expositor_dias: p.prazo_expositor_dias }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+      const produtosAchatados = ordenarOpcoes(
+        (produtosData || []).map((p) => ({ id: p.id, nome: p.produtos?.nome || '', prazo_expositor_dias: p.prazo_expositor_dias }))
+      );
 
       setLotes(lotesData || []);
       setProdutosControlados(produtosAchatados);
@@ -301,8 +303,11 @@ function ExpositoresConteudo() {
   // inline (quantidadeRetiradaPorLote etc.) ficam por lote_id, fora da
   // linha renderizada -- trocar de página não os perde.
   const [pagina, setPagina] = useState(1);
-  const paginacao = paginarLista(lotesListaHistorico, pagina);
-  const paginaAtual = paginacao.paginaAtual;
+  // Ordenação pelo cabeçalho -- estado local de cada tabela (nunca salvo).
+  // A da lista paginada volta para a página 1 ao mudar.
+  const ordenacaoUrgentes = useOrdenacao();
+  const ordenacaoLotes = useOrdenacao({ aoMudar: () => setPagina(1) });
+  const ordenacaoRelatorio = useOrdenacao();
 
   const quantidadeFiltrosAtivos = [
     filtroInicio !== '',
@@ -327,11 +332,6 @@ function ExpositoresConteudo() {
     };
   }
 
-  // Total encolheu (filtro, lote concluído/excluído, recarga): corrige a
-  // página guardada.
-  useEffect(() => {
-    if (pagina !== paginaAtual) setPagina(paginaAtual);
-  }, [pagina, paginaAtual]);
 
   // Relatório de desempenho -- SOMENTE lotes concluídos (venda estimada só
   // existe para eles): agrupado por produto, tudo derivado do mesmo
@@ -470,16 +470,16 @@ function ExpositoresConteudo() {
   }
 
   const colunasUrgentes = [
-    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, render: (l) => l.produto_nome },
-    { chave: 'entrada', rotulo: 'Entrada', render: (l) => formatarData(l.data_entrada) },
-    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', render: (l) => formatarData(l.data_prevista_retirada) },
-    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', render: (l) => l.quantidade_enviada },
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', cartaoOrdem: 0, ordenavel: { valor: (l) => l.produto_nome }, render: (l) => l.produto_nome },
+    { chave: 'entrada', rotulo: 'Entrada', ordenavel: { tipo: 'data', valor: (l) => l.data_entrada }, render: (l) => formatarData(l.data_entrada) },
+    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', ordenavel: { tipo: 'data', valor: (l) => l.data_prevista_retirada }, render: (l) => formatarData(l.data_prevista_retirada) },
+    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_enviada }, render: (l) => l.quantidade_enviada },
     {
       chave: 'qtdRetirada',
       rotulo: 'Qtd. retirada',
       render: (l) => (podeOperar ? campoRetirada(l, `Quantidade retirada — ${l.produto_nome}`) : '—'),
     },
-    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
+    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { valor: (l) => l.situacao, ordem: Object.keys(SITUACAO_LABEL) }, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
   ];
 
   const colunasLotes = [
@@ -488,6 +488,7 @@ function ExpositoresConteudo() {
       rotulo: 'Produto',
       mobile: 'titulo',
       cartaoOrdem: 0,
+      ordenavel: { valor: (l) => l.produto_nome },
       render: (l) => (
         <>
           {l.produto_nome}
@@ -495,16 +496,18 @@ function ExpositoresConteudo() {
         </>
       ),
     },
-    { chave: 'dataProducao', rotulo: 'Data produção', render: (l) => formatarData(l.data_producao) },
-    { chave: 'dataEntrada', rotulo: 'Data entrada', render: (l) => formatarData(l.data_entrada) },
-    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', render: (l) => formatarData(l.data_prevista_retirada) },
-    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', render: (l) => l.quantidade_produzida },
-    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', render: (l) => l.quantidade_enviada },
-    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', render: (l) => l.quantidade_retirada ?? '—' },
+    { chave: 'dataProducao', rotulo: 'Data produção', ordenavel: { tipo: 'data', valor: (l) => l.data_producao }, render: (l) => formatarData(l.data_producao) },
+    { chave: 'dataEntrada', rotulo: 'Data entrada', ordenavel: { tipo: 'data', valor: (l) => l.data_entrada }, render: (l) => formatarData(l.data_entrada) },
+    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', ordenavel: { tipo: 'data', valor: (l) => l.data_prevista_retirada }, render: (l) => formatarData(l.data_prevista_retirada) },
+    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_produzida }, render: (l) => l.quantidade_produzida },
+    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_enviada }, render: (l) => l.quantidade_enviada },
+    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_retirada }, render: (l) => l.quantidade_retirada ?? '—' },
     {
       chave: 'vendaEstimada',
       rotulo: 'Venda estimada',
       alinhar: 'direita',
+      // "Pendente" (lote ainda no expositor) conta como vazio: fica no fim.
+      ordenavel: { tipo: 'numero', valor: (l) => (l.concluido_em ? l.venda_estimada : null) },
       /* venda_estimada só existe (não-null) para lote concluído -- a view
          producao_expositor_detalhado já garante isso (CASE WHEN concluido_em
          IS NOT NULL). "Pendente" aqui reforça visualmente que a quantidade
@@ -512,16 +515,28 @@ function ExpositoresConteudo() {
          estimada -- a retirada final ainda não é conhecida. */
       render: (l) => (l.concluido_em ? l.venda_estimada : <span className={estilosExp.pendente}>Pendente</span>),
     },
-    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
+    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { valor: (l) => l.situacao, ordem: Object.keys(SITUACAO_LABEL) }, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
   ];
 
+  // Paginação VISUAL da lista "Produtos nos Expositores": a ordenação (padrão
+  // = entrada mais recente primeiro, ou a coluna escolhida) vale para o
+  // conjunto filtrado INTEIRO, antes de fatiar a página.
+  const paginacao = paginarLista(ordenacaoLotes.ordenar(lotesListaHistorico, colunasLotes), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  // Total encolheu (filtro, lote concluído/excluído, recarga): corrige a
+  // página guardada.
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
   const colunasRelatorio = [
-    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', render: (r) => r.produtoNome },
-    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', render: (r) => r.quantidadeProduzida },
-    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', render: (r) => r.quantidadeEnviada },
-    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', render: (r) => r.quantidadeRetirada },
-    { chave: 'venda', rotulo: 'Venda estimada', alinhar: 'direita', render: (r) => r.vendaEstimada },
-    { chave: 'aproveitamento', rotulo: 'Aproveitamento', alinhar: 'direita', render: (r) => (r.aproveitamento == null ? '—' : `${r.aproveitamento.toFixed(0)}%`) },
+    { chave: 'produto', rotulo: 'Produto', mobile: 'titulo', ordenavel: { valor: (r) => r.produtoNome }, render: (r) => r.produtoNome },
+    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (r) => r.quantidadeProduzida }, render: (r) => r.quantidadeProduzida },
+    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (r) => r.quantidadeEnviada }, render: (r) => r.quantidadeEnviada },
+    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (r) => r.quantidadeRetirada }, render: (r) => r.quantidadeRetirada },
+    { chave: 'venda', rotulo: 'Venda estimada', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (r) => r.vendaEstimada }, render: (r) => r.vendaEstimada },
+    { chave: 'aproveitamento', rotulo: 'Aproveitamento', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (r) => r.aproveitamento }, render: (r) => (r.aproveitamento == null ? '—' : `${r.aproveitamento.toFixed(0)}%`) },
   ];
 
   // Erro da retirada, logo abaixo da linha do lote (mesmo texto/estado de antes).
@@ -625,8 +640,9 @@ function ExpositoresConteudo() {
                 <DataTable
                   rotulo="Lotes para retirar hoje"
                   colunas={colunasUrgentes}
-                  linhas={lotesUrgentes}
+                  linhas={ordenacaoUrgentes.ordenar(lotesUrgentes, colunasUrgentes)}
                   chaveLinha={(l) => l.lote_id}
+                  ordenacao={ordenacaoUrgentes.props}
                   tituloAcoes="Ação"
                   linhaExtra={erroDaRetirada}
                   renderAcoes={podeOperar ? acoesUrgentes : undefined}
@@ -746,6 +762,7 @@ function ExpositoresConteudo() {
                   linhas={paginacao.itens}
                   chaveLinha={(l) => l.lote_id}
                   cartoesAte={1330}
+                  ordenacao={ordenacaoLotes.props}
                   linhaExtra={erroDaRetirada}
                   renderAcoes={acoesLote}
                 />
@@ -780,8 +797,9 @@ function ExpositoresConteudo() {
                 <DataTable
                   rotulo="Desempenho por produto"
                   colunas={colunasRelatorio}
-                  linhas={relatorio}
+                  linhas={ordenacaoRelatorio.ordenar(relatorio, colunasRelatorio)}
                   chaveLinha={(r) => r.produtoNome}
+                  ordenacao={ordenacaoRelatorio.props}
                 />
               </div>
             )}
