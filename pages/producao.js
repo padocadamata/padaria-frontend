@@ -7,6 +7,10 @@ import SeletorOutroProduto from '../components/producao/SeletorOutroProduto';
 import PaginaProducao from '../components/producao/PaginaProducao';
 import Alert from '../components/ui/Alert';
 import SectionHeader from '../components/ui/SectionHeader';
+import EmptyState from '../components/ui/EmptyState';
+import Field from '../components/ui/Field';
+import FilterBar from '../components/ui/FilterBar';
+import Select from '../components/ui/Select';
 import styles from '../components/producao/producaoHoje.module.css';
 import { PERMISSOES } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
@@ -15,10 +19,19 @@ import { dataLocalHoje, dataLocalExibicao } from '../lib/data/dataLocal';
 import { APARENCIA_FIXA } from '../lib/branding/tema';
 import { useMediaQuery } from '../lib/design/useMediaQuery';
 import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
+import {
+  montarLinhasHoje,
+  filtrarLinhasHoje,
+  tiposDasLinhas,
+  contarFiltrosHojeAtivos,
+  SITUACOES_TURNO,
+  FILTROS_HOJE_PADRAO,
+} from '../lib/producao/linhasHoje';
 
-// Desktop (>= 1280px): tabela, uma linha por produto com Manhã/Tarde lado a
-// lado. Abaixo disso (tablet e celular) continuam os cartões de sempre.
-// As duas apresentações usam as MESMAS ações/modais (turnoProducao.js).
+// Desktop (>= 1280px): tabela (DataTable), uma linha operacional por
+// Produto × Turno. Abaixo disso (tablet e celular) continuam os cartões de
+// sempre. As duas apresentações usam as MESMAS ações/modais
+// (turnoProducao.js) e os mesmos filtros (lib/producao/linhasHoje).
 const CARTOES_ATE = 1279;
 
 const TURNOS = [
@@ -77,7 +90,9 @@ function ProducaoConteudo() {
       // também exclui qualquer receita sem catalogo_produto_id.
       supabase
         .from('receitas')
-        .select('id, produtos!inner(nome)')
+        // tipo (receitas.tipo, migration 0036) alimenta o filtro "Tipo de
+        // produto" -- mesma consulta de antes, só uma coluna a mais.
+        .select('id, tipo, produtos!inner(nome)')
         .eq('ativo', true)
         .eq('controlado_producao', true)
         .eq('produtos.ativo', true),
@@ -96,7 +111,7 @@ function ProducaoConteudo() {
     // Achata para {id, nome} -- mesma forma usada por todo o restante do
     // arquivo (receitaNomePorId, frances, SeletorOutroProduto) antes da
     // unificação, preservado para não precisar alterar essa lógica.
-    const receitasAchatadas = ordenarOpcoes((receitasResp.data || []).map((r) => ({ id: r.id, nome: r.produtos?.nome || '' })));
+    const receitasAchatadas = ordenarOpcoes((receitasResp.data || []).map((r) => ({ id: r.id, nome: r.produtos?.nome || '', tipo: r.tipo || null })));
     setReceitasAtivas(receitasAchatadas);
     setCarregando(false);
   }, []);
@@ -159,6 +174,17 @@ function ProducaoConteudo() {
     return registrosHoje.find((r) => r.receita_id === receitaId && r.turno === turno) || null;
   }
 
+  // Uma linha operacional por Produto × Turno, na ordem da tela (Francês
+  // primeiro). Filtros: estado local desta tela (Todos/Todos/Todos ao abrir).
+  const [filtros, setFiltros] = useState(FILTROS_HOJE_PADRAO);
+  const tipoPorReceita = {};
+  for (const r of receitasAtivas) tipoPorReceita[r.id] = r.tipo;
+  const linhas = montarLinhasHoje({ blocos: blocosProduto, turnos: TURNOS, registroDoBloco, tipoPorReceita });
+  const linhasFiltradas = filtrarLinhasHoje(linhas, filtros);
+  const tiposDisponiveis = tiposDasLinhas(linhas);
+  const visiveis = new Set(linhasFiltradas.map((l) => l.chave));
+  const alterarFiltro = (campo) => (e) => setFiltros((atual) => ({ ...atual, [campo]: e.target.value }));
+
   return (
     <PaginaProducao ativo="hoje" titulo="Hoje" subtitulo={capitalizarPrimeiraLetra(dataLocalExibicao())}>
       {erro && <Alert tom="danger">{erro}</Alert>}
@@ -175,22 +201,55 @@ function ProducaoConteudo() {
             onAtualizado={carregarDados}
           />
 
-          {!modoCartoes ? (
+          <FilterBar ativos={contarFiltrosHojeAtivos(filtros)} onLimpar={() => setFiltros(FILTROS_HOJE_PADRAO)}>
+            <Field label="Tipo de produto">
+              <Select value={filtros.tipo} onChange={alterarFiltro('tipo')}>
+                <option value="">Todos</option>
+                {tiposDisponiveis.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Situação">
+              <Select value={filtros.situacao} onChange={alterarFiltro('situacao')}>
+                <option value="">Todas</option>
+                {SITUACOES_TURNO.map((s) => (
+                  <option key={s.valor} value={s.valor}>
+                    {s.rotulo}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Turno">
+              <Select value={filtros.turno} onChange={alterarFiltro('turno')}>
+                <option value="">Todos</option>
+                {TURNOS.map((t) => (
+                  <option key={t.chave} value={t.chave}>
+                    {t.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </FilterBar>
+
+          {linhas.length > 0 && linhasFiltradas.length === 0 ? (
+            <EmptyState>Nenhum produto/turno com estes filtros.</EmptyState>
+          ) : !modoCartoes ? (
             <TabelaHoje
-              blocos={blocosProduto}
-              turnos={TURNOS}
-              registroDoBloco={registroDoBloco}
+              linhas={linhasFiltradas}
               data={hoje}
               corPrimaria={aparencia.corPrimaria}
               permissoes={permissoes}
               perfilUsuario={perfilUsuario}
               onAtualizado={carregarDados}
             />
-          ) : blocosProduto.map((bloco) => (
+          ) : blocosProduto.filter((bloco) => TURNOS.some((t) => visiveis.has(`${bloco.receitaId}:${t.chave}`))).map((bloco) => (
             <section key={bloco.receitaId} className={styles.bloco} aria-label={bloco.receitaNome}>
               <SectionHeader titulo={bloco.receitaNome} />
               <div className={styles.turnos}>
-                {TURNOS.map((t) => (
+                {TURNOS.filter((t) => visiveis.has(`${bloco.receitaId}:${t.chave}`)).map((t) => (
                   <CardTurno
                     key={t.chave}
                     turno={t.chave}

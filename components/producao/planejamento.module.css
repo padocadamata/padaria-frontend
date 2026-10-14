@@ -81,6 +81,14 @@
   gap: var(--ds-sp-2);
 }
 
+/* Ações na tabela (desktop): selo "Não salvo" + ícones numa linha. */
+.acoesCompactas {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  white-space: nowrap;
+}
+
 .periodoInvalido {
   color: var(--ds-danger);
 }

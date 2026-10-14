@@ -1,174 +1,132 @@
-/* Tela Hoje -- tabela do desktop (mesma aparência das tabelas do sistema:
-   tokens de components/ui/DataTable.module.css). */
+/* Tela Hoje -- tabela do desktop (DataTable, uma linha por Produto × Turno).
+   Mesma superfície das outras tabelas de Produção; aqui só o conteúdo
+   compacto das células. */
 
-.envolucro {
-  /* Rede de segurança: se não couber, só a tabela rola. */
-  overflow-x: auto;
+.superficie {
   margin-bottom: var(--ds-sp-5);
   padding: var(--ds-sp-4);
   background-color: var(--ds-surface);
   border: var(--ds-border-w) solid var(--ds-border);
   border-radius: var(--ds-radius-lg);
-  box-shadow: var(--ds-shadow-sm);
-}
-
-.tabela {
-  width: 100%;
-  min-width: 900px;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: var(--ds-fs-td);
-  line-height: var(--ds-lh-body);
-}
-
-.colProduto {
-  width: 17%;
-}
-
-.colSituacao {
-  width: 11%;
-}
-
-.colQuantidades {
-  width: 14.5%;
-}
-
-.colAcoes {
-  width: 16%;
-}
-
-.tabela th,
-.tabela td {
-  padding: var(--ds-sp-2) var(--ds-sp-3);
-  border-bottom: var(--ds-border-w) solid var(--ds-border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.tabela thead th {
-  font-size: var(--ds-fs-th);
-  font-weight: var(--ds-fw-semibold);
-  line-height: var(--ds-lh-aux);
-  color: var(--ds-text-muted);
-  white-space: nowrap;
-  vertical-align: bottom;
-}
-
-/* Cabeçalho do turno (Manhã / Tarde) sobre as 3 colunas dele. */
-.thTurno {
-  text-align: center !important;
-  font-size: var(--ds-fs-label) !important;
-  color: var(--ds-text) !important;
-  border-left: 2px solid var(--ds-border-strong);
-  background-color: var(--ds-surface-muted);
-}
-
-.thProduto {
-  vertical-align: bottom;
-}
-
-/* Divisória entre Produto | Manhã | Tarde. */
-.inicioTurno {
-  border-left: 2px solid var(--ds-border-strong);
-}
-
-.tabela tbody tr:last-child th,
-.tabela tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.tabela tbody tr:hover th,
-.tabela tbody tr:hover td {
-  background-color: var(--ds-surface-muted);
 }
 
 .produto {
-  font-size: var(--ds-fs-card);
   font-weight: var(--ds-fw-semibold);
   color: var(--ds-text);
   overflow-wrap: anywhere;
 }
 
-.semRegistro {
-  color: var(--ds-text-muted);
-}
-
-.vazio {
-  color: var(--ds-text-muted);
-  font-size: var(--ds-fs-label);
-}
-
-.nota {
-  margin: var(--ds-sp-1) 0 0;
-  font-size: var(--ds-fs-aux);
-  color: var(--ds-text-muted);
-}
-
-.falta {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-sp-1);
-  margin-top: var(--ds-sp-2);
-  font-size: var(--ds-fs-aux);
-  color: var(--ds-text-muted);
-}
-
-/* Observação: no máximo 2 linhas; texto completo no tooltip. */
-.observacoes {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+/* Nome do produto nas linhas subordinadas: só para leitores de tela. */
+.somenteLeitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
-  margin: var(--ds-sp-1) 0 0;
-  font-size: var(--ds-fs-aux);
-  font-style: italic;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.turno {
+  font-size: var(--ds-fs-label);
   color: var(--ds-text-muted);
-  overflow-wrap: anywhere;
 }
 
-/* Quantidades: pares rótulo/valor em grade compacta (2 por linha). */
-.quantidades {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px var(--ds-sp-3);
-  margin: 0;
-}
-
-.quantidade {
+.situacao {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.quantidade dt {
-  font-size: var(--ds-fs-aux);
-  line-height: var(--ds-lh-aux);
-  color: var(--ds-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-1) var(--ds-sp-3);
 }
 
-.quantidade dd {
+.muted {
   margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.resumo {
+  min-width: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.resumo strong {
   font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
   font-variant-numeric: tabular-nums;
 }
 
-.acoes {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--ds-sp-2);
+.sep {
+  color: var(--ds-border-strong);
 }
 
-/* Botões ocupam a largura da coluna e quebram o texto dentro dela (nunca
-   transbordam para a coluna vizinha). */
-.acoes > button {
-  width: 100%;
-  min-width: 0;
-  height: auto;
-  min-height: var(--ds-control-h-sm);
-  padding: var(--ds-sp-1) var(--ds-sp-2);
-  white-space: normal;
-  text-align: center;
+/* Observação do turno fechado: 1 linha; texto completo na dica. */
+.obs {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ds-fs-aux);
+  font-style: italic;
+  color: var(--ds-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.falta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.icones {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Campos de operação: pequenos, numa linha. */
+.form {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  margin: 0;
+}
+
+.campo {
+  width: 64px !important;
+  min-height: var(--ds-control-h-sm) !important;
+  padding: 0 var(--ds-sp-2) !important;
+  font-size: var(--ds-fs-label) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.erro {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-danger);
+}
+
+/* Sem as setinhas do campo numérico: o espaço vai para o número e para o
+   texto de exemplo ("Qtd", "Sobra"...). Teclado e digitação continuam. */
+.campo {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.campo::-webkit-outer-spin-button,
+.campo::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

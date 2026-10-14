@@ -70,6 +70,56 @@
   width: 72px;
 }
 
+/* Lista de lotes em tabela (desktop): ações numa linha só, campo de
+   retirada do tamanho de uma quantidade (até 3-4 dígitos). */
+.acoesLoteTabela {
+  flex-wrap: nowrap;
+  gap: var(--ds-sp-1);
+}
+
+.acoesLoteTabela .retiradaRapida {
+  gap: var(--ds-sp-1);
+}
+
+.acoesLoteTabela .retiradaRapida .campoRetirada {
+  width: 48px;
+  padding: 0 var(--ds-sp-2);
+}
+
+/* Produto na lista de lotes: uma linha, reticências, nome completo na dica. */
+.produtoLote {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  min-width: 0;
+}
+
+/* Só na tabela: até 2 linhas, fonte um pouco menor, reticências depois
+   disso (nos cartões o nome quebra normalmente, como antes). */
+table .produtoLoteNome {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ds-fs-label);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.dataCurta {
+  display: none;
+}
+
+table .dataCurta {
+  display: inline;
+}
+
+table .dataLonga {
+  display: none;
+}
+
 .pendente {
   color: var(--ds-text-muted);
 }

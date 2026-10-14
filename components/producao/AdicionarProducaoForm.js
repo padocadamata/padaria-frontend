@@ -1,18 +1,6 @@
 import { useState } from 'react';
-import { createClient } from '../../lib/supabase/client';
 import Modal from '../ui/Modal';
-
-function mensagemErro(error) {
-  if (!error) return '';
-  const msg = error.message || '';
-  if (msg.includes('deve ser maior que zero')) {
-    return 'Informe uma quantidade maior que zero.';
-  }
-  if (msg.includes('nao encontrado') || msg.includes('nao esta status=aberto')) {
-    return 'Este turno já foi fechado — atualize a página.';
-  }
-  return 'Não foi possível adicionar a produção. Tente novamente ou avise um administrador.';
-}
+import { validarQuantidadePositiva, adicionarProducao } from '../../lib/producao/operacoesTurno';
 
 const campoEstilo = {
   width: '100%',
@@ -26,31 +14,29 @@ const campoEstilo = {
 // Modal de "+ Adicionar produção" (segunda fornada). Usa exclusivamente a
 // RPC public.adicionar_producao — nunca SELECT + soma no cliente + UPDATE,
 // para não correr risco de duas fornadas concorrentes se sobrescreverem.
+// Validação e gravação: lib/producao/operacoesTurno (as mesmas da tabela
+// do desktop).
 export default function AdicionarProducaoForm({ registro, receitaNome, turnoLabel, corPrimaria, onAdicionado, onCancelar }) {
   const [quantidade, setQuantidade] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
   async function confirmar() {
-    const valor = parseInt(quantidade, 10);
-    if (!Number.isInteger(valor) || valor <= 0) {
-      setErro('Informe uma quantidade maior que zero.');
+    const { valor, erro: erroValidacao } = validarQuantidadePositiva(quantidade);
+    if (erroValidacao) {
+      setErro(erroValidacao);
       return;
     }
 
     setSalvando(true);
     setErro('');
 
-    const supabase = createClient();
-    const { error } = await supabase.rpc('adicionar_producao', {
-      p_registro_id: registro.id,
-      p_quantidade_adicional: valor,
-    });
+    const { erro: erroGravacao } = await adicionarProducao({ registroId: registro.id, quantidade: valor });
 
     setSalvando(false);
 
-    if (error) {
-      setErro(mensagemErro(error));
+    if (erroGravacao) {
+      setErro(erroGravacao);
       return;
     }
 

@@ -1,12 +1,6 @@
 import { useState } from 'react';
-import { createClient } from '../../lib/supabase/client';
-import { registrarAuditoria } from '../../lib/audit/registrarAuditoria';
 import Modal from '../ui/Modal';
-
-function mensagemErro(error) {
-  if (!error) return '';
-  return 'Não foi possível fechar o turno. Confira os valores informados ou avise um administrador.';
-}
+import { calcularFechamento, fecharTurno } from '../../lib/producao/operacoesTurno';
 
 const rotuloEstilo = { fontWeight: 'bold', display: 'block', marginBottom: '5px' };
 
@@ -39,7 +33,8 @@ const campoCalculadoEstilo = {
 // branco viram NULL (não classificado ainda) — só viram 0 quando o
 // operador digita "0" explicitamente. Fechar exige, no mínimo, a sobra
 // total (direta ou derivada); classificação completa não é mais
-// obrigatória no momento do fechamento.
+// obrigatória no momento do fechamento. Cálculo, validação e gravação:
+// lib/producao/operacoesTurno (os mesmos da tabela do desktop).
 export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel, corPrimaria, onFechado, onCancelar }) {
   const permiteEditarProduzida = registro.status === 'reaberto';
 
@@ -56,98 +51,31 @@ export default function FechamentoTurnoForm({ registro, receitaNome, turnoLabel,
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
-  const produzidaNum = parseInt(quantidadeProduzida, 10);
-
-  const totalPreenchido = sobraTotalInput !== '';
-  const aproveitavelPreenchido = sobraAproveitavel !== '';
-  const perdaPreenchido = perdaDescarte !== '';
-
-  const sobraTotalDigitado = totalPreenchido ? parseInt(sobraTotalInput, 10) : null;
-  const aproveitavelNum = aproveitavelPreenchido ? parseInt(sobraAproveitavel, 10) : null;
-  const perdaNum = perdaPreenchido ? parseInt(perdaDescarte, 10) : null;
-
-  const somaClassificacao = (aproveitavelNum ?? 0) + (perdaNum ?? 0);
-
-  // sobra_total: usa o que foi digitado diretamente; se vazio e houver
-  // classificação, deriva da soma; se nada foi preenchido, fica null (e o
-  // fechamento é bloqueado, ver faltaSobraTotal abaixo).
-  const sobraTotalNum = totalPreenchido
-    ? sobraTotalDigitado
-    : aproveitavelPreenchido || perdaPreenchido
-      ? somaClassificacao
-      : null;
-
-  const numerosValidos =
-    Number.isInteger(produzidaNum) && produzidaNum > 0 &&
-    (!totalPreenchido || (Number.isInteger(sobraTotalDigitado) && sobraTotalDigitado >= 0)) &&
-    (!aproveitavelPreenchido || (Number.isInteger(aproveitavelNum) && aproveitavelNum >= 0)) &&
-    (!perdaPreenchido || (Number.isInteger(perdaNum) && perdaNum >= 0));
-
-  const faltaSobraTotal = numerosValidos && sobraTotalNum === null;
-  const somaExcedeTotal = numerosValidos && sobraTotalNum != null && somaClassificacao > sobraTotalNum;
-  const sobraMaiorQueProduzida = numerosValidos && sobraTotalNum != null && sobraTotalNum > produzidaNum;
-
-  const bloqueado = !numerosValidos || faltaSobraTotal || somaExcedeTotal || sobraMaiorQueProduzida;
-
-  const sobraNaoClassificada =
-    numerosValidos && sobraTotalNum != null ? sobraTotalNum - somaClassificacao : null;
-  const quantidadeVendida =
-    numerosValidos && sobraTotalNum != null ? produzidaNum - sobraTotalNum : null;
+  const calculo = calcularFechamento({
+    produzida: quantidadeProduzida,
+    sobraTotal: sobraTotalInput,
+    aproveitavel: sobraAproveitavel,
+    perda: perdaDescarte,
+  });
+  const { numerosValidos, faltaSobraTotal, somaExcedeTotal, sobraMaiorQueProduzida, bloqueado, sobraNaoClassificada, quantidadeVendida, somaClassificacao, totalPreenchido, aproveitavelPreenchido, perdaPreenchido } = calculo;
 
   async function confirmar() {
-    if (!numerosValidos) {
-      setErro('Preencha os valores com números válidos (0 ou maior).');
-      return;
-    }
-    if (faltaSobraTotal) {
-      setErro('Informe ao menos a sobra total.');
-      return;
-    }
-    if (somaExcedeTotal) {
-      setErro(
-        `Sobra aproveitável + perda/descarte (${somaClassificacao}) não pode ultrapassar a sobra total (${sobraTotalNum}).`
-      );
-      return;
-    }
-    if (sobraMaiorQueProduzida) {
-      setErro(`A sobra total (${sobraTotalNum}) não pode ser maior que a quantidade produzida (${produzidaNum}).`);
+    if (calculo.erro) {
+      setErro(calculo.erro);
       return;
     }
 
     setSalvando(true);
     setErro('');
 
-    const supabase = createClient();
-    const payload = {
-      status: 'fechado',
-      quantidade_vendida: quantidadeVendida,
-      sobra_total: sobraTotalNum,
-      sobra_aproveitavel: aproveitavelNum,
-      perda_descarte: perdaNum,
-    };
-    if (permiteEditarProduzida) {
-      payload.quantidade_produzida = produzidaNum;
-    }
-
-    const { error } = await supabase
-      .from('producao_registros')
-      .update(payload)
-      .eq('id', registro.id);
+    const { erro: erroGravacao } = await fecharTurno({ registroId: registro.id, calculo, incluirProduzida: permiteEditarProduzida });
 
     setSalvando(false);
 
-    if (error) {
-      setErro(mensagemErro(error));
+    if (erroGravacao) {
+      setErro(erroGravacao);
       return;
     }
-
-    // Auditoria best-effort: se falhar, o fechamento já feito não é desfeito.
-    registrarAuditoria({
-      entidade: 'producao',
-      registroId: registro.id,
-      acao: 'fechou',
-      valorNovo: `vendida=${quantidadeVendida}, sobra_total=${sobraTotalNum}, sobra_aproveitavel=${aproveitavelNum}, perda_descarte=${perdaNum}`,
-    });
 
     onFechado();
   }

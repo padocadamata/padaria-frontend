@@ -4,7 +4,7 @@ import PaginaProducao from '../../components/producao/PaginaProducao';
 import EditarLoteExpositorModal from '../../components/producao/EditarLoteExpositorModal';
 import CorrigirLoteExpositorConcluidoModal from '../../components/producao/CorrigirLoteExpositorConcluidoModal';
 import ExcluirLoteExpositorModal from '../../components/producao/ExcluirLoteExpositorModal';
-import { IndicadorObservacao } from '../../components/producao/IconesAcoes';
+import BotaoObservacao from '../../components/producao/BotaoObservacao';
 import Alert from '../../components/ui/Alert';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -30,6 +30,7 @@ import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { cx } from '../../lib/design/cx';
 
 // Controle de Expositores (migration 0030). "Situação" NUNCA é lida do
 // banco (não existe coluna para isso) -- é sempre derivada aqui,
@@ -69,6 +70,20 @@ function formatarData(dataYYYYMMDD) {
   if (!dataYYYYMMDD) return '—';
   const [ano, mes, dia] = dataYYYYMMDD.split('-');
   return `${dia}/${mes}/${ano}`;
+}
+
+// Data da lista de lotes: na TABELA (desktop, 3 colunas de data lado a
+// lado) aparece compacta (dd/mm/aa), com a completa na dica; nos cartões
+// continua completa (o CSS escolhe qual das duas mostrar).
+function DataCompacta({ data }) {
+  if (!data) return '—';
+  const [ano, mes, dia] = data.split('-');
+  return (
+    <span title={formatarData(data)}>
+      <span className={estilosExp.dataCurta}>{`${dia}/${mes}/${ano.slice(2)}`}</span>
+      <span className={estilosExp.dataLonga}>{formatarData(data)}</span>
+    </span>
+  );
 }
 
 // Indicador numérico (só apresentação). O tom acompanha o da Situação.
@@ -489,22 +504,32 @@ function ExpositoresConteudo() {
       mobile: 'titulo',
       cartaoOrdem: 0,
       ordenavel: { valor: (l) => l.produto_nome },
+      // Largura livre (o restante da tabela). Na tabela o nome ocupa até 2
+      // linhas (reticências depois disso, nome completo na dica); a
+      // observação abre num modal de leitura (BotaoObservacao).
       render: (l) => (
-        <>
-          {l.produto_nome}
-          <IndicadorObservacao texto={l.observacao} />
-        </>
+        <span className={estilosExp.produtoLote}>
+          <span className={estilosExp.produtoLoteNome} title={l.produto_nome}>
+            {l.produto_nome}
+          </span>
+          <BotaoObservacao
+            texto={l.observacao}
+            produto={l.produto_nome}
+            contexto={`Entrada ${formatarData(l.data_entrada)} · retirada prevista ${formatarData(l.data_prevista_retirada)}`}
+          />
+        </span>
       ),
     },
-    { chave: 'dataProducao', rotulo: 'Data produção', ordenavel: { tipo: 'data', valor: (l) => l.data_producao }, render: (l) => formatarData(l.data_producao) },
-    { chave: 'dataEntrada', rotulo: 'Data entrada', ordenavel: { tipo: 'data', valor: (l) => l.data_entrada }, render: (l) => formatarData(l.data_entrada) },
-    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', ordenavel: { tipo: 'data', valor: (l) => l.data_prevista_retirada }, render: (l) => formatarData(l.data_prevista_retirada) },
-    { chave: 'produzido', rotulo: 'Produzido', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_produzida }, render: (l) => l.quantidade_produzida },
-    { chave: 'enviado', rotulo: 'Enviado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_enviada }, render: (l) => l.quantidade_enviada },
-    { chave: 'retirado', rotulo: 'Retirado', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_retirada }, render: (l) => l.quantidade_retirada ?? '—' },
+    { chave: 'dataProducao', rotulo: 'Data produção', largura: '86px', semQuebra: true, ordenavel: { tipo: 'data', valor: (l) => l.data_producao }, render: (l) => <DataCompacta data={l.data_producao} /> },
+    { chave: 'dataEntrada', rotulo: 'Data entrada', largura: '72px', semQuebra: true, ordenavel: { tipo: 'data', valor: (l) => l.data_entrada }, render: (l) => <DataCompacta data={l.data_entrada} /> },
+    { chave: 'retiradaPrevista', rotulo: 'Retirada prevista', largura: '78px', semQuebra: true, ordenavel: { tipo: 'data', valor: (l) => l.data_prevista_retirada }, render: (l) => <DataCompacta data={l.data_prevista_retirada} /> },
+    { chave: 'produzido', rotulo: 'Produzido', largura: '88px', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_produzida }, render: (l) => l.quantidade_produzida },
+    { chave: 'enviado', rotulo: 'Enviado', largura: '76px', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_enviada }, render: (l) => l.quantidade_enviada },
+    { chave: 'retirado', rotulo: 'Retirado', largura: '80px', alinhar: 'direita', ordenavel: { tipo: 'numero', valor: (l) => l.quantidade_retirada }, render: (l) => l.quantidade_retirada ?? '—' },
     {
       chave: 'vendaEstimada',
       rotulo: 'Venda estimada',
+      largura: '80px',
       alinhar: 'direita',
       // "Pendente" (lote ainda no expositor) conta como vazio: fica no fim.
       ordenavel: { tipo: 'numero', valor: (l) => (l.concluido_em ? l.venda_estimada : null) },
@@ -515,7 +540,7 @@ function ExpositoresConteudo() {
          estimada -- a retirada final ainda não é conhecida. */
       render: (l) => (l.concluido_em ? l.venda_estimada : <span className={estilosExp.pendente}>Pendente</span>),
     },
-    { chave: 'situacao', rotulo: 'Situação', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { valor: (l) => l.situacao, ordem: Object.keys(SITUACAO_LABEL) }, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
+    { chave: 'situacao', rotulo: 'Situação', largura: '118px', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { valor: (l) => l.situacao, ordem: Object.keys(SITUACAO_LABEL) }, render: (l) => <BadgeSituacao situacao={l.situacao} /> },
   ];
 
   // Paginação VISUAL da lista "Produtos nos Expositores": a ordenação (padrão
@@ -581,7 +606,7 @@ function ExpositoresConteudo() {
     ].filter(Boolean);
 
     return (
-      <div className={estilosExp.acoesLote}>
+      <div className={cx(estilosExp.acoesLote, !cartao && estilosExp.acoesLoteTabela)}>
         {!lote.concluido_em && podeOperar && (
           <div className={estilosExp.retiradaRapida}>
             {campoRetirada(lote, `Qtd. retirada — ${lote.produto_nome}`)}
@@ -762,6 +787,9 @@ function ExpositoresConteudo() {
                   linhas={paginacao.itens}
                   chaveLinha={(l) => l.lote_id}
                   cartoesAte={1330}
+                  layoutFixo
+                  denso
+                  larguraAcoes="172px"
                   ordenacao={ordenacaoLotes.props}
                   linhaExtra={erroDaRetirada}
                   renderAcoes={acoesLote}

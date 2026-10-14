@@ -1,14 +1,6 @@
 import { useState } from 'react';
-import { createClient } from '../../lib/supabase/client';
 import Modal from '../ui/Modal';
-
-function mensagemErro(error) {
-  if (!error) return '';
-  if (error.code === '23505') {
-    return 'Este turno já tem produção lançada. Atualize a página.';
-  }
-  return 'Não foi possível iniciar a produção. Tente novamente ou avise um administrador.';
-}
+import { validarQuantidadePositiva, iniciarProducao } from '../../lib/producao/operacoesTurno';
 
 const campoEstilo = {
   width: '100%',
@@ -22,35 +14,29 @@ const campoEstilo = {
 // Modal de "Iniciar produção": pede só a quantidade produzida e cria o
 // registro do turno (origem='manual', status='aberto'). Os campos de
 // fechamento ficam NULL por default do schema — não são tocados aqui.
+// Validação e gravação: lib/producao/operacoesTurno (as mesmas da tabela
+// do desktop).
 export default function IniciarProducaoForm({ data, turno, receitaId, receitaNome, turnoLabel, corPrimaria, onCriado, onCancelar }) {
   const [quantidade, setQuantidade] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
   async function confirmar() {
-    const valor = parseInt(quantidade, 10);
-    if (!Number.isInteger(valor) || valor <= 0) {
-      setErro('Informe uma quantidade maior que zero.');
+    const { valor, erro: erroValidacao } = validarQuantidadePositiva(quantidade);
+    if (erroValidacao) {
+      setErro(erroValidacao);
       return;
     }
 
     setSalvando(true);
     setErro('');
 
-    const supabase = createClient();
-    const { error } = await supabase.from('producao_registros').insert({
-      data,
-      turno,
-      receita_id: receitaId,
-      origem: 'manual',
-      status: 'aberto',
-      quantidade_produzida: valor,
-    });
+    const { erro: erroGravacao } = await iniciarProducao({ data, turno, receitaId, quantidade: valor });
 
     setSalvando(false);
 
-    if (error) {
-      setErro(mensagemErro(error));
+    if (erroGravacao) {
+      setErro(erroGravacao);
       return;
     }
 

@@ -10,6 +10,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Field from '../../components/ui/Field';
 import FilterBar from '../../components/ui/FilterBar';
 import Icon from '../../components/ui/Icon';
+import AcoesLinha from '../../components/ui/AcoesLinha';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import estilos from '../../components/producao/producao.module.css';
@@ -700,7 +701,35 @@ function PlanejamentoConteudo() {
         diasFechados,
       }).quantidadeSugerida;
     }
-    const tamanho = cartao ? 'md' : 'sm';
+    // Tabela (desktop): ações compactas por ícone, no mesmo padrão das
+    // outras tabelas (AcoesLinha -- rótulo vira aria-label/dica). Cartões:
+    // os botões com texto de sempre. Mesmas ações e handlers nos dois.
+    if (!cartao) {
+      const salvandoEsta = salvandoChave === chave;
+      const acoes = [
+        !fechado && podeEditar && quantidadeSugerida != null && {
+          chave: 'aceitar',
+          rotulo: `Aceitar sugestão (${quantidadeSugerida} un)`,
+          icone: 'arrowRight',
+          onClick: () => aceitarSugestao(chave, quantidadeSugerida),
+        },
+        !fechado && podeEditar && {
+          chave: 'salvar',
+          rotulo: salvandoEsta ? 'Salvando...' : 'Salvar',
+          icone: 'check',
+          desabilitado: salvandoEsta,
+          onClick: () => salvarSlot(slot),
+        },
+      ];
+      return (
+        <div className={estilosPlan.acoesCompactas}>
+          {pendente && <Badge tom="warning">Não salvo</Badge>}
+          <AcoesLinha acoes={acoes} />
+        </div>
+      );
+    }
+
+    const tamanho = 'md';
 
     return (
       <div className={estilosPlan.acoes}>

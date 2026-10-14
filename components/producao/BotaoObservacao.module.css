@@ -1,0 +1,32 @@
+.produto {
+  margin: 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  overflow-wrap: anywhere;
+}
+
+.contexto {
+  margin: var(--ds-sp-1) 0 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+/* Texto completo, como foi gravado: quebras de linha preservadas. */
+.texto {
+  margin: var(--ds-sp-4) 0 0;
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface-muted);
+  font-size: var(--ds-fs-body);
+  line-height: 1.6;
+  color: var(--ds-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rodape {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--ds-sp-5);
+}

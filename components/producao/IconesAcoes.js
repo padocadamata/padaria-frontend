@@ -93,9 +93,8 @@ export function IconeLixeira() {
   );
 }
 
-// Usado pelo Controle de Expositores (0032) para indicar, na tabela de
-// lotes, que existe uma observação operacional -- sem poluir a tabela
-// com uma coluna cheia de texto (ver IndicadorObservacao mais abaixo).
+// Ícone de observação (balão). A observação dos lotes do Controle de
+// Expositores agora abre num modal de leitura -- ver BotaoObservacao.js.
 export function IconeObservacao() {
   return (
     <svg {...propsIconeBase}>
@@ -163,65 +162,6 @@ export function BotaoIconeAcao({ rotulo, onClick, icone: Icone, destrutivo = fal
           }}
         >
           {rotulo}
-        </span>
-      )}
-    </span>
-  );
-}
-
-// Indicador NAO-clicavel (span com tabIndex, nao button) de que existe
-// uma observação/comentário associado a uma linha -- Controle de
-// Expositores (0032). Mesmo mecanismo de tooltip por hover/foco de
-// BotaoIconeAcao, mas sem semântica de ação: revela o texto completo em
-// hover/foco (mouse ou teclado), sem precisar de coluna extra na tabela.
-// `title` nativo também presente como reforço de acessibilidade (leitores
-// de tela e navegadores que não disparam o tooltip customizado).
-export function IndicadorObservacao({ texto }) {
-  const [emDestaque, setEmDestaque] = useState(false);
-
-  if (!texto) return null;
-
-  return (
-    <span
-      tabIndex={0}
-      role="img"
-      aria-label={`Observação: ${texto}`}
-      title={texto}
-      onMouseEnter={() => setEmDestaque(true)}
-      onMouseLeave={() => setEmDestaque(false)}
-      onFocus={() => setEmDestaque(true)}
-      onBlur={() => setEmDestaque(false)}
-      style={{
-        position: 'relative',
-        display: 'inline-flex',
-        color: '#9e9e9e',
-        cursor: 'default',
-        marginLeft: '6px',
-        verticalAlign: 'middle',
-      }}
-    >
-      <IconeObservacao />
-
-      {emDestaque && (
-        <span
-          role="tooltip"
-          style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 6px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#333',
-            color: 'white',
-            padding: '6px 10px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            maxWidth: '220px',
-            whiteSpace: 'normal',
-            pointerEvents: 'none',
-            zIndex: 20,
-          }}
-        >
-          {texto}
         </span>
       )}
     </span>
