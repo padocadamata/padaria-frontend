@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { buscarEscalaPeriodo, ROTULO_DIA_SEMANA, formatarDataCurta, formatarPeriodoSemana, formatarHora, inicioDaSemana } from '../../lib/funcionarios/escala';
 import { resolverCoberturaPeriodo, obterPrimeiroNome } from '../../lib/funcionarios/escalaCobertura';
@@ -10,6 +10,10 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 import IndicadorVinculo from './IndicadorVinculo';
 import EscalaFiltrosExportacao from './EscalaFiltrosExportacao';
+import { ListaFaixasCobertura } from './EscalaCoberturaDiaModal';
+import { NavegacaoCompacta, SeletorDia } from './EscalaCompacta';
+import { useMediaQuery } from '../../lib/design/useMediaQuery';
+import { MQ_ESCALA_COMPACTA, diaSelecionadoNaLista } from '../../lib/funcionarios/escalaMobile';
 import estilos from './escala.module.css';
 
 const MAX_DIAS = 7;
@@ -190,6 +194,12 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
 
   const dias = useMemo(() => intervaloDeDias(dataInicio, dataFim), [dataInicio, dataFim]);
 
+  // Celular/tablet pequeno: UM dia do período por vez (seletor de dia), na
+  // largura da tela -- mesmas trilhas, mesmo motor e mesma janela horária.
+  const compacta = useMediaQuery(MQ_ESCALA_COMPACTA);
+  const [diaEscolhido, setDiaEscolhido] = useState('');
+  const diaAtivo = diaSelecionadoNaLista(dias, dataLocalHoje(), diaEscolhido);
+
   useEffect(() => {
     let ativo = true;
     async function carregar() {
@@ -268,25 +278,43 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
   const gridColunas = `${LARGURA_FUNCIONARIO}px ${LARGURA_VINCULO}px repeat(${numDias}, ${LARGURA_DIA}px)`;
   const larguraTotalGrid = LARGURA_FUNCIONARIO + LARGURA_VINCULO + numDias * LARGURA_DIA;
 
+  const filtrosExportacao = (
+    <EscalaFiltrosExportacao
+      cargos={cargos}
+      funcionarios={funcionarios}
+      filtro={filtro}
+      onFiltroChange={onFiltroChange}
+      rotuloVisao="Cobertura"
+      onExportar={exportar}
+      desabilitarExportacao={carregando || dias.length === 0 || funcionariosExibidos.length === 0}
+    />
+  );
+
   return (
     <>
-      <div className={estilos.cabecalhoSemana}>
-        <div className={estilos.navegacaoSemana}>
-          <Button variante="secondary" tamanho="sm" onClick={() => deslocarPeriodo(-1)}>← Período anterior</Button>
-          <Button variante="secondary" tamanho="sm" onClick={irParaHoje}>Hoje</Button>
-          <Button variante="secondary" tamanho="sm" onClick={() => deslocarPeriodo(1)}>Próximo período →</Button>
+      {compacta ? (
+        <div className={estilos.cabecalhoCompacto}>
+          <NavegacaoCompacta
+            titulo={dias.length > 0 ? formatarPeriodoSemana(dias) : ''}
+            rotuloAnterior="Período anterior"
+            rotuloProximo="Próximo período"
+            onAnterior={() => deslocarPeriodo(-1)}
+            onHoje={irParaHoje}
+            onProximo={() => deslocarPeriodo(1)}
+          />
+          <div className={estilos.grupoCompacto}>{filtrosExportacao}</div>
         </div>
-        <h3 className={estilos.tituloSemana}>{dias.length > 0 ? formatarPeriodoSemana(dias) : ''}</h3>
-        <EscalaFiltrosExportacao
-          cargos={cargos}
-          funcionarios={funcionarios}
-          filtro={filtro}
-          onFiltroChange={onFiltroChange}
-          rotuloVisao="Cobertura"
-          onExportar={exportar}
-          desabilitarExportacao={carregando || dias.length === 0 || funcionariosExibidos.length === 0}
-        />
-      </div>
+      ) : (
+        <div className={estilos.cabecalhoSemana}>
+          <div className={estilos.navegacaoSemana}>
+            <Button variante="secondary" tamanho="sm" onClick={() => deslocarPeriodo(-1)}>← Período anterior</Button>
+            <Button variante="secondary" tamanho="sm" onClick={irParaHoje}>Hoje</Button>
+            <Button variante="secondary" tamanho="sm" onClick={() => deslocarPeriodo(1)}>Próximo período →</Button>
+          </div>
+          <h3 className={estilos.tituloSemana}>{dias.length > 0 ? formatarPeriodoSemana(dias) : ''}</h3>
+          {filtrosExportacao}
+        </div>
+      )}
 
       <div className={estilos.controlesPeriodo}>
         <label className={estilos.campoData}>
@@ -306,10 +334,34 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
         </p>
       )}
 
+      {compacta && dias.length > 1 && <SeletorDia dias={dias} valor={diaAtivo} onEscolher={setDiaEscolhido} />}
+
       {carregando || dias.length === 0 ? (
         <p role="status">Carregando escala...</p>
       ) : funcionariosExibidos.length === 0 ? (
         <p className={estilos.notaOcorrencia}>Nenhum funcionário para este filtro.</p>
+      ) : compacta ? (
+        <div className={estilos.coberturaCompacta}>
+          <div className={estilos.timelineCompacta}>
+            <span className={estilos.cantoCompacto} />
+            <CabecalhoDiaCobertura data={diaAtivo} janela={janela} />
+            {funcionariosExibidos.map((funcionario) => (
+              <Fragment key={funcionario.id}>
+                <span className={estilos.nomeCompacto} title={funcionario.nome}>
+                  <span className={estilos.nomeCompactoTexto}>{funcionario.nome}</span>
+                  <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
+                </span>
+                <TrilhaFuncionarioDia item={porFuncionarioEDia.get(diaAtivo)?.get(funcionario.id) || null} janela={janela} />
+              </Fragment>
+            ))}
+            <span className={cx(estilos.nomeCompacto, estilos.nomeCompactoTotal)}><strong>Cobertura</strong></span>
+            <TrilhaCoberturaDia faixas={faixasPorDia.get(diaAtivo) || []} janela={janela} />
+          </div>
+          <div className={estilos.secaoOcorrencia}>
+            <h4 className={estilos.tituloOcorrencia}>Cobertura por horário</h4>
+            <ListaFaixasCobertura faixas={faixasPorDia.get(diaAtivo) || []} />
+          </div>
+        </div>
       ) : (
         <div className={estilos.envolucroCobertura}>
           <div className={estilos.timelineCobertura} style={{ gridTemplateColumns: gridColunas, minWidth: `${larguraTotalGrid}px` }}>

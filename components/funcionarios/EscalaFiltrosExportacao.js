@@ -10,7 +10,9 @@ import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 // sem uma segunda barra de controles. O filtro é o estado compartilhado da
 // página (vale para tela e arquivo); PDF/Excel exportam SEMPRE a visão
 // atual (`rotuloVisao`), sem modal perguntando qual relatório.
-export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, onFiltroChange, rotuloVisao, onExportar, desabilitarExportacao }) {
+// agrupado: mesmo conteúdo em seções "Filtros" e "Exportar" (painel
+// "Filtros e ações" da Semanal no celular) -- estado e handlers iguais.
+export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, onFiltroChange, rotuloVisao, onExportar, desabilitarExportacao, agrupado = false }) {
   const [exportando, setExportando] = useState(''); // '' | 'pdf' | 'xlsx'
   const [erro, setErro] = useState('');
 
@@ -36,8 +38,8 @@ export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, 
 
   const motivoDesabilitado = desabilitarExportacao ? 'Nada para exportar com este filtro' : '';
 
-  return (
-    <div className={estilos.filtrosExportacao}>
+  const selects = (
+    <>
       {cargos.length > 0 && (
         <Select value={filtro.cargoId} onChange={(e) => mudarFiltro({ cargoId: e.target.value })} aria-label="Filtrar por cargo">
           <option value="">Todos os cargos</option>
@@ -52,7 +54,10 @@ export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, 
           <option key={f.id} value={f.id}>{f.nome}</option>
         ))}
       </Select>
-      {/* PDF + Excel sempre juntos: quebram de linha como UM bloco. */}
+    </>
+  );
+
+  const botoes = (
       <div className={estilos.botoesExportacao}>
         <Button
           variante="secondary"
@@ -77,7 +82,31 @@ export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, 
           {exportando === 'xlsx' ? 'Gerando…' : 'Excel'}
         </Button>
       </div>
-      {erro && <span role="alert" className={estilos.erroExportacao}>{erro}</span>}
+  );
+  const mensagemErro = erro && <span role="alert" className={estilos.erroExportacao}>{erro}</span>;
+
+  if (agrupado) {
+    return (
+      <>
+        <section className={estilos.secaoPainel}>
+          <h4 className={estilos.tituloOcorrencia}>Filtros</h4>
+          <div className={estilos.camposPainel}>{selects}</div>
+        </section>
+        <section className={estilos.secaoPainel}>
+          <h4 className={estilos.tituloOcorrencia}>Exportar</h4>
+          {botoes}
+          {mensagemErro}
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <div className={estilos.filtrosExportacao}>
+      {selects}
+      {/* PDF + Excel sempre juntos: quebram de linha como UM bloco. */}
+      {botoes}
+      {mensagemErro}
     </div>
   );
 }

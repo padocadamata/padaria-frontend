@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import Alert from '../ui/Alert';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
@@ -13,11 +13,20 @@ import { buscarSituacaoRemuneracaoEmLote, buscarPendenciasPorHora, buscarPendenc
 import { agruparPorForma, chaveJornada, formatarValorEditavel, resolverValorAPagar, somarValoresAPagar } from '../../lib/funcionarios/pagamentosCalculo';
 import { agruparPorCompetencia, descreverPendencias, descreverPix, plural, totalPendenteJornadas, totalPendenteMensal } from '../../lib/funcionarios/pagamentosApresentacao';
 import { cx } from '../../lib/design/cx';
+import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import estilosPagamentos from './pagamentos.module.css';
 
 // Colunas fixas das tabelas Por hora / Mensal / Regularização: seleção |
 // Data | Jornada | Duração | Valor calculado | Valor a pagar | Previsto.
 const COLUNAS = 7;
+
+// Até esta largura (px) A Pagar usa cartões no lugar da tabela (mesmo
+// limite de Pagos e da Escala compacta). Os blocos (BlocoJornadas,
+// BlocoMensal) são os mesmos nos dois modos -- estado, seleção, valores
+// digitados, totais e modais não mudam; só as "linhas" abaixo escolhem
+// entre <tr> e a versão em cartão. Só um modo existe no DOM por vez.
+export const PAGAMENTOS_CARTOES_ATE = 900;
+const ModoCartoes = createContext(false);
 
 function formatarDuracao(minutos) {
   const m = Number(minutos) || 0;
@@ -59,12 +68,16 @@ function contarValoresFaltando(itens, digitados) {
 }
 
 // Tabela de uma modalidade: cabeçalho de colunas + blocos (um <tbody> por
-// pessoa). Em tela estreita rola na horizontal -- nenhuma coluna some.
+// pessoa). Em cartões (celular/tablet pequeno) é a MESMA árvore
+// table > tbody > tr > td, só exibida como blocos (CSS) e com o cabeçalho de
+// colunas oculto -- trocar de modo (ex.: girar o tablet) nunca remonta os
+// blocos: valores digitados, seleção, expansão e modal aberto continuam.
 function TabelaPagamentos({ rotulo, colunaDescricao = 'Jornada', children }) {
+  const cartoes = useContext(ModoCartoes);
   return (
-    <div className={estilosPagamentos.tabelaEnvolucro}>
-      <table className={estilosPagamentos.tabela} aria-label={rotulo}>
-        <thead>
+    <div className={cartoes ? estilosPagamentos.listaBlocos : estilosPagamentos.tabelaEnvolucro}>
+      <table className={cartoes ? estilosPagamentos.tabelaCartoes : estilosPagamentos.tabela} aria-label={rotulo}>
+        <thead hidden={cartoes}>
           <tr>
             <th className={estilosPagamentos.colSel}>
               <span className={estilosPagamentos.somenteLeitor}>Selecionar</span>
@@ -83,6 +96,21 @@ function TabelaPagamentos({ rotulo, colunaDescricao = 'Jornada', children }) {
   );
 }
 
+// Bloco de 1 pessoa: o mesmo <tbody> nos dois modos (cartão via CSS).
+function CorpoBloco({ children }) {
+  const cartoes = useContext(ModoCartoes);
+  return <tbody className={cartoes ? estilosPagamentos.cartaoBloco : estilosPagamentos.blocoFuncionario}>{children}</tbody>;
+}
+
+// Linha do modo cartão: uma célula só, ocupando a largura do cartão.
+function LinhaCartao({ children }) {
+  return (
+    <tr className={estilosPagamentos.linhaCartao}>
+      <td colSpan={COLUNAS}>{children}</td>
+    </tr>
+  );
+}
+
 // Linha de cabeçalho da pessoa (sempre visível): seta para expandir/
 // recolher, nome, vínculo, avisos, PIX (só leitura) e o total pendente --
 // o MESMO valor da linha "Total a pagar" do bloco (mesma função), nunca um
@@ -90,6 +118,42 @@ function TabelaPagamentos({ rotulo, colunaDescricao = 'Jornada', children }) {
 function LinhaFuncionario({ funcionario, extras, selecao, expandido, onAlternar, total, resumoTotal }) {
   const pix = descreverPix(funcionario);
   const rotulo = `${expandido ? 'Recolher' : 'Expandir'} ${funcionario.nome}`;
+  if (useContext(ModoCartoes)) {
+    // Cartão: pessoa e total a pagar em destaque; resumo (pendências /
+    // competência), avisos e PIX logo abaixo. Toda a área do nome abre/fecha.
+    return (
+      <LinhaCartao>
+      <div className={cx(estilosPagamentos.cartaoCabecalho, expandido && estilosPagamentos.cartaoCabecalhoAberto)}>
+        <button type="button" className={estilosPagamentos.cartaoAlternar} onClick={onAlternar} aria-expanded={expandido} aria-label={rotulo} title={rotulo}>
+          <Icon nome={expandido ? 'chevronDown' : 'chevronRight'} tamanho={18} />
+        </button>
+        <div className={estilosPagamentos.cartaoIdentificacao}>
+          <span className={estilosPagamentos.identificacaoFuncionario}>
+            <button type="button" className={estilosPagamentos.nomeBotao} onClick={onAlternar} aria-expanded={expandido}>
+              <strong className={estilosPagamentos.nomeFuncionario}>{funcionario.nome}</strong>
+            </button>
+            {funcionario.tipo_vinculo && <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />}
+          </span>
+          {resumoTotal && <span className={estilosPagamentos.resumoCabecalho}>{resumoTotal}</span>}
+        </div>
+        <div className={estilosPagamentos.cartaoTotal}>
+          <span className={estilosPagamentos.rotuloTotalCabecalho}>A pagar</span>
+          <strong>{total}</strong>
+        </div>
+        {extras && <div className={estilosPagamentos.cartaoLinhaInteira}>{extras}</div>}
+        <div className={cx(estilosPagamentos.cartaoLinhaInteira, estilosPagamentos.pix, !pix.cadastrado && estilosPagamentos.pixAusente)} title={pix.texto}>
+          {pix.texto}
+        </div>
+        {expandido && selecao && (
+          <label className={cx(estilosPagamentos.cartaoLinhaInteira, estilosPagamentos.cartaoSelecionarTudo)}>
+            <input type="checkbox" checked={selecao.todas} onChange={selecao.onAlternar} aria-label={`Selecionar tudo de ${funcionario.nome}`} />
+            Selecionar tudo
+          </label>
+        )}
+      </div>
+      </LinhaCartao>
+    );
+  }
   return (
     <tr className={cx(estilosPagamentos.linhaFuncionario, expandido && estilosPagamentos.linhaFuncionarioAberta)}>
       <td className={estilosPagamentos.colSel}>
@@ -124,35 +188,96 @@ function LinhaFuncionario({ funcionario, extras, selecao, expandido, onAlternar,
   );
 }
 
-// Separação discreta por mês dentro do bloco (só quando há mais de um).
-function SeparadorCompetencia({ competencia }) {
+// Subtítulo discreto dentro do bloco (mês, "Extras remunerados pendentes").
+function LinhaSubtitulo({ children }) {
+  if (useContext(ModoCartoes)) {
+    return (
+      <LinhaCartao>
+        <div className={estilosPagamentos.cartaoSubtitulo}>{children}</div>
+      </LinhaCartao>
+    );
+  }
   return (
     <tr className={estilosPagamentos.linhaSubtitulo}>
       <td />
-      <td colSpan={COLUNAS - 1}>{formatarCompetencia(competencia)}</td>
+      <td colSpan={COLUNAS - 1}>{children}</td>
     </tr>
   );
+}
+
+// Separação discreta por mês dentro do bloco (só quando há mais de um).
+function SeparadorCompetencia({ competencia }) {
+  return <LinhaSubtitulo>{formatarCompetencia(competencia)}</LinhaSubtitulo>;
 }
 
 // 1 jornada (ou extra remunerado): valor calculado (sugestão) x "Valor a
 // pagar" editável -- mesma regra da antiga JornadaValorLinha (0068).
 function LinhaJornada({ item, sel, extra = false }) {
+  const cartoes = useContext(ModoCartoes);
   const chave = chaveJornada(item);
   const temCalculo = item.valor !== null && item.valor !== undefined;
   const digitado = sel.digitados[chave];
   const textoCampo = digitado !== undefined ? digitado : formatarValorEditavel(item.valor);
   const r = resolverValorAPagar(item.valor ?? null, digitado);
   const ehExtra = extra || item.natureza_financeira === 'extra_remunerado';
+  const caixa = (
+    <input
+      type="checkbox"
+      checked={sel.selecionadas.has(chave)}
+      onChange={() => sel.alternar(chave)}
+      aria-label={`Selecionar ${formatarDataCurta(item.data)} ${formatarHora(item.hora_inicio)}`}
+    />
+  );
+  const calculado = temCalculo ? (
+    <>
+      {formatarMoeda(item.valor)}
+      <span className={estilosPagamentos.valorHora}>{formatarMoeda(item.valor_hora_aplicado)}/h</span>
+    </>
+  ) : (
+    <em className={estilosPagamentos.prevista}>não disponível</em>
+  );
+  const campo = (
+    <span className={estilosPagamentos.campoValor}>
+      <Input
+        inputMode="decimal"
+        aria-label={`Valor a pagar ${formatarDataCurta(item.data)} ${formatarHora(item.hora_inicio)}`}
+        placeholder={temCalculo ? formatarValorEditavel(item.valor) : 'Valor'}
+        value={textoCampo}
+        onChange={(e) => sel.digitar(chave, e.target.value)}
+      />
+      {r.invalido && <Badge tom="danger">inválido</Badge>}
+      {!r.invalido && r.pendente && <Badge tom="warning">informe</Badge>}
+      {!r.invalido && r.manual && <Badge tom="info">ajustado</Badge>}
+    </span>
+  );
+  if (cartoes) {
+    // Cartão: data + horário (e duração) em cima; calculado e previsto em
+    // texto auxiliar; "Valor a pagar" editável à direita.
+    return (
+      <LinhaCartao>
+      <div className={cx(estilosPagamentos.cartaoJornada, sel.selecionadas.has(chave) && estilosPagamentos.cartaoJornadaSelecionada)}>
+        <span className={estilosPagamentos.cartaoJornadaCaixa}>{caixa}</span>
+        <div className={estilosPagamentos.cartaoJornadaInfo}>
+          <strong>
+            {rotuloDiaSemana(item.data)} {formatarDataCurta(item.data)}
+          </strong>{' '}
+          <span>
+            {formatarHora(item.hora_inicio)}–{formatarHora(item.hora_fim)} · {formatarDuracao(item.duracao_minutos)}
+            {ehExtra && <span className={estilosPagamentos.prevista}> · extra</span>}
+          </span>
+          <span className={estilosPagamentos.cartaoJornadaAux}>
+            Calculado: {calculado}
+            {item.data_prevista && <> · Previsto {formatarDataCurta(item.data_prevista)}</>}
+          </span>
+        </div>
+        <div className={estilosPagamentos.cartaoJornadaValor}>{campo}</div>
+      </div>
+      </LinhaCartao>
+    );
+  }
   return (
     <tr className={estilosPagamentos.linhaDetalhe}>
-      <td className={estilosPagamentos.colSel}>
-        <input
-          type="checkbox"
-          checked={sel.selecionadas.has(chave)}
-          onChange={() => sel.alternar(chave)}
-          aria-label={`Selecionar ${formatarDataCurta(item.data)} ${formatarHora(item.hora_inicio)}`}
-        />
-      </td>
+      <td className={estilosPagamentos.colSel}>{caixa}</td>
       <td className={estilosPagamentos.colData}>
         {rotuloDiaSemana(item.data)} {formatarDataCurta(item.data)}
       </td>
@@ -161,36 +286,21 @@ function LinhaJornada({ item, sel, extra = false }) {
         {ehExtra && <span className={estilosPagamentos.prevista}> · extra</span>}
       </td>
       <td className={estilosPagamentos.colNum}>{formatarDuracao(item.duracao_minutos)}</td>
-      <td className={estilosPagamentos.colNum}>
-        {temCalculo ? (
-          <>
-            {formatarMoeda(item.valor)}
-            <span className={estilosPagamentos.valorHora}>{formatarMoeda(item.valor_hora_aplicado)}/h</span>
-          </>
-        ) : (
-          <em className={estilosPagamentos.prevista}>não disponível</em>
-        )}
-      </td>
-      <td className={estilosPagamentos.colNum}>
-        <span className={estilosPagamentos.campoValor}>
-          <Input
-            inputMode="decimal"
-            aria-label={`Valor a pagar ${formatarDataCurta(item.data)} ${formatarHora(item.hora_inicio)}`}
-            placeholder={temCalculo ? formatarValorEditavel(item.valor) : 'Valor'}
-            value={textoCampo}
-            onChange={(e) => sel.digitar(chave, e.target.value)}
-          />
-          {r.invalido && <Badge tom="danger">inválido</Badge>}
-          {!r.invalido && r.pendente && <Badge tom="warning">informe</Badge>}
-          {!r.invalido && r.manual && <Badge tom="info">ajustado</Badge>}
-        </span>
-      </td>
+      <td className={estilosPagamentos.colNum}>{calculado}</td>
+      <td className={estilosPagamentos.colNum}>{campo}</td>
       <td className={estilosPagamentos.prevista}>{item.data_prevista ? formatarDataCurta(item.data_prevista) : '—'}</td>
     </tr>
   );
 }
 
 function LinhaMensagem({ children, tom }) {
+  if (useContext(ModoCartoes)) {
+    return (
+      <LinhaCartao>
+        <div className={estilosPagamentos.cartaoMensagem}>{tom ? <Alert tom={tom}>{children}</Alert> : <span className={estilosPagamentos.vazio}>{children}</span>}</div>
+      </LinhaCartao>
+    );
+  }
   return (
     <tr className={estilosPagamentos.linhaDetalhe}>
       <td />
@@ -201,6 +311,19 @@ function LinhaMensagem({ children, tom }) {
 
 // Linha de resumo (Mensal): descrição + valor alinhado na coluna "Valor a pagar".
 function LinhaResumo({ descricao, valor, previsto, forte = false }) {
+  if (useContext(ModoCartoes)) {
+    return (
+      <LinhaCartao>
+      <div className={cx(estilosPagamentos.cartaoResumo, forte && estilosPagamentos.linhaForte)}>
+        <span>
+          {descricao}
+          {previsto && <span className={estilosPagamentos.cartaoJornadaAux}>Previsto {previsto}</span>}
+        </span>
+        <span className={estilosPagamentos.cartaoResumoValor}>{valor}</span>
+      </div>
+      </LinhaCartao>
+    );
+  }
   return (
     <tr className={cx(estilosPagamentos.linhaDetalhe, forte && estilosPagamentos.linhaForte)}>
       <td />
@@ -213,6 +336,34 @@ function LinhaResumo({ descricao, valor, previsto, forte = false }) {
 
 // Linha de total da pessoa + seleção e ação (Incluir pagamento).
 function LinhaTotal({ total, observacao, selecao, acao, mensagem, modal }) {
+  if (useContext(ModoCartoes)) {
+    // Mesma posição do modal que no desktop (2ª célula, depois do conteúdo):
+    // trocar de modo com o modal aberto não o fecha nem perde o que foi digitado.
+    return (
+      <tr className={estilosPagamentos.linhaCartao}>
+      <td hidden />
+      <td colSpan={COLUNAS}>
+      <div className={estilosPagamentos.cartaoRodape}>
+        <div className={estilosPagamentos.cartaoResumo}>
+          <span>
+            <strong>Total a pagar</strong>
+            {observacao && <span className={estilosPagamentos.cartaoJornadaAux}>{observacao}</span>}
+          </span>
+          <span className={estilosPagamentos.valorTotal}>{formatarMoeda(total)}</span>
+        </div>
+        {(mensagem || selecao || acao) && (
+          <div className={estilosPagamentos.cartaoAcoes}>
+            {mensagem && <span className={estilosPagamentos.mensagemSucesso}>{mensagem}</span>}
+            {selecao && <span className={estilosPagamentos.prevista}>{selecao}</span>}
+            {acao}
+          </div>
+        )}
+      </div>
+      {modal}
+      </td>
+      </tr>
+    );
+  }
   return (
     <tr className={estilosPagamentos.linhaTotal}>
       <td />
@@ -302,7 +453,7 @@ function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = nul
   );
 
   return (
-    <tbody className={estilosPagamentos.blocoFuncionario}>
+    <CorpoBloco>
       <LinhaFuncionario
         funcionario={funcionario}
         extras={avisos}
@@ -371,7 +522,7 @@ function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = nul
         }
       />
       )}
-    </tbody>
+    </CorpoBloco>
   );
 }
 
@@ -422,7 +573,7 @@ function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
   }
 
   return (
-    <tbody className={estilosPagamentos.blocoFuncionario}>
+    <CorpoBloco>
       <LinhaFuncionario
         funcionario={funcionario}
         selecao={
@@ -468,12 +619,7 @@ function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
               }
             />
           )}
-          {extrasDisponiveis.length > 0 && (
-            <tr className={estilosPagamentos.linhaSubtitulo}>
-              <td />
-              <td colSpan={COLUNAS - 1}>Extras remunerados pendentes</td>
-            </tr>
-          )}
+          {extrasDisponiveis.length > 0 && <LinhaSubtitulo>Extras remunerados pendentes</LinhaSubtitulo>}
           {extrasDisponiveis.map((e) => (
             <LinhaJornada key={chaveJornada(e)} item={e} sel={sel} extra />
           ))}
@@ -514,7 +660,7 @@ function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
         }
       />
       )}
-    </tbody>
+    </CorpoBloco>
   );
 }
 
@@ -575,10 +721,12 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
   const dataCorte = historico.jornadas[0]?.data_corte || null;
 
   const grupos = useMemo(() => agruparPorForma(funcionarios, situacao.formaAtual, situacao.comPorHora), [funcionarios, situacao]);
+  const cartoes = useMediaQuery(`(max-width: ${PAGAMENTOS_CARTOES_ATE}px)`);
 
   if (carregando) return <p role="status">Carregando...</p>;
 
   return (
+    <ModoCartoes.Provider value={cartoes}>
     <div className={estilosPagamentos.colunaSecoes}>
       {grupos.naoConfigurado.length > 0 && (
         <Alert tom="warning">
@@ -658,5 +806,6 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
         </section>
       )}
     </div>
+    </ModoCartoes.Provider>
   );
 }

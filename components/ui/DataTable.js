@@ -249,7 +249,9 @@ export default function DataTable({
 // Cartões (mobile): "Ordenar por [coluna]" + botão de direção. Antes da
 // primeira escolha mostra "Ordem padrão" (a ordem da tela); não existe
 // volta para a ordem padrão depois -- mesmo ciclo do cabeçalho do desktop.
-function OrdenacaoCartoes({ colunas, ordenacao, rotuloTabela }) {
+// Exportado para listas compactas que não são DataTable (ex.: calendário
+// mensal da Escala no celular) -- o mesmo controle, sem uma segunda versão.
+export function OrdenacaoCartoes({ colunas, ordenacao, rotuloTabela }) {
   const ordenaveis = colunas
     .map((c) => ({ c, def: definicaoOrdenacao(c) }))
     .filter(({ def }) => def);

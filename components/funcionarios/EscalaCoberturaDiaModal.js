@@ -16,6 +16,31 @@ function listaOuTraco(pessoas) {
   return pessoas.length > 0 ? nomesComDesambiguacao(pessoas).join(', ') : '—';
 }
 
+// "Cobertura por horário": faixas do motor único (efetivos com nomes +
+// ausências). Usada aqui e na Cobertura do celular (EscalaPorHora).
+export function ListaFaixasCobertura({ faixas }) {
+  if (faixas.length === 0) return <p className={estilos.notaOcorrencia}>Nenhum planejamento neste dia.</p>;
+  return (
+    <ul className={estilos.listaFaixas}>
+      {faixas.map((faixa, i) => (
+        <li key={i} className={estilos.faixaCobertura}>
+          <span className={estilos.faixaHorario}>{faixa.inicio}–{faixa.fim}</span>
+          <span className={estilos.faixaPessoas}>
+            {faixa.efetivos.length} pessoa{faixa.efetivos.length === 1 ? '' : 's'}
+            {faixa.efetivos.length > 0 && ` — ${nomesComDesambiguacao(faixa.efetivos).join(', ')}`}
+            {faixa.ausentes.length > 0 && (
+              <span className={estilos.faixaAusente}>
+                {' '}
+                · Ausente: {faixa.ausentes.map((a) => `${a.primeiro_nome} (${a.ocorrenciaTipo === 'falta' ? 'Falta' : 'Atestado'})`).join(', ')}
+              </span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // "Visão do Dia": resumo operacional (previsto/efetivo/folgas/faltas/
 // atestados, todos com nomes) + cobertura por horário (com nomes e
 // ausências) + escala individual, tudo derivado de calcularCoberturaDia --
@@ -66,27 +91,7 @@ export default function EscalaCoberturaDiaModal({ data, funcionarios, mapaEscala
 
         <div className={estilos.secaoOcorrencia}>
           <h4 className={estilos.tituloOcorrencia}>Cobertura por horário</h4>
-          {faixas.length === 0 ? (
-            <p className={estilos.notaOcorrencia}>Nenhum planejamento neste dia.</p>
-          ) : (
-            <ul className={estilos.listaFaixas}>
-              {faixas.map((faixa, i) => (
-                <li key={i} className={estilos.faixaCobertura}>
-                  <span className={estilos.faixaHorario}>{faixa.inicio}–{faixa.fim}</span>
-                  <span className={estilos.faixaPessoas}>
-                    {faixa.efetivos.length} pessoa{faixa.efetivos.length === 1 ? '' : 's'}
-                    {faixa.efetivos.length > 0 && ` — ${nomesComDesambiguacao(faixa.efetivos).join(', ')}`}
-                    {faixa.ausentes.length > 0 && (
-                      <span className={estilos.faixaAusente}>
-                        {' '}
-                        · Ausente: {faixa.ausentes.map((a) => `${a.primeiro_nome} (${a.ocorrenciaTipo === 'falta' ? 'Falta' : 'Atestado'})`).join(', ')}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ListaFaixasCobertura faixas={faixas} />
         </div>
 
         <div className={estilos.secaoOcorrencia}>

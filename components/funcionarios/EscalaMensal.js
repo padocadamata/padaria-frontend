@@ -8,6 +8,7 @@ import {
 } from '../../lib/funcionarios/escala';
 import { classificarCelulaMensal as classificarCelula, faixasDoDia } from '../../lib/funcionarios/escalaFaixas';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import { semanasDoCalendario } from '../../lib/funcionarios/escalaMobile';
 import { cx } from '../../lib/design/cx';
 import IndicadorVinculo from './IndicadorVinculo';
 import CabecalhoOrdenavel, { ariaSort } from '../ui/CabecalhoOrdenavel';
@@ -47,20 +48,19 @@ function tituloCelula(funcionario, data, estado) {
   return linhas.join('\n');
 }
 
-// Uma célula funcionário×dia: Não definido / Folga / Trabalho (com M/T
-// distintos + selo de ocorrência). Nunca depende só de cor -- cada estado
-// tem texto próprio (seção 5 da instrução aprovada).
-function CelulaMensal({ funcionario, data, estado, ehHoje, onAbrir }) {
+// Conteúdo de uma célula funcionário×dia: Não definido / Folga / Trabalho
+// (com M/T distintos + selo de ocorrência). Nunca depende só de cor -- cada
+// estado tem texto próprio (seção 5 da instrução aprovada). Usado pela
+// grade do desktop e pelo calendário do celular.
+function ConteudoCelulaMensal({ estado }) {
   const info = classificarCelula(estado);
-  const titulo = tituloCelula(funcionario, data, estado);
-
-  let conteudo;
   if (info.tipo === 'nao_definido') {
-    conteudo = <span className={estilos.celulaMensalNaoDefinido}>—</span>;
-  } else if (info.tipo === 'folga') {
-    conteudo = <span className={estilos.celulaMensalFolga}>Folga</span>;
-  } else {
-    conteudo = (
+    return <span className={estilos.celulaMensalNaoDefinido}>—</span>;
+  }
+  if (info.tipo === 'folga') {
+    return <span className={estilos.celulaMensalFolga}>Folga</span>;
+  }
+  return (
       <div className={estilos.celulaMensalTrabalho}>
         {/* Só as faixas realmente programadas são desenhadas (uma letra
             ausente não aparece mais esmaecida). Trabalho sem horário dentro
@@ -76,16 +76,92 @@ function CelulaMensal({ funcionario, data, estado, ehHoje, onAbrir }) {
           </span>
         )}
       </div>
-    );
-  }
+  );
+}
 
+function CelulaMensal({ funcionario, data, estado, ehHoje, onAbrir }) {
+  const titulo = tituloCelula(funcionario, data, estado);
   return (
     <td className={cx(estilos.celulaMensalContainer, ehFimDeSemana(data) && estilos.celulaMensalFimDeSemana, ehHoje && estilos.celulaMensalHoje)}>
       <button type="button" className={estilos.celulaMensalBotao} title={titulo} onClick={() => onAbrir(funcionario, data, estado)}>
-        {conteudo}
+        <ConteudoCelulaMensal estado={estado} />
       </button>
     </td>
   );
+}
+
+const CABECALHO_CALENDARIO = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+// Calendário compacto (segunda a domingo) por funcionário -- celular e
+// tablet pequeno. Mesmas células (ConteudoCelulaMensal) e mesmo destaque de
+// fim de semana/hoje da grade do desktop. Usado pelo Mensal (mês inteiro) e
+// pela Semanal (1 semana); sem onAbrirFuncionarioDia (Semanal sem permissão
+// de edição) os dias ficam só para leitura, como na grade da Semanal.
+function CalendarioEscalaFuncionarios({ funcionarios, mapaEscala, dias, onAbrirFuncionarioDia, rotulo }) {
+  const hoje = dataLocalHoje();
+  const semanas = semanasDoCalendario(dias);
+  if (funcionarios.length === 0) {
+    return <p className={estilos.notaOcorrencia}>Nenhum funcionário para este filtro.</p>;
+  }
+  return (
+    <ul className={estilos.listaCalendarios} aria-label={rotulo}>
+      {funcionarios.map((funcionario) => (
+        <li key={funcionario.id} className={estilos.cartaoCalendario}>
+          <div className={estilos.cartaoCalendarioTopo}>
+            <strong>{funcionario.nome}</strong>
+            <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
+          </div>
+          <div className={estilos.calendarioMensal}>
+            {CABECALHO_CALENDARIO.map((rotulo) => (
+              <span key={rotulo} className={estilos.calendarioCabecalho} aria-hidden="true">{rotulo}</span>
+            ))}
+            {semanas.flat().map((data, i) => {
+              if (!data) return <span key={`vazio-${i}`} className={estilos.calendarioVazio} />;
+              const estado = obterEstadoDia(mapaEscala, funcionario.id, data);
+              const titulo = tituloCelula(funcionario, data, estado);
+              const classe = cx(estilos.calendarioDia, ehFimDeSemana(data) && estilos.celulaMensalFimDeSemana, data === hoje && estilos.calendarioDiaHoje);
+              const conteudo = (
+                <>
+                  <span className={estilos.calendarioNumero}>{Number(data.slice(8))}</span>
+                  <ConteudoCelulaMensal estado={estado} />
+                </>
+              );
+              if (!onAbrirFuncionarioDia) {
+                return (
+                  <div key={data} className={cx(classe, estilos.calendarioDiaLeitura)} title={titulo} aria-label={titulo.replace(/\n+/g, '. ')} role="img">
+                    {conteudo}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={data}
+                  type="button"
+                  className={classe}
+                  title={titulo}
+                  aria-label={titulo.replace(/\n+/g, '. ')}
+                  onClick={() => onAbrirFuncionarioDia(funcionario, data, estado)}
+                >
+                  {conteudo}
+                </button>
+              );
+            })}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Mensal no celular: o mês inteiro, só leitura (abre o detalhe do dia).
+export function EscalaMensalCalendario(props) {
+  return <CalendarioEscalaFuncionarios {...props} rotulo="Escala mensal por funcionário" />;
+}
+
+// Semanal no celular: a semana inteira (segunda a domingo) com a mesma
+// linguagem do Mensal; tocar no dia abre o MESMO modal de edição da grade.
+export function EscalaSemanaCalendario(props) {
+  return <CalendarioEscalaFuncionarios {...props} rotulo="Escala semanal por funcionário" />;
 }
 
 // Planejamento visual do MÊS (seção 2/3 da instrução aprovada): funcionário

@@ -3,11 +3,15 @@ import Card from '../ui/Card';
 import Alert from '../ui/Alert';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
+import IconButton from '../ui/IconButton';
 import Input from '../ui/Input';
 import IndicadorVinculo from './IndicadorVinculo';
 import ConfiguracaoFuncionarioModal from './ConfiguracaoFuncionarioModal';
 import FeriadosCard from './FeriadosCard';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
+import { useMediaQuery } from '../../lib/design/useMediaQuery';
+import { rotuloVinculo } from '../../lib/funcionarios/vinculo';
+import { PAGAMENTOS_CARTOES_ATE } from './PagamentosAPagarVisao';
 import {
   buscarValorHoraVigente,
   buscarHistoricoValorHora,
@@ -135,6 +139,9 @@ export default function PagamentosConfiguracoesVisao({ funcionarios, podeRegras,
   const [formaPorFuncionario, setFormaPorFuncionario] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
   const [funcionarioEditando, setFuncionarioEditando] = useState(null);
+  // Celular/tablet pequeno: cartão fixo (nome; vínculo · forma) com a
+  // engrenagem sempre no canto superior direito -- mesmo modal e handler.
+  const cartoes = useMediaQuery(`(max-width: ${PAGAMENTOS_CARTOES_ATE}px)`);
 
   async function carregarFormas() {
     const mapa = await buscarFormaRemuneracaoAtualEmLote(funcionarios.map((f) => f.id));
@@ -160,6 +167,20 @@ export default function PagamentosConfiguracoesVisao({ funcionarios, podeRegras,
           <div className={estilosPagamentos.listaConfiguracoes}>
             {funcionarios.map((f) => {
               const forma = formaPorFuncionario.get(f.id);
+              if (cartoes) {
+                return (
+                  <div key={f.id} className={estilosPagamentos.cartaoConfiguracao}>
+                    <div className={estilosPagamentos.cartaoConfiguracaoInfo}>
+                      <strong>{f.nome}</strong>
+                      <span className={estilosPagamentos.cartaoConfiguracaoDetalhe}>
+                        {rotuloVinculo(f.tipo_vinculo)} ·{' '}
+                        {forma ? forma === 'mensal' ? 'Mensal' : 'Por hora' : <span className={estilosPagamentos.naoConfigurado}>Não configurado</span>}
+                      </span>
+                    </div>
+                    <IconButton icone="settings" rotulo={`Configurar ${f.nome}`} className={estilosPagamentos.cartaoConfiguracaoBotao} onClick={() => setFuncionarioEditando(f)} />
+                  </div>
+                );
+              }
               return (
                 <div key={f.id} className={estilosPagamentos.linhaConfiguracao}>
                   <div className={estilosPagamentos.infoConfiguracao}>

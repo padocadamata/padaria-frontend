@@ -13,6 +13,13 @@ import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import estilosPagamentos from './pagamentos.module.css';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { useMediaQuery } from '../../lib/design/useMediaQuery';
+import { PAGAMENTOS_CARTOES_ATE } from './PagamentosAPagarVisao';
+
+// Ordem dos campos no CARTÃO (celular/tablet pequeno): pessoa e status no
+// topo; depois data, líquido, forma, vínculo, bruto e descontos. A tabela
+// do desktop mantém a ordem das colunas.
+const ORDEM_CARTAO = ['funcionario', 'status', 'data_efetiva', 'liquido', 'natureza', 'vinculo', 'bruto', 'descontos'];
 
 function formatarDataExibicao(dataYYYYMMDD) {
   if (!dataYYYYMMDD) return '—';
@@ -36,6 +43,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   const [detalhe, setDetalhe] = useState(null);
   // Ordenação do cabeçalho: estado local (nunca salvo).
   const ordenacao = useOrdenacao();
+  const cartoes = useMediaQuery(`(max-width: ${PAGAMENTOS_CARTOES_ATE}px)`);
 
   async function carregar() {
     setCarregando(true);
@@ -70,7 +78,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
 
   const colunas = [
     { chave: 'data_efetiva', rotulo: 'Data efetiva', ordenavel: { tipo: 'data', valor: (p) => p.data_efetiva }, render: (p) => formatarDataExibicao(p.data_efetiva) },
-    { chave: 'funcionario', rotulo: 'Pessoa', mobile: 'titulo', ordenavel: { valor: (p) => p.funcionarios?.nome }, render: (p) => p.funcionarios?.nome || '—' },
+    { chave: 'funcionario', rotulo: 'Pessoa', mobile: 'titulo', cartaoOrdem: 0, ordenavel: { valor: (p) => p.funcionarios?.nome }, render: (p) => p.funcionarios?.nome || '—' },
     {
       chave: 'vinculo',
       rotulo: 'Vínculo',
@@ -91,18 +99,21 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
     {
       chave: 'status',
       rotulo: 'Status',
+      mobile: 'titulo',
+      cartaoOrdem: 1,
       ordenavel: { valor: (p) => p.status, ordem: ['confirmado', 'cancelado'] },
       render: (p) => <Badge tom={p.status === 'cancelado' ? 'danger' : 'success'}>{p.status === 'cancelado' ? 'Cancelado' : 'Confirmado'}</Badge>,
     },
   ];
+  const colunasExibidas = cartoes ? ORDEM_CARTAO.map((chave) => colunas.find((c) => c.chave === chave)) : colunas;
 
   return (
     <>
       <div className={estilosPagamentos.controlesFiltro}>
-        <Field label="Data efetiva — de">
+        <Field label="Data efetiva — de" className={estilosPagamentos.filtroData}>
           <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
         </Field>
-        <Field label="até">
+        <Field label="até" className={estilosPagamentos.filtroData}>
           <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
         </Field>
         <Field label="Pessoa">
@@ -149,7 +160,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
         <p className={estilosPagamentos.vazio}>Nenhum pagamento encontrado para este filtro.</p>
       ) : (
         <>
-          <div className={estilosPagamentos.resumoLinha}>
+          <div className={`${estilosPagamentos.resumoLinha} ${estilosPagamentos.resumoPagos}`}>
             <span>{totais.quantidade} confirmado(s) no filtro</span>
             <span>
               Bruto {formatarMoeda(totais.bruto)} · Descontos {formatarMoeda(totais.descontos)} · <strong>Líquido {formatarMoeda(totais.liquido)}</strong>
@@ -157,10 +168,11 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           </div>
           <DataTable
             rotulo="Pagamentos"
-            colunas={colunas}
+            colunas={colunasExibidas}
             linhas={ordenacao.ordenar(pagamentos, colunas)}
             chaveLinha={(p) => p.id}
             ordenacao={ordenacao.props}
+            cartoesAte={PAGAMENTOS_CARTOES_ATE}
             destaque={(p) => (p.status === 'cancelado' ? 'inativo' : undefined)}
             renderAcoes={(p) => (
               <Button variante="secondary" tamanho="sm" onClick={() => setDetalhe(p)}>

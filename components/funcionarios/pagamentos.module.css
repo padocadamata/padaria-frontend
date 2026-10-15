@@ -458,3 +458,285 @@
   color: var(--ds-text-muted);
   font-size: var(--ds-fs-label);
 }
+
+/* ------------------------------------------------------------------
+   A Pagar em CARTÕES (<= 900px, PAGAMENTOS_CARTOES_ATE): um cartão por
+   pessoa, mesmos blocos/estado da tabela. Só existe no DOM nessa largura.
+   ------------------------------------------------------------------ */
+/* A mesma <table> da versão desktop, exibida como lista de cartões. */
+.listaBlocos {
+  width: 100%;
+}
+
+.tabelaCartoes {
+  display: block;
+  width: 100%;
+  border-collapse: separate;
+  font-size: var(--ds-fs-body);
+}
+
+.cartaoBloco {
+  display: block;
+  overflow: hidden;
+  background-color: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+}
+
+.cartaoBloco + .cartaoBloco {
+  margin-top: var(--ds-sp-3);
+}
+
+.linhaCartao,
+.linhaCartao > td {
+  display: block;
+  padding: 0;
+}
+
+.linhaCartao > td[hidden] {
+  display: none;
+}
+
+.cartaoCabecalho {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ds-sp-1) var(--ds-sp-2);
+  padding: var(--ds-sp-3);
+}
+
+.cartaoCabecalhoAberto {
+  border-bottom: 1px solid var(--ds-border);
+  background-color: var(--ds-surface-muted);
+}
+
+.cartaoAlternar {
+  composes: botaoExpandir;
+}
+
+.cartaoIdentificacao {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cartaoIdentificacao .resumoCabecalho {
+  white-space: normal;
+}
+
+.cartaoTotal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cartaoTotal .rotuloTotalCabecalho {
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+}
+
+.cartaoLinhaInteira {
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+
+.cartaoSelecionarTudo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  min-height: 32px;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.cartaoSubtitulo {
+  padding: var(--ds-sp-3) var(--ds-sp-3) var(--ds-sp-1);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text-muted);
+}
+
+.cartaoJornada {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ds-sp-1) var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.cartaoJornadaSelecionada {
+  background-color: var(--ds-primary-soft);
+}
+
+.cartaoJornadaCaixa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+}
+
+.cartaoJornadaCaixa input {
+  width: 18px;
+  height: 18px;
+}
+
+.cartaoJornadaInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 6px;
+  font-size: var(--ds-fs-body);
+}
+
+.cartaoJornadaAux {
+  display: block;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-regular, 400);
+  color: var(--ds-text-muted);
+}
+
+.cartaoJornadaAux .valorHora {
+  display: inline;
+  margin-left: 4px;
+}
+
+.cartaoJornadaValor {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.cartaoJornadaValor::before {
+  content: 'Valor a pagar';
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.cartaoJornadaValor .campoValor {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.cartaoMensagem {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.cartaoResumo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.cartaoResumoValor {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cartaoRodape {
+  background-color: var(--ds-primary-soft);
+}
+
+.cartaoRodape .cartaoResumo {
+  border-top: 1px solid var(--ds-border);
+}
+
+.cartaoAcoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2) var(--ds-sp-3);
+  padding: 0 var(--ds-sp-3) var(--ds-sp-3);
+}
+
+.cartaoResumo {
+  flex-wrap: wrap;
+}
+
+/* Pagos no celular/tablet pequeno: filtros em duas colunas de largura
+   igual (sem campos de larguras aleatórias) e resumo empilhado. */
+@media (max-width: 900px) {
+  .controlesFiltro {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .controlesFiltro > * {
+    min-width: 0;
+  }
+
+  .controlesFiltro select,
+  .controlesFiltro input {
+    width: 100%;
+    max-width: none;
+  }
+
+  .resumoPagos {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
+/* Pagos -- datas: abaixo de 600px cada data ocupa a linha inteira (o campo
+   de data nativo não cabe com folga em meia largura). */
+.filtroData {
+  min-width: 0;
+}
+
+.filtroData input {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .controlesFiltro > .filtroData {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Configurações por funcionário em cartões (<= 900px): nome e
+   "Vínculo · Forma" à esquerda; engrenagem SEMPRE no canto superior direito
+   (coluna própria -- o texto nunca passa por baixo dela). */
+.cartaoConfiguracao {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-3);
+  background-color: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.cartaoConfiguracaoInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.cartaoConfiguracaoInfo strong {
+  overflow-wrap: anywhere;
+}
+
+.cartaoConfiguracaoDetalhe {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.cartaoConfiguracaoBotao {
+  margin: calc(-1 * var(--ds-sp-2)) calc(-1 * var(--ds-sp-2)) 0 0;
+}

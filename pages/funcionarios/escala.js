@@ -5,7 +5,7 @@ import EscalaDiaModal from '../../components/funcionarios/EscalaDiaModal';
 import EscalaLoteModal from '../../components/funcionarios/EscalaLoteModal';
 import EscalaPadraoLoteModal from '../../components/funcionarios/EscalaPadraoLoteModal';
 import EscalaCoberturaDiaModal from '../../components/funcionarios/EscalaCoberturaDiaModal';
-import EscalaMensal from '../../components/funcionarios/EscalaMensal';
+import EscalaMensal, { EscalaMensalCalendario, EscalaSemanaCalendario } from '../../components/funcionarios/EscalaMensal';
 import EscalaPorHora from '../../components/funcionarios/EscalaPorHora';
 import IndicadorVinculo from '../../components/funcionarios/IndicadorVinculo';
 import EscalaFiltrosExportacao from '../../components/funcionarios/EscalaFiltrosExportacao';
@@ -14,7 +14,9 @@ import PageHeader from '../../components/ui/PageHeader';
 import Alert from '../../components/ui/Alert';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import DataTable from '../../components/ui/DataTable';
+import DataTable, { OrdenacaoCartoes } from '../../components/ui/DataTable';
+import Select from '../../components/ui/Select';
+import Modal from '../../components/ui/Modal';
 import EmptyState from '../../components/ui/EmptyState';
 import ConfirmarAcaoModal from '../../components/admin/ConfirmarAcaoModal';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
@@ -40,10 +42,13 @@ import estilos from '../../components/funcionarios/escala.module.css';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { useMediaQuery } from '../../lib/design/useMediaQuery';
+import { ESCALA_COMPACTA_ATE, MQ_ESCALA_COMPACTA, contarFiltrosEscalaAtivos } from '../../lib/funcionarios/escalaMobile';
+import { NavegacaoCompacta } from '../../components/funcionarios/EscalaCompacta';
 
 // Grade semanal/mensal: só Funcionário (e Vínculo, na semanal) ordenam --
 // as colunas de dia são células de escala, não valores comparáveis.
-const COLUNAS_ORDENACAO_MENSAL = [{ chave: 'nome', ordenavel: true }];
+const COLUNAS_ORDENACAO_MENSAL = [{ chave: 'nome', rotulo: 'Funcionário', ordenavel: true }];
 
 // Célula de UM funcionário em UMA data -- estados sempre distintos (nunca
 // confundidos): não definido (sem linha em funcionarios_escala_dias),
@@ -105,6 +110,12 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
   const ordenacao = useOrdenacao();
 
   const dias = diasDaSemana(semanaInicio);
+
+  // Celular/tablet pequeno: a semana inteira por funcionário no calendário
+  // compacto do Mensal; filtros, exportação, ordenação e ações ficam no
+  // painel "Filtros e ações". Mesmos dados, handlers e modais do desktop.
+  const compacta = useMediaQuery(MQ_ESCALA_COMPACTA);
+  const [painelAberto, setPainelAberto] = useState(false);
 
   // Filtro de análise (cargo + funcionária, escalaFiltro.js) -- só restringe
   // as LINHAS exibidas/exportadas; ações em lote/cópia continuam operando
@@ -272,55 +283,123 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
     })),
   ];
 
+  const funcionariosOrdenados = ordenacao.ordenar(funcionariosExibidos, colunas);
+  const filtrosAtivos = contarFiltrosEscalaAtivos(filtro);
+
+  // Ações da semana: as MESMAS funções nos dois modos; no painel do celular
+  // o painel fecha antes (a confirmação/modal da ação abre sobre a tela).
+  const acoesEscala = (fecharPainel) => {
+    const executar = (acao) => () => {
+      if (fecharPainel) setPainelAberto(false);
+      acao();
+    };
+    return (
+      <>
+        <Button variante="secondary" tamanho="sm" onClick={executar(prepararCopiaSemanaAnterior)}>Copiar semana anterior</Button>
+        <Button variante="secondary" tamanho="sm" onClick={executar(() => setModalPadraoAberto(true))}>Preencher pela Escala Padrão</Button>
+        <Button tamanho="sm" icone="plus" onClick={executar(() => setModalLoteAberto(true))}>Aplicar em lote</Button>
+      </>
+    );
+  };
+
+  const propsFiltrosExportacao = {
+    cargos,
+    funcionarios,
+    filtro,
+    onFiltroChange,
+    rotuloVisao: 'Semanal',
+    onExportar: exportar,
+    desabilitarExportacao: carregando || funcionariosExibidos.length === 0,
+  };
+
   return (
     <>
       {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
       {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
       {erroCopiaSemana && <Alert tom="danger" className={estilos.mensagem}>{erroCopiaSemana}</Alert>}
 
-      <div className={estilos.cabecalhoSemana}>
-        <div className={estilos.navegacaoSemana}>
-          <Button variante="secondary" tamanho="sm" onClick={irParaSemanaAnterior}>← Semana anterior</Button>
-          <Button variante="secondary" tamanho="sm" onClick={irParaHoje}>Hoje</Button>
-          <Button variante="secondary" tamanho="sm" onClick={irParaProximaSemana}>Próxima semana →</Button>
-        </div>
-        <h3 className={estilos.tituloSemana}>{formatarPeriodoSemana(dias)}</h3>
-        <div className={estilos.navegacaoSemana}>
-          <EscalaFiltrosExportacao
-            cargos={cargos}
-            funcionarios={funcionarios}
-            filtro={filtro}
-            onFiltroChange={onFiltroChange}
-            rotuloVisao="Semanal"
-            onExportar={exportar}
-            desabilitarExportacao={carregando || funcionariosExibidos.length === 0}
+      {compacta ? (
+        <div className={estilos.cabecalhoCompacto}>
+          <NavegacaoCompacta
+            titulo={formatarPeriodoSemana(dias)}
+            rotuloAnterior="Semana anterior"
+            rotuloProximo="Próxima semana"
+            onAnterior={irParaSemanaAnterior}
+            onHoje={irParaHoje}
+            onProximo={irParaProximaSemana}
           />
-          {podeEditar && (
-            <>
-              <Button variante="secondary" tamanho="sm" onClick={prepararCopiaSemanaAnterior}>Copiar semana anterior</Button>
-              <Button variante="secondary" tamanho="sm" onClick={() => setModalPadraoAberto(true)}>Preencher pela Escala Padrão</Button>
-              <Button tamanho="sm" icone="plus" onClick={() => setModalLoteAberto(true)}>Aplicar em lote</Button>
-            </>
-          )}
+          <div className={estilos.linhaPainel}>
+            <Button variante="secondary" tamanho="sm" icone="filter" onClick={() => setPainelAberto(true)} aria-haspopup="dialog">
+              Filtros e ações
+              {filtrosAtivos > 0 && <Badge tom="primary">{filtrosAtivos} {filtrosAtivos === 1 ? 'ativo' : 'ativos'}</Badge>}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={estilos.cabecalhoSemana}>
+          <div className={estilos.navegacaoSemana}>
+            <Button variante="secondary" tamanho="sm" onClick={irParaSemanaAnterior}>← Semana anterior</Button>
+            <Button variante="secondary" tamanho="sm" onClick={irParaHoje}>Hoje</Button>
+            <Button variante="secondary" tamanho="sm" onClick={irParaProximaSemana}>Próxima semana →</Button>
+          </div>
+          <h3 className={estilos.tituloSemana}>{formatarPeriodoSemana(dias)}</h3>
+          <div className={estilos.navegacaoSemana}>
+            <EscalaFiltrosExportacao {...propsFiltrosExportacao} />
+            {podeEditar && acoesEscala(false)}
+          </div>
+        </div>
+      )}
 
       {carregando ? (
         <p role="status">Carregando escala...</p>
       ) : funcionariosExibidos.length === 0 ? (
         <EmptyState>Nenhum funcionário para este filtro.</EmptyState>
+      ) : compacta ? (
+        <EscalaSemanaCalendario
+          funcionarios={funcionariosOrdenados}
+          mapaEscala={mapaEscala}
+          dias={dias}
+          onAbrirFuncionarioDia={podeEditar ? abrirModalDia : undefined}
+        />
       ) : (
         <DataTable
           rotulo="Escala semanal"
           colunas={colunas}
-          linhas={ordenacao.ordenar(funcionariosExibidos, colunas)}
+          linhas={funcionariosOrdenados}
           chaveLinha={(f) => f.id}
           ordenacao={ordenacao.props}
-          cartoesAte={900}
+          cartoesAte={ESCALA_COMPACTA_ATE}
         />
       )}
 
-      <p className={estilos.legenda}>Clique numa célula para definir horário, folga ou registrar falta/atestado.</p>
+      <p className={estilos.legenda}>
+        {compacta
+          ? `M = manhã · T = tarde · F = falta · A = atestado · — = não definido.${podeEditar ? ' Toque num dia para definir horário, folga ou registrar falta/atestado.' : ''}`
+          : 'Clique numa célula para definir horário, folga ou registrar falta/atestado.'}
+      </p>
+
+      {compacta && painelAberto && (
+        <Modal titulo="Filtros e ações" largura="sm" fecharAoClicarFora onFechar={() => setPainelAberto(false)}>
+          <div className={estilos.painelFiltrosAcoes}>
+            <EscalaFiltrosExportacao {...propsFiltrosExportacao} agrupado />
+            {funcionariosExibidos.length > 1 && (
+              <section className={estilos.secaoPainel}>
+                <h4 className={estilos.tituloOcorrencia}>Ordenação</h4>
+                <OrdenacaoCartoes colunas={colunas} ordenacao={ordenacao.props} rotuloTabela="Escala semanal" />
+              </section>
+            )}
+            {podeEditar && (
+              <section className={estilos.secaoPainel}>
+                <h4 className={estilos.tituloOcorrencia}>Ações da escala</h4>
+                <div className={estilos.acoesPainel}>{acoesEscala(true)}</div>
+              </section>
+            )}
+            <div className={estilos.rodapePlanejamento}>
+              <Button variante="secondary" onClick={() => setPainelAberto(false)}>Fechar</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {modalDia && (
         <EscalaDiaModal
@@ -382,6 +461,8 @@ function VisaoMensal({ funcionarios, cargos, filtro, onFiltroChange }) {
   const ordenacao = useOrdenacao();
 
   const dias = useMemo(() => diasDoMes(mesInicio), [mesInicio]);
+  // Celular/tablet pequeno: calendário por funcionário no lugar da grade.
+  const compacta = useMediaQuery(MQ_ESCALA_COMPACTA);
 
   useEffect(() => {
     let ativo = true;
@@ -412,41 +493,87 @@ function VisaoMensal({ funcionarios, cargos, filtro, onFiltroChange }) {
     return exportarRelatorio(modelo, formato);
   }
 
+  const irParaMesAnterior = () => setMesInicio((atual) => inicioDoMes(somarDias(atual, -1)));
+  const irParaMesAtual = () => setMesInicio(inicioDoMes(dataLocalHoje()));
+  const irParaProximoMes = () => setMesInicio((atual) => inicioDoMes(somarDias(dias[dias.length - 1], 1)));
+  const abrirFuncionarioDia = (funcionario, data, estado) => setDetalheFuncionarioDia({ funcionario, data, estado });
+
+  const filtrosExportacao = (
+    <EscalaFiltrosExportacao
+      cargos={cargos}
+      funcionarios={funcionarios}
+      filtro={filtro}
+      onFiltroChange={onFiltroChange}
+      rotuloVisao="Mensal"
+      onExportar={exportar}
+      desabilitarExportacao={carregando || funcionariosExibidos.length === 0}
+    />
+  );
+
+  const funcionariosOrdenados = ordenacao.ordenar(funcionariosExibidos, COLUNAS_ORDENACAO_MENSAL);
+
   return (
     <>
-      <div className={estilos.cabecalhoSemana}>
-        <div className={estilos.navegacaoSemana}>
-          <Button variante="secondary" tamanho="sm" onClick={() => setMesInicio((atual) => inicioDoMes(somarDias(atual, -1)))}>←</Button>
-          <Button variante="secondary" tamanho="sm" onClick={() => setMesInicio(inicioDoMes(dataLocalHoje()))}>Hoje</Button>
-          <Button variante="secondary" tamanho="sm" onClick={() => setMesInicio((atual) => inicioDoMes(somarDias(dias[dias.length - 1], 1)))}>→</Button>
+      {compacta ? (
+        <div className={estilos.cabecalhoCompacto}>
+          <NavegacaoCompacta
+            titulo={mesExibicao(mesInicio)}
+            rotuloAnterior="Mês anterior"
+            rotuloProximo="Próximo mês"
+            onAnterior={irParaMesAnterior}
+            onHoje={irParaMesAtual}
+            onProximo={irParaProximoMes}
+          />
+          <div className={estilos.grupoCompacto}>{filtrosExportacao}</div>
+          {/* Cobertura geral do dia (no desktop: clique no cabeçalho do dia). */}
+          <label className={estilos.campoCompacto}>
+            <span>Cobertura do dia</span>
+            <Select value="" onChange={(e) => e.target.value && setDiaDetalhe(e.target.value)} disabled={carregando}>
+              <option value="">Escolha um dia…</option>
+              {dias.map((data) => (
+                <option key={data} value={data}>{`${rotuloDiaSemana(data)} ${formatarDataCurta(data)}`}</option>
+              ))}
+            </Select>
+          </label>
         </div>
-        <h3 className={estilos.tituloSemana}>{mesExibicao(mesInicio)}</h3>
-        <EscalaFiltrosExportacao
-          cargos={cargos}
-          funcionarios={funcionarios}
-          filtro={filtro}
-          onFiltroChange={onFiltroChange}
-          rotuloVisao="Mensal"
-          onExportar={exportar}
-          desabilitarExportacao={carregando || funcionariosExibidos.length === 0}
-        />
-        {carregando && <span role="status">Carregando...</span>}
-      </div>
+      ) : (
+        <div className={estilos.cabecalhoSemana}>
+          <div className={estilos.navegacaoSemana}>
+            <Button variante="secondary" tamanho="sm" onClick={irParaMesAnterior}>←</Button>
+            <Button variante="secondary" tamanho="sm" onClick={irParaMesAtual}>Hoje</Button>
+            <Button variante="secondary" tamanho="sm" onClick={irParaProximoMes}>→</Button>
+          </div>
+          <h3 className={estilos.tituloSemana}>{mesExibicao(mesInicio)}</h3>
+          {filtrosExportacao}
+          {carregando && <span role="status">Carregando...</span>}
+        </div>
+      )}
 
       {carregando ? (
         <p role="status">Carregando escala...</p>
+      ) : compacta ? (
+        <>
+          {funcionariosOrdenados.length > 1 && (
+            <OrdenacaoCartoes colunas={COLUNAS_ORDENACAO_MENSAL} ordenacao={ordenacao.props} rotuloTabela="Escala mensal" />
+          )}
+          <EscalaMensalCalendario funcionarios={funcionariosOrdenados} mapaEscala={mapaEscala} dias={dias} onAbrirFuncionarioDia={abrirFuncionarioDia} />
+        </>
       ) : (
         <EscalaMensal
-          funcionarios={ordenacao.ordenar(funcionariosExibidos, COLUNAS_ORDENACAO_MENSAL)}
+          funcionarios={funcionariosOrdenados}
           ordenacao={ordenacao.props}
           mapaEscala={mapaEscala}
           dias={dias}
-          onAbrirFuncionarioDia={(funcionario, data, estado) => setDetalheFuncionarioDia({ funcionario, data, estado })}
+          onAbrirFuncionarioDia={abrirFuncionarioDia}
           onAbrirDia={setDiaDetalhe}
         />
       )}
 
-      <p className={estilos.legenda}>Clique numa célula para ver os horários daquela pessoa; clique no cabeçalho do dia para a cobertura geral.</p>
+      <p className={estilos.legenda}>
+        {compacta
+          ? 'M = manhã · T = tarde · F = falta · A = atestado · — = não definido. Toque num dia para ver os horários daquela pessoa.'
+          : 'Clique numa célula para ver os horários daquela pessoa; clique no cabeçalho do dia para a cobertura geral.'}
+      </p>
 
       {detalheFuncionarioDia && (
         <EscalaDiaModal
