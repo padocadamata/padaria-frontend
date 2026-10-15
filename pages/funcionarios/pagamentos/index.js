@@ -76,7 +76,7 @@ function PagamentosConteudo() {
       {carregandoFuncionarios ? (
         <p role="status">Carregando...</p>
       ) : visao === 'a_pagar' ? (
-        <PagamentosAPagarVisao funcionarios={ativos} podeConfirmar={podeConfirmar} onIrParaConfiguracoes={() => setVisao('configuracoes')} />
+        <PagamentosAPagarVisao funcionarios={ativos} podeConfirmar={podeConfirmar} podeEditar={podeEditar} onIrParaConfiguracoes={() => setVisao('configuracoes')} />
       ) : visao === 'pagos' ? (
         <PagamentosPagosVisao funcionarios={funcionarios} podeCancelar={podeCancelar} />
       ) : (

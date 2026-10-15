@@ -7,8 +7,11 @@ import Input from '../ui/Input';
 import Textarea from '../ui/Textarea';
 import EditorDescontos from './EditorDescontos';
 import ItensComAjuste from './ItensComAjuste';
+import LancamentosSelecao from './LancamentosSelecao';
+import ResumoValoresPagamento from './ResumoValoresPagamento';
 import { formatarMoeda, criarPagamentoPorHora, criarPagamentoRegularizacaoHistorica } from '../../lib/funcionarios/pagamentos';
-import { normalizarDescontos, resumirValores, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068 } from '../../lib/funcionarios/pagamentosCalculo';
+import { normalizarDescontos, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068 } from '../../lib/funcionarios/pagamentosCalculo';
+import { idsSelecionados, resumirComLancamentos } from '../../lib/funcionarios/lancamentosCalculo';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
@@ -21,9 +24,12 @@ import estilosPagamentos from './pagamentos.module.css';
 // modo="historico" (migration 0068): mesma conferência, mas grava uma
 // REGULARIZAÇÃO HISTÓRICA (valor manual obrigatório em todas as jornadas,
 // sem valor/hora, sem forma de remuneração).
-export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados = {}, suporteValorManual = true, modo = 'por_hora', onFechar, onConfirmado }) {
+// lancamentos (migration 0076): pendentes da funcionária; os marcados entram
+// neste pagamento (acréscimo soma, desconto subtrai) na mesma transação.
+export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados = {}, suporteValorManual = true, modo = 'por_hora', lancamentos = [], onFechar, onConfirmado }) {
   const historico = modo === 'historico';
   const [descontos, setDescontos] = useState([]);
+  const [lancamentosMarcados, setLancamentosMarcados] = useState(() => new Set());
   const [observacoesAjuste, setObservacoesAjuste] = useState({});
   const [dataEfetiva, setDataEfetiva] = useState(dataLocalHoje());
   const [observacao, setObservacao] = useState('');
@@ -31,7 +37,8 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
   const [erro, setErro] = useState('');
 
   const { payload: descontosPayload, erros: errosDescontos } = normalizarDescontos(descontos);
-  const valores = resumirValores(somarValoresAPagar(jornadas, digitados), descontosPayload);
+  const selecionados = lancamentos.filter((l) => lancamentosMarcados.has(l.id));
+  const valores = resumirComLancamentos(somarValoresAPagar(jornadas, digitados), descontosPayload, selecionados);
 
   async function confirmar() {
     setErro('');
@@ -61,7 +68,7 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
       return;
     }
     if (valores.liquido < 0) {
-      setErro('Os descontos ultrapassam o valor bruto do pagamento.');
+      setErro('Os descontos ultrapassam o valor bruto (mais os acréscimos) do pagamento. Desmarque algum desconto ou inclua mais itens.');
       return;
     }
 
@@ -73,6 +80,7 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
       descontos: descontosPayload,
       dataEfetiva,
       observacao,
+      lancamentos: idsSelecionados(lancamentos, lancamentosMarcados),
     });
     setSalvando(false);
 
@@ -96,17 +104,12 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
           <strong>{formatarMoeda(valores.bruto)}</strong>
         </div>
 
+        <LancamentosSelecao lancamentos={lancamentos} selecionados={lancamentosMarcados} onAlterar={setLancamentosMarcados} desabilitado={salvando} />
+
         <h4>Descontos</h4>
         <EditorDescontos descontos={descontos} onAlterar={setDescontos} />
 
-        <div className={estilosPagamentos.resumoLinha}>
-          <span>Descontos</span>
-          <span>-{formatarMoeda(valores.descontos)}</span>
-        </div>
-        <div className={estilosPagamentos.resumoLinha}>
-          <strong>Líquido</strong>
-          <strong>{formatarMoeda(valores.liquido)}</strong>
-        </div>
+        <ResumoValoresPagamento valores={valores} />
 
         <Field label="Data efetiva do pagamento">
           <Input type="date" value={dataEfetiva} onChange={(e) => setDataEfetiva(e.target.value)} />

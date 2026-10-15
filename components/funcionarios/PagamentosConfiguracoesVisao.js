@@ -8,6 +8,7 @@ import Input from '../ui/Input';
 import IndicadorVinculo from './IndicadorVinculo';
 import ConfiguracaoFuncionarioModal from './ConfiguracaoFuncionarioModal';
 import FeriadosCard from './FeriadosCard';
+import TiposLancamentoCard from './TiposLancamentoCard';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { rotuloVinculo } from '../../lib/funcionarios/vinculo';
@@ -158,6 +159,7 @@ export default function PagamentosConfiguracoesVisao({ funcionarios, podeRegras,
     <div className={estilosPagamentos.colunaSecoes}>
       <ValorHoraCard podeRegras={podeRegras} />
       <FeriadosCard podeRegras={podeRegras} />
+      <TiposLancamentoCard podeRegras={podeRegras} />
 
       <section>
         <h3 className={estilosPagamentos.tituloSecao}>Configuração por funcionário</h3>

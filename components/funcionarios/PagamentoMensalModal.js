@@ -8,8 +8,11 @@ import Select from '../ui/Select';
 import Textarea from '../ui/Textarea';
 import EditorDescontos from './EditorDescontos';
 import ItensComAjuste from './ItensComAjuste';
+import LancamentosSelecao from './LancamentosSelecao';
+import ResumoValoresPagamento from './ResumoValoresPagamento';
 import { formatarMoeda, formatarCompetencia, criarPagamentoMensal } from '../../lib/funcionarios/pagamentos';
-import { TIPOS_LANCAMENTO_MENSAL, normalizarDescontos, resumirValores, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068, valorBaseDoLancamento, integralPermitido } from '../../lib/funcionarios/pagamentosCalculo';
+import { TIPOS_LANCAMENTO_MENSAL, normalizarDescontos, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068, valorBaseDoLancamento, integralPermitido } from '../../lib/funcionarios/pagamentosCalculo';
+import { idsSelecionados, resumirComLancamentos } from '../../lib/funcionarios/lancamentosCalculo';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
@@ -20,7 +23,10 @@ import estilosPagamentos from './pagamentos.module.css';
 // benefício Adiantamento Salarial) + quanto da base este pagamento quita
 // (0..saldo; o banco recusa acima do saldo). A sugestão de desconto por
 // falta NUNCA entra sozinha: só por botão explícito, e continua editável.
-export default function PagamentoMensalModal({ funcionario, competencia, resumo, extras, digitados = {}, suporteValorManual = true, onFechar, onConfirmado }) {
+// lancamentos (migration 0076): pendentes da funcionária; os marcados entram
+// neste pagamento (acréscimo soma, desconto subtrai) na mesma transação.
+export default function PagamentoMensalModal({ funcionario, competencia, resumo, extras, digitados = {}, suporteValorManual = true, lancamentos = [], onFechar, onConfirmado }) {
+  const [lancamentosMarcados, setLancamentosMarcados] = useState(() => new Set());
   // Extras: valor automático (duração × valor/hora) ou "Valor a pagar"
   // informado na tela anterior (migration 0068). A base mensal nunca é
   // calculada por jornada.
@@ -47,7 +53,8 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
   const valorBaseValido = valorBaseCalculado !== null && valorBaseCalculado >= 0;
   const valorExtras = somarValoresAPagar(extras, digitados);
   const { payload: descontosPayload, erros: errosDescontos } = normalizarDescontos(descontos);
-  const valores = resumirValores((valorBaseValido ? valorBaseNumero : 0) + valorExtras, descontosPayload);
+  const selecionados = lancamentos.filter((l) => lancamentosMarcados.has(l.id));
+  const valores = resumirComLancamentos((valorBaseValido ? valorBaseNumero : 0) + valorExtras, descontosPayload, selecionados);
   const sugestaoJaIncluida = descontos.some((d) => d.origem === 'sugestao_falta');
 
   function aplicarSugestaoFalta() {
@@ -101,7 +108,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
       return;
     }
     if (valores.liquido < 0) {
-      setErro('Os descontos ultrapassam o valor bruto do pagamento.');
+      setErro('Os descontos ultrapassam o valor bruto (mais os acréscimos) do pagamento. Desmarque algum desconto ou inclua mais itens.');
       return;
     }
 
@@ -115,6 +122,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
       descontos: descontosPayload,
       dataEfetiva,
       observacao,
+      lancamentos: idsSelecionados(lancamentos, lancamentosMarcados),
     });
     setSalvando(false);
 
@@ -174,6 +182,8 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
           <strong>{formatarMoeda(valores.bruto)}</strong>
         </div>
 
+        <LancamentosSelecao lancamentos={lancamentos} selecionados={lancamentosMarcados} onAlterar={setLancamentosMarcados} desabilitado={salvando} />
+
         <h4>Descontos</h4>
         {resumo.sugestao_desconto_falta !== null && (
           <div className={estilosPagamentos.resumoLinha}>
@@ -187,14 +197,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
         )}
         <EditorDescontos descontos={descontos} onAlterar={setDescontos} />
 
-        <div className={estilosPagamentos.resumoLinha}>
-          <span>Descontos</span>
-          <span>-{formatarMoeda(valores.descontos)}</span>
-        </div>
-        <div className={estilosPagamentos.resumoLinha}>
-          <strong>Líquido</strong>
-          <strong>{formatarMoeda(valores.liquido)}</strong>
-        </div>
+        <ResumoValoresPagamento valores={valores} />
 
         <Field label="Data efetiva do pagamento">
           <Input type="date" value={dataEfetiva} onChange={(e) => setDataEfetiva(e.target.value)} />

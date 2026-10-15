@@ -73,8 +73,18 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   const totais = useMemo(() => {
     const ativos = pagamentos.filter((p) => p.status === 'confirmado');
     const soma = (campo) => ativos.reduce((s, p) => s + centavos(p[campo]), 0) / 100;
-    return { quantidade: ativos.length, bruto: soma('valor_bruto'), descontos: soma('total_descontos'), liquido: soma('valor_liquido') };
+    return {
+      quantidade: ativos.length,
+      bruto: soma('valor_bruto'),
+      acrescimos: soma('total_acrescimos'),
+      descontos: soma('total_descontos'),
+      liquido: soma('valor_liquido'),
+    };
   }, [pagamentos]);
+  // Migration 0076: coluna Acréscimos só quando algum pagamento do filtro tem
+  // acréscimo (líquido = bruto + acréscimos − descontos). Sem a 0076 no banco,
+  // total_acrescimos não vem e conta como 0.
+  const temAcrescimos = pagamentos.some((p) => Number(p.total_acrescimos || 0) > 0);
 
   const colunas = [
     { chave: 'data_efetiva', rotulo: 'Data efetiva', ordenavel: { tipo: 'data', valor: (p) => p.data_efetiva }, render: (p) => formatarDataExibicao(p.data_efetiva) },
@@ -94,6 +104,13 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
         p.natureza === 'mensal' ? `Mensal ${formatarCompetencia(p.competencia)} · ${rotuloTipoLancamento(p.tipo_lancamento)}` : rotuloNaturezaPagamento(p.natureza),
     },
     { chave: 'bruto', rotulo: 'Bruto', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (p) => p.valor_bruto }, render: (p) => formatarMoeda(p.valor_bruto) },
+    temAcrescimos && {
+      chave: 'acrescimos',
+      rotulo: 'Acréscimos',
+      alinhar: 'direita',
+      ordenavel: { tipo: 'moeda', valor: (p) => p.total_acrescimos || 0 },
+      render: (p) => formatarMoeda(p.total_acrescimos || 0),
+    },
     { chave: 'descontos', rotulo: 'Descontos', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (p) => p.total_descontos }, render: (p) => formatarMoeda(p.total_descontos) },
     { chave: 'liquido', rotulo: 'Líquido', alinhar: 'direita', ordenavel: { tipo: 'moeda', valor: (p) => p.valor_liquido }, render: (p) => formatarMoeda(p.valor_liquido) },
     {
@@ -104,8 +121,9 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
       ordenavel: { valor: (p) => p.status, ordem: ['confirmado', 'cancelado'] },
       render: (p) => <Badge tom={p.status === 'cancelado' ? 'danger' : 'success'}>{p.status === 'cancelado' ? 'Cancelado' : 'Confirmado'}</Badge>,
     },
-  ];
-  const colunasExibidas = cartoes ? ORDEM_CARTAO.map((chave) => colunas.find((c) => c.chave === chave)) : colunas;
+  ].filter(Boolean);
+  const ordemCartao = temAcrescimos ? ORDEM_CARTAO.flatMap((c) => (c === 'bruto' ? ['bruto', 'acrescimos'] : [c])) : ORDEM_CARTAO;
+  const colunasExibidas = cartoes ? ordemCartao.map((chave) => colunas.find((c) => c.chave === chave)) : colunas;
 
   return (
     <>
@@ -163,7 +181,9 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           <div className={`${estilosPagamentos.resumoLinha} ${estilosPagamentos.resumoPagos}`}>
             <span>{totais.quantidade} confirmado(s) no filtro</span>
             <span>
-              Bruto {formatarMoeda(totais.bruto)} · Descontos {formatarMoeda(totais.descontos)} · <strong>Líquido {formatarMoeda(totais.liquido)}</strong>
+              Bruto {formatarMoeda(totais.bruto)}
+              {totais.acrescimos > 0 ? ` · Acréscimos ${formatarMoeda(totais.acrescimos)}` : ''} · Descontos {formatarMoeda(totais.descontos)} ·{' '}
+              <strong>Líquido {formatarMoeda(totais.liquido)}</strong>
             </span>
           </div>
           <DataTable

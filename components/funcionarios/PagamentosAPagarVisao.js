@@ -7,6 +7,9 @@ import Icon from '../ui/Icon';
 import IndicadorVinculo from './IndicadorVinculo';
 import PagamentoPorHoraModal from './PagamentoPorHoraModal';
 import PagamentoMensalModal from './PagamentoMensalModal';
+import LancamentosPendentesPainel from './LancamentosPendentesPainel';
+import { buscarLancamentosPendentes, buscarTiposLancamento } from '../../lib/funcionarios/lancamentos';
+import { agruparPendentesPorFuncionaria } from '../../lib/funcionarios/lancamentosCalculo';
 import { formatarDataCurta, formatarHora, rotuloDiaSemana } from '../../lib/funcionarios/escala';
 import { inicioDoMes, dataLocalHoje } from '../../lib/data/dataLocal';
 import { buscarSituacaoRemuneracaoEmLote, buscarPendenciasPorHora, buscarPendenciaMensal, buscarPendenciasHistoricas, formatarMoeda, formatarCompetencia } from '../../lib/funcionarios/pagamentos';
@@ -27,6 +30,13 @@ const COLUNAS = 7;
 // entre <tr> e a versão em cartão. Só um modo existe no DOM por vez.
 export const PAGAMENTOS_CARTOES_ATE = 900;
 const ModoCartoes = createContext(false);
+
+// Selo no cabeçalho da pessoa quando há lançamentos pendentes (migration
+// 0076). Só informa: nada entra no total sozinho -- a escolha é no modal.
+function IndicadorLancamentos({ quantidade }) {
+  if (!quantidade) return null;
+  return <Badge tom="info">{quantidade === 1 ? '1 lançamento pendente' : `${quantidade} lançamentos pendentes`}</Badge>;
+}
 
 function formatarDuracao(minutos) {
   const m = Number(minutos) || 0;
@@ -393,7 +403,7 @@ function LinhaTotal({ total, observacao, selecao, acao, mensagem, modal }) {
 // qualquer subconjunto (pagamento parcial) e "Incluir pagamento".
 // historico: jornadas já carregadas (RPC de regularização), sem valor
 // calculado, modal em modo "historico".
-function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = null, onRegistrado }) {
+function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = null, lancamentos = [], onRegistrado, onPagamentoRegistrado }) {
   const [expandido, setExpandido] = useState(false);
   const [carregando, setCarregando] = useState(!historico);
   const [pendencias, setPendencias] = useState(historico ? historico.jornadas : []);
@@ -444,13 +454,23 @@ function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = nul
       setMensagemSucesso('Pagamento registrado.');
       carregar();
     }
+    if (onPagamentoRegistrado) onPagamentoRegistrado();
   }
 
-  const avisos = historico ? (
+  const avisoForma = historico ? (
     <Badge tom="warning">Regularização histórica</Badge>
   ) : (
     formaAtual !== 'por_hora' && <Badge tom="warning">Hoje: {formaAtual === 'mensal' ? 'Mensal' : 'Não configurado'} — jornadas por hora anteriores</Badge>
   );
+  // Sem aviso e sem lançamento, nada (como antes): no modo cartão, `extras`
+  // vira uma linha própria e não deve aparecer vazia.
+  const avisos =
+    avisoForma || lancamentos.length > 0 ? (
+      <>
+        {avisoForma}
+        <IndicadorLancamentos quantidade={lancamentos.length} />
+      </>
+    ) : null;
 
   return (
     <CorpoBloco>
@@ -515,6 +535,7 @@ function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = nul
               jornadas={jornadasSelecionadas}
               digitados={sel.digitados}
               suporteValorManual={historico ? undefined : suporteValorManual}
+              lancamentos={lancamentos}
               onFechar={() => setModalAberto(false)}
               onConfirmado={aoConfirmar}
             />
@@ -530,7 +551,7 @@ function BlocoJornadas({ funcionario, formaAtual, podeConfirmar, historico = nul
 // pago, saldo, faltas/atestados, data prevista e extras remunerados
 // pendentes (valor calculado + "Valor a pagar"). A base nunca vira valor
 // por jornada.
-function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
+function BlocoMensal({ funcionario, competencia, podeConfirmar, lancamentos = [], onPagamentoRegistrado }) {
   const [expandido, setExpandido] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [resumo, setResumo] = useState(null);
@@ -570,12 +591,14 @@ function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
     setModalAberto(false);
     setMensagemSucesso('Pagamento registrado.');
     carregar();
+    if (onPagamentoRegistrado) onPagamentoRegistrado();
   }
 
   return (
     <CorpoBloco>
       <LinhaFuncionario
         funcionario={funcionario}
+        extras={lancamentos.length > 0 ? <IndicadorLancamentos quantidade={lancamentos.length} /> : null}
         selecao={
           temBase && extrasDisponiveis.length > 0
             ? { todas: todasExtras, onAlternar: () => sel.setSelecionadas(todasExtras ? new Set() : new Set(extrasDisponiveis.map(chaveJornada))) }
@@ -653,6 +676,7 @@ function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
               extras={extrasSelecionados}
               digitados={sel.digitados}
               suporteValorManual={suporteValorManual}
+              lancamentos={lancamentos}
               onFechar={() => setModalAberto(false)}
               onConfirmado={aoConfirmar}
             />
@@ -668,12 +692,33 @@ function BlocoMensal({ funcionario, competencia, podeConfirmar }) {
 // contínua com todas as pessoas da modalidade (bloco por pessoa: cabeçalho
 // com nome/vínculo/PIX, linhas de detalhe e total). Nenhum cálculo novo:
 // mesmas RPCs e os mesmos modais de pagamento de antes.
-export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onIrParaConfiguracoes }) {
+export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, podeEditar = false, onIrParaConfiguracoes }) {
   const [situacao, setSituacao] = useState({ formaAtual: new Map(), comPorHora: new Set() });
   const [historico, setHistorico] = useState({ disponivel: false, jornadas: [] });
   const [carregando, setCarregando] = useState(true);
   const [recarregarHistorico, setRecarregarHistorico] = useState(0);
   const [competencia, setCompetencia] = useState(() => inicioDoMes(dataLocalHoje()));
+  // Migration 0076 -- lançamentos pendentes (1 consulta para todos) e tipos.
+  // disponivel = false sem a 0076 no banco: painel e seleção nem aparecem.
+  const [lancamentos, setLancamentos] = useState({ disponivel: false, lancamentos: [] });
+  const [tiposLancamento, setTiposLancamento] = useState([]);
+  const [recarregarLancamentos, setRecarregarLancamentos] = useState(0);
+
+  useEffect(() => {
+    let ativo = true;
+    Promise.all([buscarLancamentosPendentes(), buscarTiposLancamento()]).then(([pendentes, tipos]) => {
+      if (!ativo) return;
+      setLancamentos(pendentes);
+      setTiposLancamento(tipos.tipos);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [recarregarLancamentos]);
+
+  const pendentesPorPessoa = useMemo(() => agruparPendentesPorFuncionaria(lancamentos.lancamentos), [lancamentos]);
+  const pendentesDe = (id) => pendentesPorPessoa.get(id)?.lancamentos || [];
+  const recarregarPendentes = () => setRecarregarLancamentos((n) => n + 1);
 
   useEffect(() => {
     let ativo = true;
@@ -728,6 +773,16 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
   return (
     <ModoCartoes.Provider value={cartoes}>
     <div className={estilosPagamentos.colunaSecoes}>
+      {lancamentos.disponivel && (
+        <LancamentosPendentesPainel
+          pendentes={lancamentos.lancamentos}
+          funcionarios={funcionarios}
+          tipos={tiposLancamento}
+          podeEditar={podeEditar}
+          onAlterado={recarregarPendentes}
+        />
+      )}
+
       {grupos.naoConfigurado.length > 0 && (
         <Alert tom="warning">
           <div className={estilosPagamentos.avisoCompacto}>
@@ -753,7 +808,14 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
         ) : (
           <TabelaPagamentos rotulo="Pagamentos por hora">
             {grupos.porHora.map((f) => (
-              <BlocoJornadas key={f.id} funcionario={f} formaAtual={situacao.formaAtual.get(f.id)} podeConfirmar={podeConfirmar} />
+              <BlocoJornadas
+                key={f.id}
+                funcionario={f}
+                formaAtual={situacao.formaAtual.get(f.id)}
+                podeConfirmar={podeConfirmar}
+                lancamentos={pendentesDe(f.id)}
+                onPagamentoRegistrado={recarregarPendentes}
+              />
             ))}
           </TabelaPagamentos>
         )}
@@ -779,7 +841,14 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
         ) : (
           <TabelaPagamentos rotulo="Pagamentos mensais" colunaDescricao="Jornada / item">
             {grupos.mensal.map((f) => (
-              <BlocoMensal key={f.id} funcionario={f} competencia={competencia} podeConfirmar={podeConfirmar} />
+              <BlocoMensal
+                key={f.id}
+                funcionario={f}
+                competencia={competencia}
+                podeConfirmar={podeConfirmar}
+                lancamentos={pendentesDe(f.id)}
+                onPagamentoRegistrado={recarregarPendentes}
+              />
             ))}
           </TabelaPagamentos>
         )}
@@ -799,7 +868,9 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, onI
                 funcionario={funcionario}
                 podeConfirmar={podeConfirmar}
                 historico={h}
+                lancamentos={pendentesDe(funcionario.id)}
                 onRegistrado={() => setRecarregarHistorico((n) => n + 1)}
+                onPagamentoRegistrado={recarregarPendentes}
               />
             ))}
           </TabelaPagamentos>

@@ -8,6 +8,7 @@ import Textarea from '../ui/Textarea';
 import { formatarHora } from '../../lib/funcionarios/escala';
 import { buscarDetalhePagamento, cancelarPagamento, formatarMoeda, formatarCompetencia, rotuloNaturezaPagamento } from '../../lib/funcionarios/pagamentos';
 import { rotuloTipoLancamento } from '../../lib/funcionarios/pagamentosCalculo';
+import { rotuloNatureza, sinalNatureza } from '../../lib/funcionarios/lancamentosCalculo';
 import { rotuloVinculo } from '../../lib/funcionarios/vinculo';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
@@ -135,6 +136,29 @@ export default function PagamentoDetalheModal({ pagamento, podeCancelar, onFecha
               <strong>{formatarMoeda(pagamento.valor_bruto)}</strong>
             </div>
 
+            {/* Migration 0076 -- lançamentos considerados (snapshot: tipo,
+                natureza e valor congelados na confirmação). */}
+            {detalhe.lancamentos.length > 0 && (
+              <>
+                <h4>Lançamentos considerados</h4>
+                <ul className={estilosPagamentos.listaJornadas}>
+                  {detalhe.lancamentos.map((l) => (
+                    <li key={l.id}>
+                      {sinalNatureza(l.natureza)} {rotuloNatureza(l.natureza)} — {l.tipo_nome} ({formatarDataExibicao(l.data_lancamento)}): {formatarMoeda(l.valor)}
+                      {l.observacao ? ` (${l.observacao})` : ''}
+                    </li>
+                  ))}
+                </ul>
+                {pagamento.status === 'cancelado' && <p className={estilosPagamentos.prevista}>Com o cancelamento, estes lançamentos voltaram a ficar pendentes.</p>}
+              </>
+            )}
+            {Number(pagamento.total_acrescimos || 0) > 0 && (
+              <div className={estilosPagamentos.resumoLinha}>
+                <span>Acréscimos</span>
+                <span>+ {formatarMoeda(pagamento.total_acrescimos)}</span>
+              </div>
+            )}
+
             {detalhe.descontos.length > 0 && (
               <ul className={estilosPagamentos.listaJornadas}>
                 {detalhe.descontos.map((d) => (
@@ -176,7 +200,10 @@ export default function PagamentoDetalheModal({ pagamento, podeCancelar, onFecha
 
         {formularioCancelar && (
           <div className={estilosPagamentos.secaoCancelamento}>
-            <p>O pagamento continua no histórico como cancelado e as jornadas/extras voltam a ficar pendentes{mensal ? '; a parte da base volta ao saldo da competência' : ''}.</p>
+            <p>
+              O pagamento continua no histórico como cancelado e as jornadas/extras voltam a ficar pendentes{mensal ? '; a parte da base volta ao saldo da competência' : ''}
+              {detalhe?.lancamentos?.length > 0 ? '; os lançamentos incluídos voltam a ficar pendentes' : ''}.
+            </p>
             <Field label="Motivo do cancelamento (obrigatório)">
               <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} />
             </Field>
