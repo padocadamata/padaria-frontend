@@ -1,0 +1,113 @@
+/* Pedidos > Gerar mensagem e editor do modelo global (migration 0075). */
+
+.corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.rotulo {
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.preview {
+  width: 100%;
+  min-height: 220px;
+  font-family: inherit;
+  font-size: var(--ds-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  resize: vertical;
+}
+
+.nota {
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.erroCampo {
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-danger);
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2) var(--ds-sp-3);
+  padding-top: var(--ds-sp-2);
+}
+
+.rodapeSecundario,
+.rodapePrincipal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.rodapePrincipal {
+  margin-left: auto;
+}
+
+.copiado {
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-success);
+}
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.listaCampos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listaCampos li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-1) var(--ds-sp-2);
+}
+
+.campo {
+  min-height: 32px;
+  padding: 0 var(--ds-sp-2);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-sm, 6px);
+  background-color: var(--ds-surface-muted);
+  color: var(--ds-primary);
+  font: inherit;
+  font-size: var(--ds-fs-label);
+  cursor: pointer;
+}
+
+.campo:hover {
+  border-color: var(--ds-primary);
+}
+
+.descricaoCampo {
+  min-width: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+@media (max-width: 768px) {
+  .rodapePrincipal {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

@@ -293,3 +293,192 @@ a.dia:hover {
     flex: 1;
   }
 }
+
+/* ------------------------- Favoritos (0075) ------------------------------ */
+
+.secaoFavoritos {
+  margin-bottom: var(--ds-sp-5);
+}
+
+.favoritos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}
+
+.favorito {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  min-height: 44px;
+  max-width: 100%;
+  padding: var(--ds-sp-1) var(--ds-sp-3) var(--ds-sp-1) var(--ds-sp-1);
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-pill);
+  font-size: var(--ds-fs-body);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+  transition: border-color 0.12s ease;
+}
+
+.favorito:hover {
+  border-color: var(--ds-primary);
+}
+
+.favoritoIcone {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-radius-pill);
+  background-color: var(--ds-primary-soft);
+  color: var(--ds-primary);
+}
+
+.favoritoRotulo {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.favoritosVazio {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+/* ------------------- Grade personalizada P/M/G (0075) -------------------- */
+
+/* Tamanho pela largura REAL da área (container query), não da tela: com o
+   menu lateral aberto a área é bem menor que a janela. */
+.gradePersonalizadaArea {
+  container-type: inline-size;
+  margin-bottom: var(--ds-sp-4);
+}
+
+.gradePersonalizada {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--ds-sp-4);
+  align-items: start;
+}
+
+.celulaWidget {
+  grid-column: span 12;
+  min-width: 0;
+}
+
+@container (min-width: 600px) {
+  .tamanhoP,
+  .tamanhoM {
+    grid-column: span 6;
+  }
+}
+
+@container (min-width: 960px) {
+  .tamanhoP {
+    grid-column: span 4;
+  }
+}
+
+/* --------------------------- Modo Personalizar --------------------------- */
+
+.barraPersonalizacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  margin-bottom: var(--ds-sp-4);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  background-color: var(--ds-primary-soft);
+  border: var(--ds-border-w) dashed var(--ds-primary);
+  border-radius: var(--ds-radius-lg);
+}
+
+.avisoPersonalizacao {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text);
+}
+
+.acoesPersonalizacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}
+
+.erroPersonalizacao {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.widgetEmEdicao {
+  padding: var(--ds-sp-2);
+  border: var(--ds-border-w) dashed var(--ds-border-strong);
+  border-radius: var(--ds-radius-lg);
+}
+
+.controlesWidget {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-2);
+}
+
+.nomeWidget {
+  min-width: 0;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.botoesWidget {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+}
+
+.tamanhos {
+  display: inline-flex;
+  margin-left: var(--ds-sp-1);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  overflow: hidden;
+}
+
+.botaoTamanho {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 0 var(--ds-sp-2);
+  border: 0;
+  background-color: var(--ds-surface);
+  color: var(--ds-text-muted);
+  font: inherit;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  cursor: pointer;
+}
+
+.botaoTamanho + .botaoTamanho {
+  border-left: var(--ds-border-w) solid var(--ds-border);
+}
+
+.botaoTamanhoAtivo {
+  background-color: var(--ds-primary);
+  color: var(--ds-on-primary);
+}
+
+@media (pointer: coarse) {
+  .botaoTamanho {
+    min-width: 44px;
+    min-height: 40px;
+  }
+}

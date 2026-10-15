@@ -1,4 +1,5 @@
 import { AuthProvider } from '../hooks/useAuth';
+import { FavoritosProvider } from '../hooks/useFavoritos';
 // Design System (nova base visual). Só declaram variáveis e regras escopadas
 // em .ds / body.ds-body -- páginas ainda não migradas não são afetadas.
 import '../styles/tokens.css';
@@ -12,7 +13,10 @@ import '../styles/base.css';
 function MyApp({ Component, pageProps }) {
   return (
     <AuthProvider>
-      <Component {...pageProps} />
+      {/* Favoritos por usuário (migration 0075): carregados uma vez por sessão. */}
+      <FavoritosProvider>
+        <Component {...pageProps} />
+      </FavoritosProvider>
     </AuthProvider>
   );
 }

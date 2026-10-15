@@ -4,6 +4,8 @@ import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
 import AcoesLinha from '../ui/AcoesLinha';
 import FinanceiroDaCompra from '../financeiro/FinanceiroDaCompra';
+import GerarMensagemPedidoModal from './GerarMensagemPedidoModal';
+import { useState } from 'react';
 import { MQ_MOBILE } from '../../lib/design/breakpoints';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import styles from './DetalhePedidoModal.module.css';
@@ -25,7 +27,7 @@ const STATUS_LABEL = {
 const STATUS_TOM = { aguardando_entrega: 'warning', recebido: 'success', cancelado: 'neutral' };
 
 // Ordem dos ícones no desktop (a mesma de antes da migração visual).
-const ORDEM_DESKTOP = ['editar', 'editar-retirada', 'receber', 'cancelar', 'excluir', 'reabrir'];
+const ORDEM_DESKTOP = ['mensagem', 'editar', 'editar-retirada', 'receber', 'cancelar', 'excluir', 'reabrir'];
 
 function formatarDataExibicao(dataYYYYMMDD) {
   if (!dataYYYYMMDD) return '—';
@@ -88,6 +90,10 @@ export default function DetalhePedidoModal({
   podeVerFinanceiro = false,
   podeLancarFinanceiro = false,
   podePagarFinanceiro = false,
+  // Migration 0075: "Gerar mensagem" -- só leitura do pedido, qualquer
+  // status; editar o modelo global é só para proprietario_admin.
+  podeGerarMensagem = false,
+  podeEditarModeloMensagem = false,
   onEditar,
   onReceber,
   onCancelarPedido,
@@ -96,6 +102,7 @@ export default function DetalhePedidoModal({
   onFechar,
 }) {
   const mobile = useMediaQuery(MQ_MOBILE);
+  const [mensagemAberta, setMensagemAberta] = useState(false);
   const atrasado = estaAtrasado(pedido, hoje);
   const tomStatus = atrasado ? 'danger' : STATUS_TOM[pedido.status] || 'neutral';
   const rotuloStatus = atrasado ? 'Atrasado' : STATUS_LABEL[pedido.status] || pedido.status;
@@ -123,6 +130,8 @@ export default function DetalhePedidoModal({
     // (migration 0037 bloqueia essa RPC para esta modalidade).
     pedido.status === 'recebido' && ehCompraPresencial && podeEditar && { chave: 'editar-retirada', rotulo: 'Editar retirada', icone: 'pencil', primaria: true, onClick: onEditar },
     pedido.status === 'recebido' && !ehCompraPresencial && podeReabrirRecebimento && { chave: 'reabrir', rotulo: 'Reabrir recebimento', icone: 'undo', destrutivo: true, onClick: onReabrirRecebimento },
+    // Sem escrita nenhuma: monta e copia um texto. Qualquer status.
+    podeGerarMensagem && itens.length > 0 && { chave: 'mensagem', rotulo: 'Gerar mensagem', icone: 'message', onClick: () => setMensagemAberta(true) },
   ].filter(Boolean);
   const acoesDesktop = [...acoes].sort((a, b) => ORDEM_DESKTOP.indexOf(a.chave) - ORDEM_DESKTOP.indexOf(b.chave));
 
@@ -250,6 +259,16 @@ export default function DetalhePedidoModal({
         <div className={styles.acoes}>
           <AcoesLinha acoes={mobile ? acoes : acoesDesktop} cartao={mobile} />
         </div>
+      )}
+
+      {mensagemAberta && (
+        <GerarMensagemPedidoModal
+          pedido={pedido}
+          itens={itens}
+          fornecedorNome={fornecedorNome}
+          podeEditarModelo={podeEditarModeloMensagem}
+          onFechar={() => setMensagemAberta(false)}
+        />
       )}
     </Modal>
   );

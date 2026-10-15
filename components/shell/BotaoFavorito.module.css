@@ -1,0 +1,38 @@
+.envolucro {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* Área de toque confortável em telas de toque, ícone discreto. */
+.inativo,
+.ativo {
+  flex-shrink: 0;
+}
+
+.inativo {
+  color: var(--ds-text-muted);
+}
+
+.ativo {
+  color: var(--ds-warning);
+}
+
+.ativo:hover {
+  color: var(--ds-warning);
+}
+
+@media (pointer: coarse) {
+  .inativo,
+  .ativo {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.erro {
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+  color: var(--ds-danger);
+}

@@ -31,3 +31,12 @@
   flex-wrap: wrap;
   gap: var(--ds-sp-2);
 }
+
+/* Título + estrela de favorito (quando a tela é elegível). Sem estrela, a
+   linha contém só o <h1> -- mesma geometria de antes. */
+.linhaTitulo {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  min-width: 0;
+}

@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
 import DetalhePedidoModal from '../components/pedidos/DetalhePedidoModal';
+import EditorTemplateMensagemModal from '../components/pedidos/EditorTemplateMensagemModal';
 import ReceberPedidoModal from '../components/pedidos/ReceberPedidoModal';
 import ConfirmarAcaoModal from '../components/admin/ConfirmarAcaoModal';
 import PaginaPedidos from '../components/pedidos/PaginaPedidos';
@@ -17,7 +18,7 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Paginacao, { paginarLista } from '../components/Paginacao';
 import estilos from '../components/pedidos/pedidos.module.css';
-import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
+import { PERMISSOES, hasPermissao, isAdmin } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useAuth } from '../hooks/useAuth';
 import { dataLocalHoje, somarDias } from '../lib/data/dataLocal';
@@ -141,7 +142,7 @@ function BadgeStatusPedido({ pedido, hoje }) {
 
 function PedidosConteudo() {
   const router = useRouter();
-  const { permissoes } = useAuth();
+  const { permissoes, perfilUsuario } = useAuth();
 
   const [pedidos, setPedidos] = useState([]);
   const [itensPorPedido, setItensPorPedido] = useState({});
@@ -208,6 +209,10 @@ function PedidosConteudo() {
   const podeCancelar = hasPermissao(permissoes, PERMISSOES.PEDIDOS_CANCELAR);
   const podeExcluir = hasPermissao(permissoes, PERMISSOES.PEDIDOS_EXCLUIR);
   const podeReabrirRecebimento = hasPermissao(permissoes, PERMISSOES.PEDIDOS_REABRIR_RECEBIMENTO);
+  // Migration 0075: modelo GLOBAL da mensagem de pedido -- só
+  // proprietario_admin edita (RLS com is_admin() no banco; aqui é só UX).
+  const podeEditarModeloMensagem = isAdmin(perfilUsuario);
+  const [editorModeloAberto, setEditorModeloAberto] = useState(false);
   // Migration 0073 (Financeiro > Contas a Pagar): ver a seção Financeiro da
   // compra, lançar o financeiro (junto do recebimento ou depois) e pagar no ato.
   const podeVerFinanceiro = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_VISUALIZAR);
@@ -716,10 +721,19 @@ function PedidosConteudo() {
            só tiver pedidos.inserir, o botão continua aparecendo (Entrega
            funciona normalmente) e é o próprio PedidoForm que oculta a opção
            Retirada nesse caso. */
-        podeInserir && (
-          <Button icone="plus" onClick={abrirNovoPedido}>
-            Novo pedido
-          </Button>
+        (podeInserir || podeEditarModeloMensagem) && (
+          <>
+            {podeEditarModeloMensagem && (
+              <Button variante="secondary" icone="message" onClick={() => setEditorModeloAberto(true)}>
+                Modelo de mensagem
+              </Button>
+            )}
+            {podeInserir && (
+              <Button icone="plus" onClick={abrirNovoPedido}>
+                Novo pedido
+              </Button>
+            )}
+          </>
         )
       }
     >
@@ -822,6 +836,10 @@ function PedidosConteudo() {
         />
       )}
 
+      {editorModeloAberto && (
+        <EditorTemplateMensagemModal onFechar={() => setEditorModeloAberto(false)} onSalvo={() => setEditorModeloAberto(false)} />
+      )}
+
       {pedidoDetalhe && (
         <DetalhePedidoModal
           pedido={pedidoDetalhe}
@@ -838,6 +856,8 @@ function PedidosConteudo() {
           podeVerFinanceiro={podeVerFinanceiro}
           podeLancarFinanceiro={podeLancarFinanceiro}
           podePagarFinanceiro={podePagarFinanceiro}
+          podeGerarMensagem
+          podeEditarModeloMensagem={podeEditarModeloMensagem}
           onEditar={() => abrirEdicao(pedidoDetalhe)}
           onReceber={() => abrirRecebimento(pedidoDetalhe)}
           onCancelarPedido={() => abrirConfirmarCancelamento(pedidoDetalhe)}
