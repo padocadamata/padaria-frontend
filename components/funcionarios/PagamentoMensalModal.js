@@ -12,10 +12,12 @@ import LancamentosSelecao from './LancamentosSelecao';
 import ResumoValoresPagamento from './ResumoValoresPagamento';
 import { formatarMoeda, formatarCompetencia, criarPagamentoMensal } from '../../lib/funcionarios/pagamentos';
 import { TIPOS_LANCAMENTO_MENSAL, normalizarDescontos, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068, valorBaseDoLancamento, integralPermitido } from '../../lib/funcionarios/pagamentosCalculo';
-import { idsSelecionados, resumirComLancamentos } from '../../lib/funcionarios/lancamentosCalculo';
+import { idsSelecionados, lancamentosSelecionados, resumirComLancamentos } from '../../lib/funcionarios/lancamentosCalculo';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
+
+const VAZIO = new Set();
 
 // Confirma atomicamente 1 pagamento natureza=mensal (migration 0066) na
 // competência. Vários pagamentos por competência são permitidos:
@@ -25,8 +27,9 @@ import estilosPagamentos from './pagamentos.module.css';
 // falta NUNCA entra sozinha: só por botão explícito, e continua editável.
 // lancamentos (migration 0076): pendentes da funcionária; os marcados entram
 // neste pagamento (acréscimo soma, desconto subtrai) na mesma transação.
-export default function PagamentoMensalModal({ funcionario, competencia, resumo, extras, digitados = {}, suporteValorManual = true, lancamentos = [], onFechar, onConfirmado }) {
-  const [lancamentosMarcados, setLancamentosMarcados] = useState(() => new Set());
+// A seleção é CONTROLADA pelo bloco da pessoa em A Pagar (lancamentosMarcados
+// + onAlterarLancamentos): a mesma escolha feita lá aparece aqui.
+export default function PagamentoMensalModal({ funcionario, competencia, resumo, extras, digitados = {}, suporteValorManual = true, lancamentos = [], lancamentosMarcados = VAZIO, onAlterarLancamentos, onFechar, onConfirmado }) {
   // Extras: valor automático (duração × valor/hora) ou "Valor a pagar"
   // informado na tela anterior (migration 0068). A base mensal nunca é
   // calculada por jornada.
@@ -53,7 +56,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
   const valorBaseValido = valorBaseCalculado !== null && valorBaseCalculado >= 0;
   const valorExtras = somarValoresAPagar(extras, digitados);
   const { payload: descontosPayload, erros: errosDescontos } = normalizarDescontos(descontos);
-  const selecionados = lancamentos.filter((l) => lancamentosMarcados.has(l.id));
+  const selecionados = lancamentosSelecionados(lancamentos, lancamentosMarcados);
   const valores = resumirComLancamentos((valorBaseValido ? valorBaseNumero : 0) + valorExtras, descontosPayload, selecionados);
   const sugestaoJaIncluida = descontos.some((d) => d.origem === 'sugestao_falta');
 
@@ -182,7 +185,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
           <strong>{formatarMoeda(valores.bruto)}</strong>
         </div>
 
-        <LancamentosSelecao lancamentos={lancamentos} selecionados={lancamentosMarcados} onAlterar={setLancamentosMarcados} desabilitado={salvando} />
+        <LancamentosSelecao lancamentos={lancamentos} selecionados={lancamentosMarcados} onAlterar={onAlterarLancamentos} desabilitado={salvando} />
 
         <h4>Descontos</h4>
         {resumo.sugestao_desconto_falta !== null && (
@@ -213,7 +216,7 @@ export default function PagamentoMensalModal({ funcionario, competencia, resumo,
             Cancelar
           </Button>
           <Button type="button" onClick={confirmar} disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Confirmar pagamento'}
+            {salvando ? 'Salvando...' : `Confirmar pagamento · ${formatarMoeda(valores.liquido)}`}
           </Button>
         </div>
       </div>

@@ -11,10 +11,12 @@ import LancamentosSelecao from './LancamentosSelecao';
 import ResumoValoresPagamento from './ResumoValoresPagamento';
 import { formatarMoeda, criarPagamentoPorHora, criarPagamentoRegularizacaoHistorica } from '../../lib/funcionarios/pagamentos';
 import { normalizarDescontos, somarValoresAPagar, montarItensPayload, payloadExigeValorManual, MENSAGEM_SEM_0068 } from '../../lib/funcionarios/pagamentosCalculo';
-import { idsSelecionados, resumirComLancamentos } from '../../lib/funcionarios/lancamentosCalculo';
+import { idsSelecionados, lancamentosSelecionados, resumirComLancamentos } from '../../lib/funcionarios/lancamentosCalculo';
 import { dataLocalHoje } from '../../lib/data/dataLocal';
 import estilosEscala from './escala.module.css';
 import estilosPagamentos from './pagamentos.module.css';
+
+const VAZIO = new Set();
 
 // Confirma atomicamente 1 pagamento natureza=por_hora (migrations 0066/
 // 0068) -- não existe rascunho persistido; a RPC grava cabeçalho + jornadas
@@ -26,10 +28,11 @@ import estilosPagamentos from './pagamentos.module.css';
 // sem valor/hora, sem forma de remuneração).
 // lancamentos (migration 0076): pendentes da funcionária; os marcados entram
 // neste pagamento (acréscimo soma, desconto subtrai) na mesma transação.
-export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados = {}, suporteValorManual = true, modo = 'por_hora', lancamentos = [], onFechar, onConfirmado }) {
+// A seleção é CONTROLADA pelo bloco da pessoa em A Pagar (lancamentosMarcados
+// + onAlterarLancamentos): a mesma escolha feita lá aparece aqui.
+export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados = {}, suporteValorManual = true, modo = 'por_hora', lancamentos = [], lancamentosMarcados = VAZIO, onAlterarLancamentos, onFechar, onConfirmado }) {
   const historico = modo === 'historico';
   const [descontos, setDescontos] = useState([]);
-  const [lancamentosMarcados, setLancamentosMarcados] = useState(() => new Set());
   const [observacoesAjuste, setObservacoesAjuste] = useState({});
   const [dataEfetiva, setDataEfetiva] = useState(dataLocalHoje());
   const [observacao, setObservacao] = useState('');
@@ -37,7 +40,7 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
   const [erro, setErro] = useState('');
 
   const { payload: descontosPayload, erros: errosDescontos } = normalizarDescontos(descontos);
-  const selecionados = lancamentos.filter((l) => lancamentosMarcados.has(l.id));
+  const selecionados = lancamentosSelecionados(lancamentos, lancamentosMarcados);
   const valores = resumirComLancamentos(somarValoresAPagar(jornadas, digitados), descontosPayload, selecionados);
 
   async function confirmar() {
@@ -104,7 +107,7 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
           <strong>{formatarMoeda(valores.bruto)}</strong>
         </div>
 
-        <LancamentosSelecao lancamentos={lancamentos} selecionados={lancamentosMarcados} onAlterar={setLancamentosMarcados} desabilitado={salvando} />
+        <LancamentosSelecao lancamentos={lancamentos} selecionados={lancamentosMarcados} onAlterar={onAlterarLancamentos} desabilitado={salvando} />
 
         <h4>Descontos</h4>
         <EditorDescontos descontos={descontos} onAlterar={setDescontos} />
@@ -125,7 +128,7 @@ export default function PagamentoPorHoraModal({ funcionario, jornadas, digitados
             Cancelar
           </Button>
           <Button type="button" onClick={confirmar} disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Confirmar pagamento'}
+            {salvando ? 'Salvando...' : `Confirmar ${historico ? 'regularização' : 'pagamento'} · ${formatarMoeda(valores.liquido)}`}
           </Button>
         </div>
       </div>

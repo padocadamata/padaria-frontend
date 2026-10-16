@@ -7,6 +7,7 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import IndicadorVinculo from './IndicadorVinculo';
 import PagamentoDetalheModal from './PagamentoDetalheModal';
+import Paginacao, { paginarLista } from '../Paginacao';
 import { buscarHistoricoPagamentos, formatarMoeda, formatarCompetencia, rotuloNaturezaPagamento } from '../../lib/funcionarios/pagamentos';
 import { rotuloTipoLancamento, centavos } from '../../lib/funcionarios/pagamentosCalculo';
 import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
@@ -41,8 +42,12 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   const [pagamentos, setPagamentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [detalhe, setDetalhe] = useState(null);
+  // Paginação no navegador, mesmo padrão de Funcionários/Clientes (20 por
+  // página, paginarLista + Paginacao): filtro ou ordenação novos voltam à
+  // página 1; os totais acima continuam sendo do filtro INTEIRO.
+  const [pagina, setPagina] = useState(1);
   // Ordenação do cabeçalho: estado local (nunca salvo).
-  const ordenacao = useOrdenacao();
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
   const cartoes = useMediaQuery(`(max-width: ${PAGAMENTOS_CARTOES_ATE}px)`);
 
   async function carregar() {
@@ -60,6 +65,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   }
 
   useEffect(() => {
+    setPagina(1);
     carregar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [funcionarioId, status, tipoVinculo, natureza, dataInicio, dataFim]);
@@ -125,6 +131,16 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   const ordemCartao = temAcrescimos ? ORDEM_CARTAO.flatMap((c) => (c === 'bruto' ? ['bruto', 'acrescimos'] : [c])) : ORDEM_CARTAO;
   const colunasExibidas = cartoes ? ordemCartao.map((chave) => colunas.find((c) => c.chave === chave)) : colunas;
 
+  // Ordena o conjunto filtrado INTEIRO e só depois fatia a página. Se a
+  // lista encolher (cancelamento, recarga), paginarLista cai na última
+  // página válida e o estado acompanha.
+  const paginacao = paginarLista(ordenacao.ordenar(pagamentos, colunas), pagina);
+  const paginaAtual = paginacao.paginaAtual;
+
+  useEffect(() => {
+    if (pagina !== paginaAtual) setPagina(paginaAtual);
+  }, [pagina, paginaAtual]);
+
   return (
     <>
       <div className={estilosPagamentos.controlesFiltro}>
@@ -189,7 +205,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           <DataTable
             rotulo="Pagamentos"
             colunas={colunasExibidas}
-            linhas={ordenacao.ordenar(pagamentos, colunas)}
+            linhas={paginacao.itens}
             chaveLinha={(p) => p.id}
             ordenacao={ordenacao.props}
             cartoesAte={PAGAMENTOS_CARTOES_ATE}
@@ -200,6 +216,11 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
               </Button>
             )}
           />
+          <p className={estilosPagamentos.resumoPaginacao}>
+            Mostrando {paginacao.primeiro}–{paginacao.ultimo} de {paginacao.total} {paginacao.total === 1 ? 'pagamento' : 'pagamentos'}
+            {paginacao.totalPaginas > 1 ? ` — página ${paginaAtual} de ${paginacao.totalPaginas}` : ''}
+          </p>
+          <Paginacao paginaAtual={paginaAtual} totalPaginas={paginacao.totalPaginas} onMudarPagina={setPagina} />
         </>
       )}
 

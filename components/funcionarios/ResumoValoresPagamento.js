@@ -24,7 +24,7 @@ export default function ResumoValoresPagamento({ valores }) {
       )}
       <div className={estilosPagamentos.resumoLinha}>
         <span>{comLancamentos ? 'Descontos digitados' : 'Descontos'}</span>
-        <span>-{formatarMoeda(valores.descontosManuais)}</span>
+        <span>− {formatarMoeda(valores.descontosManuais)}</span>
       </div>
       <div className={estilosPagamentos.resumoLinha}>
         <strong>Líquido</strong>
