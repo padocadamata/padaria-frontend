@@ -10,6 +10,7 @@ import Field from '../ui/Field';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import PeriodosEditor from './PeriodosEditor';
+import { LinhaFeriadoDia } from './EscalaFeriados';
 import estilos from './escala.module.css';
 
 function formatarDataExibicao(dataYYYYMMDD) {
@@ -47,7 +48,9 @@ function mensagemErroPlanejamento(error) {
 // arquitetura aprovada: o planejamento nunca é apagado ao registrar uma
 // ocorrência, e vice-versa (registrar_ocorrencia_escala/remover_ocorrencia_
 // escala são chamadas SEPARADAS de aplicar_escala_em_lote).
-export default function EscalaDiaModal({ funcionario, data, estadoAtual, podeEditar, onFechar, onSalvo }) {
+// feriado (opcional): nome do feriado da data -- só informação no topo do
+// modal (nenhuma regra muda por ser feriado).
+export default function EscalaDiaModal({ funcionario, data, estadoAtual, podeEditar, feriado, onFechar, onSalvo }) {
   const [tipoSelecionado, setTipoSelecionado] = useState(() => {
     if (!estadoAtual) return 'nao_definido';
     return estadoAtual.tipo;
@@ -222,8 +225,9 @@ export default function EscalaDiaModal({ funcionario, data, estadoAtual, podeEdi
   }
 
   return (
-    <Modal titulo={`${funcionario.nome} — ${formatarDataExibicao(data)}`} onFechar={fecharModal} largura="sm">
+    <Modal titulo={`${funcionario.nome} — ${formatarDataExibicao(data)}`} onFechar={fecharModal} largura="md">
       <div className={estilos.modalCorpo}>
+        <LinhaFeriadoDia nome={feriado} />
         <Field label="Planejamento">
           <Select value={tipoSelecionado} disabled={!podeEditar} onChange={(e) => setTipoSelecionado(e.target.value)}>
             <option value="nao_definido">Não definido</option>

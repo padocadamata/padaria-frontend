@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { diaDaSemanaExibicao } from '../../lib/data/dataLocal';
 import { calcularCoberturaDia, nomesComDesambiguacao } from '../../lib/funcionarios/escalaCobertura';
+import { rotuloQuantidadeFuncionarias } from '../../lib/funcionarios/escalaGrupos';
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
-import Select from '../ui/Select';
 import IndicadorVinculo from './IndicadorVinculo';
+import { LinhaFeriadoDia } from './EscalaFeriados';
 import estilos from './escala.module.css';
 
 function formatarDataExibicao(dataYYYYMMDD) {
@@ -41,17 +42,33 @@ export function ListaFaixasCobertura({ faixas }) {
   );
 }
 
+function ResumoPrevistosEfetivos({ resumo }) {
+  return (
+    <div className={estilos.resumoGrid}>
+      <div className={estilos.resumoItem}><strong>{resumo.previstos}</strong><span>Previstos</span></div>
+      <div className={estilos.resumoItem}><strong>{resumo.efetivos}</strong><span>Efetivos</span></div>
+    </div>
+  );
+}
+
 // "Visão do Dia": resumo operacional (previsto/efetivo/folgas/faltas/
 // atestados, todos com nomes) + cobertura por horário (com nomes e
 // ausências) + escala individual, tudo derivado de calcularCoberturaDia --
 // motor único de cobertura (lib/funcionarios/escalaCobertura.js). Este
 // componente nunca recalcula identidade nem faixas.
-export default function EscalaCoberturaDiaModal({ data, funcionarios, mapaEscala, cargos, cargoIdInicial, onFechar }) {
-  const [cargoId, setCargoId] = useState(cargoIdInicial || '');
-
-  const cobertura = useMemo(
-    () => calcularCoberturaDia({ funcionarios, mapaEscala, data, cargoId: cargoId || null }),
-    [funcionarios, mapaEscala, data, cargoId]
+//
+// Sem seletor de cargo (a Escala é organizada por cargo): primeiro a visão
+// GERAL do dia (equipe toda), depois -- havendo mais de um cargo -- a
+// cobertura de cada cargo (mesmo cálculo, com cargoId), um após o outro.
+// feriado (opcional): nome do feriado da data -- só informação no topo.
+export default function EscalaCoberturaDiaModal({ data, funcionarios, grupos, mapaEscala, feriado, onFechar }) {
+  const cobertura = useMemo(() => calcularCoberturaDia({ funcionarios, mapaEscala, data }), [funcionarios, mapaEscala, data]);
+  const porCargo = useMemo(
+    () =>
+      grupos.length > 1
+        ? grupos.map((grupo) => ({ grupo, cobertura: calcularCoberturaDia({ funcionarios: grupo.funcionarios, mapaEscala, data }) }))
+        : [],
+    [grupos, mapaEscala, data]
   );
 
   const { resumo, faixas, escalaIndividual } = cobertura;
@@ -60,19 +77,9 @@ export default function EscalaCoberturaDiaModal({ data, funcionarios, mapaEscala
   return (
     <Modal titulo={tituloDia} onFechar={onFechar} largura="md">
       <div className={estilos.modalCorpo}>
-        {cargos.length > 0 && (
-          <Select value={cargoId} onChange={(e) => setCargoId(e.target.value)} aria-label="Filtrar por cargo">
-            <option value="">Todos os cargos</option>
-            {cargos.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
-            ))}
-          </Select>
-        )}
-
-        <div className={estilos.resumoGrid}>
-          <div className={estilos.resumoItem}><strong>{resumo.previstos}</strong><span>Previstos</span></div>
-          <div className={estilos.resumoItem}><strong>{resumo.efetivos}</strong><span>Efetivos</span></div>
-        </div>
+        <LinhaFeriadoDia nome={feriado} />
+        {porCargo.length > 0 && <h4 className={estilos.tituloGrupo}>Geral <span className={estilos.tituloGrupoContagem}>todos os cargos</span></h4>}
+        <ResumoPrevistosEfetivos resumo={resumo} />
 
         <div className={estilos.listaFaixas}>
           <div className={estilos.faixaCobertura}>
@@ -121,6 +128,17 @@ export default function EscalaCoberturaDiaModal({ data, funcionarios, mapaEscala
             </ul>
           )}
         </div>
+
+        {porCargo.map(({ grupo, cobertura: doCargo }) => (
+          <section key={grupo.chave} className={estilos.secaoOcorrencia} aria-label={`Cobertura — ${grupo.nome}`}>
+            <h4 className={estilos.tituloGrupo}>
+              <span className={estilos.tituloGrupoNome}>{grupo.nome}</span>
+              <span className={estilos.tituloGrupoContagem}>{rotuloQuantidadeFuncionarias(grupo.funcionarios.length)}</span>
+            </h4>
+            <ResumoPrevistosEfetivos resumo={doCargo.resumo} />
+            <ListaFaixasCobertura faixas={doCargo.faixas} />
+          </section>
+        ))}
       </div>
     </Modal>
   );

@@ -8,7 +8,7 @@ import Checkbox from '../ui/Checkbox';
 import Field from '../ui/Field';
 import Select from '../ui/Select';
 import PeriodosEditor from './PeriodosEditor';
-import IndicadorVinculo from './IndicadorVinculo';
+import { SelecaoFuncionariasPorCargo } from './EscalaGrupos';
 import estilos from './escala.module.css';
 
 
@@ -34,9 +34,9 @@ export default function EscalaLoteModal({ funcionarios, dias, mapaEscala, onFech
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
-  function alternarFuncionario(id) {
+  function alterarFuncionarios(ids) {
     setConflitos(null);
-    setFuncionarioIds((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
+    setFuncionarioIds(ids);
   }
 
   function alternarData(data) {
@@ -88,16 +88,7 @@ export default function EscalaLoteModal({ funcionarios, dias, mapaEscala, onFech
     <Modal titulo="Aplicar em lote" onFechar={onFechar} largura="md">
       <div className={estilos.modalCorpo}>
         <Field label="Funcionários">
-          <div className={estilos.selecaoFuncionarios}>
-            {funcionarios.map((f) => (
-              <Checkbox
-                key={f.id}
-                rotulo={<>{f.nome}<IndicadorVinculo tipoVinculo={f.tipo_vinculo} /></>}
-                checked={funcionarioIds.includes(f.id)}
-                onChange={() => alternarFuncionario(f.id)}
-              />
-            ))}
-          </div>
+          <SelecaoFuncionariasPorCargo funcionarios={funcionarios} selecionados={funcionarioIds} onAlterar={alterarFuncionarios} />
         </Field>
 
         <Field label="Dias (semana em exibição)">

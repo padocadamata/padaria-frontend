@@ -25,24 +25,31 @@ export function NavegacaoCompacta({ titulo, rotuloAnterior, rotuloProximo, onAnt
 // Seletor de dia: até 7 dias numa grade de colunas iguais (sem rolagem
 // horizontal). Cada botão mostra dia da semana + número; hoje ganha um
 // sublinhado discreto; o escolhido fica preenchido.
-export function SeletorDia({ dias, valor, onEscolher, rotulo = 'Dia exibido' }) {
+// feriados (Map data -> nome, opcional): "F*" no botão do dia e o nome no
+// aria-label/title (o nome por extenso fica na legenda da tela).
+export function SeletorDia({ dias, valor, onEscolher, rotulo = 'Dia exibido', feriados }) {
   const hoje = dataLocalHoje();
   return (
     <div className={estilos.seletorDia} role="group" aria-label={rotulo} style={{ gridTemplateColumns: `repeat(${Math.max(dias.length, 1)}, minmax(0, 1fr))` }}>
       {dias.map((data) => {
         const [, mes, dia] = data.split('-');
         const ativo = data === valor;
+        const nomeFeriado = feriados?.get(data) || null;
         return (
           <button
             key={data}
             type="button"
             className={cx(estilos.botaoDiaCompacto, ativo && estilos.botaoDiaCompactoAtivo, data === hoje && estilos.botaoDiaCompactoHoje)}
             aria-pressed={ativo}
-            aria-label={`${rotuloDiaSemana(data)} ${dia}/${mes}${data === hoje ? ' (hoje)' : ''}`}
+            aria-label={`${rotuloDiaSemana(data)} ${dia}/${mes}${data === hoje ? ' (hoje)' : ''}${nomeFeriado ? ` — Feriado: ${nomeFeriado}` : ''}`}
+            title={nomeFeriado ? `Feriado: ${nomeFeriado}` : undefined}
             onClick={() => onEscolher(data)}
           >
             <span className={estilos.botaoDiaCompactoSemana}>{rotuloDiaSemana(data)}</span>
-            <span className={estilos.botaoDiaCompactoNumero}>{dia}</span>
+            <span className={estilos.botaoDiaCompactoNumero}>
+              {dia}
+              {nomeFeriado && <span className={estilos.marcaFeriado} aria-hidden="true">F*</span>}
+            </span>
           </button>
         );
       })}

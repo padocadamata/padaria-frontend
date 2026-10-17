@@ -31,31 +31,49 @@ export default function PeriodosEditor({ periodos, onAlterar, podeEditar, mostra
     onAlterar(periodos.filter((_, i) => i !== indice));
   }
 
+  // Layout: com 2+ períodos, cada um vira um bloco próprio ("Período N" +
+  // Remover no topo, campos embaixo); Entrada/Saída têm largura mínima e
+  // QUEBRAM de linha (nunca encolhem a ponto do campo de horário invadir o
+  // rótulo vizinho). Comportamento (adicionar/remover/alterar) inalterado.
+  const varios = periodos.length > 1;
   return (
     <div className={estilos.listaPeriodos}>
       {periodos.map((periodo, indice) => (
-        <div key={indice} className={estilos.linhaPeriodo}>
-          <Field label="Entrada">
-            <Input type="time" value={periodo.hora_inicio} disabled={!podeEditar} onChange={(e) => atualizar(indice, 'hora_inicio', e.target.value)} />
-          </Field>
-          <Field label="Saída">
-            <Input type="time" value={periodo.hora_fim} disabled={!podeEditar} onChange={(e) => atualizar(indice, 'hora_fim', e.target.value)} />
-          </Field>
-          {mostrarNaturezaFinanceira && podeEditar && (
-            <Checkbox
-              rotulo="Extra remunerado"
-              checked={periodo.natureza_financeira === 'extra_remunerado'}
-              onChange={(e) => atualizar(indice, 'natureza_financeira', e.target.checked ? 'extra_remunerado' : 'normal')}
-            />
+        <div
+          key={indice}
+          className={varios ? estilos.periodoBloco : undefined}
+          role={varios ? 'group' : undefined}
+          aria-label={varios ? `Período ${indice + 1}` : undefined}
+        >
+          {varios && (
+            <div className={estilos.periodoTopo}>
+              <span className={estilos.periodoTitulo}>Período {indice + 1}</span>
+              {podeEditar && (
+                <Button type="button" variante="secondary" tamanho="sm" onClick={() => remover(indice)} aria-label={`Remover período ${indice + 1}`}>
+                  Remover
+                </Button>
+              )}
+            </div>
           )}
-          {(!mostrarNaturezaFinanceira || !podeEditar) && periodo.natureza_financeira === 'extra_remunerado' && (
-            <Badge tom="info">Extra remunerado</Badge>
-          )}
-          {podeEditar && periodos.length > 1 && (
-            <Button type="button" variante="secondary" tamanho="sm" onClick={() => remover(indice)}>
-              Remover
-            </Button>
-          )}
+          <div className={estilos.linhaPeriodo}>
+            <Field label="Entrada" className={estilos.campoHorario}>
+              <Input type="time" value={periodo.hora_inicio} disabled={!podeEditar} onChange={(e) => atualizar(indice, 'hora_inicio', e.target.value)} />
+            </Field>
+            <Field label="Saída" className={estilos.campoHorario}>
+              <Input type="time" value={periodo.hora_fim} disabled={!podeEditar} onChange={(e) => atualizar(indice, 'hora_fim', e.target.value)} />
+            </Field>
+            {mostrarNaturezaFinanceira && podeEditar && (
+              <Checkbox
+                className={estilos.extraPeriodo}
+                rotulo="Extra remunerado"
+                checked={periodo.natureza_financeira === 'extra_remunerado'}
+                onChange={(e) => atualizar(indice, 'natureza_financeira', e.target.checked ? 'extra_remunerado' : 'normal')}
+              />
+            )}
+            {(!mostrarNaturezaFinanceira || !podeEditar) && periodo.natureza_financeira === 'extra_remunerado' && (
+              <Badge tom="info">Extra remunerado</Badge>
+            )}
+          </div>
         </div>
       ))}
       {podeEditar && (

@@ -4,6 +4,7 @@ import Select from '../ui/Select';
 import { funcionariasDisponiveisNoFiltro, normalizarFiltroEscala } from '../../lib/funcionarios/escalaFiltro';
 import estilos from './escala.module.css';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
+import { rotulosFuncionariasFiltro } from '../../lib/funcionarios/escalaNomes';
 
 // Grupo compacto "Cargo | Funcionária | PDF | Excel" -- entra no MESMO
 // cabeçalho de cada visão da Escala (no lugar do antigo select de cargo),
@@ -31,7 +32,11 @@ export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, 
 
   // Funcionária depende do cargo: lista só as compatíveis e, ao trocar
   // para um cargo incompatível, a seleção é limpa (normalizarFiltroEscala).
-  const funcionariasDisponiveis = ordenarOpcoes(funcionariasDisponiveisNoFiltro(funcionarios, filtro.cargoId));
+  // Rótulo compacto (primeiro nome; homônimos com o último sobrenome) só
+  // para exibição -- o value continua sendo o id da funcionária.
+  const disponiveis = funcionariasDisponiveisNoFiltro(funcionarios, filtro.cargoId);
+  const rotulos = rotulosFuncionariasFiltro(disponiveis);
+  const funcionariasDisponiveis = ordenarOpcoes(disponiveis, (f) => rotulos.get(f.id));
   function mudarFiltro(parcial) {
     onFiltroChange(normalizarFiltroEscala({ ...filtro, ...parcial }, funcionarios));
   }
@@ -51,7 +56,7 @@ export default function EscalaFiltrosExportacao({ cargos, funcionarios, filtro, 
       <Select value={filtro.funcionarioId} onChange={(e) => mudarFiltro({ funcionarioId: e.target.value })} aria-label="Filtrar por funcionária">
         <option value="">Todas as funcionárias</option>
         {funcionariasDisponiveis.map((f) => (
-          <option key={f.id} value={f.id}>{f.nome}</option>
+          <option key={f.id} value={f.id} title={f.nome}>{rotulos.get(f.id)}</option>
         ))}
       </Select>
     </>

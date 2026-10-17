@@ -1,17 +1,22 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { dataLocalHoje, somarDias } from '../../lib/data/dataLocal';
 import { buscarEscalaPeriodo, ROTULO_DIA_SEMANA, formatarDataCurta, formatarPeriodoSemana, formatarHora, inicioDaSemana } from '../../lib/funcionarios/escala';
-import { resolverCoberturaPeriodo, obterPrimeiroNome } from '../../lib/funcionarios/escalaCobertura';
+import { resolverCoberturaPeriodo } from '../../lib/funcionarios/escalaCobertura';
+import { nomeCompactoEscala } from '../../lib/funcionarios/escalaNomes';
+import { agruparPorCargo, rotuloQuantidadeFuncionarias } from '../../lib/funcionarios/escalaGrupos';
 import { filtrarFuncionariosEscala, funcionariosDoCargo, descreverFiltroEscala } from '../../lib/funcionarios/escalaFiltro';
-import { montarExportacaoCobertura } from '../../lib/funcionarios/escalaExportacao';
+import { montarExportacaoCobertura, basesDeCobertura } from '../../lib/funcionarios/escalaExportacao';
 import { exportarRelatorio } from '../../lib/exportacao/exportar';
 import { cx } from '../../lib/design/cx';
+import Alert from '../ui/Alert';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import IndicadorVinculo from './IndicadorVinculo';
 import EscalaFiltrosExportacao from './EscalaFiltrosExportacao';
+import { useFeriadosPeriodo, AvisoErroFeriados, MarcaFeriado, LegendaFeriados } from './EscalaFeriados';
 import { ListaFaixasCobertura } from './EscalaCoberturaDiaModal';
 import { NavegacaoCompacta, SeletorDia } from './EscalaCompacta';
+import { useAlturaGrade } from './useAlturaGrade';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { MQ_ESCALA_COMPACTA, diaSelecionadoNaLista } from '../../lib/funcionarios/escalaMobile';
 import estilos from './escala.module.css';
@@ -99,13 +104,16 @@ function calcularJanelaHoraria(todosOsPeriodos) {
 // Cabeçalho de UM dia: rótulo (dia da semana + data) + eixo de horas em
 // miniatura -- o eixo aparece só AQUI, nunca repetido linha a linha (seção
 // "evitar repetição desnecessária" da instrução aprovada).
-function CabecalhoDiaCobertura({ data, janela }) {
+// nomeFeriado (opcional): "F*" ao lado da data (balão com o nome no
+// hover/foco) -- só informação, não muda nenhum cálculo da cobertura.
+function CabecalhoDiaCobertura({ data, janela, nomeFeriado }) {
   const indice = new Date(`${data}T12:00:00`).getDay();
   const horas = [];
   for (let m = janela.inicio; m <= janela.fim; m += 60) horas.push(m);
   return (
     <div className={estilos.cabecalhoDiaCobertura}>
       <strong>{ROTULO_DIA_SEMANA[indice]} {formatarDataCurta(data)}</strong>
+      <MarcaFeriado nome={nomeFeriado} />
       <div className={estilos.eixoHorarioCobertura}>
         {horas.map((m) => (
           <span key={m} className={estilos.marcaHoraCobertura} style={{ left: `${pct(m, janela)}%` }}>
@@ -178,8 +186,18 @@ function TrilhaCoberturaDia({ faixas, janela }) {
 // lado nas colunas, cada um com sua própria faixa temporal proporcional
 // (mesma janela horária para todos, calculada sobre o período inteiro).
 // Somente leitura. Todo o cálculo vem do motor único de cobertura
-// (lib/funcionarios/escalaCobertura.js), chamado 1x por dia exibido -- este
-// componente só organiza e posiciona.
+// (lib/funcionarios/escalaCobertura.js) -- este componente só organiza e
+// posiciona.
+//
+// Organizada por CARGO sobre a população dos filtros Cargo/Funcionária:
+// uma grade só, com o título de cada cargo exibido, as trilhas das
+// funcionárias dele e a linha "Cobertura · cargo"; no fim, "Cobertura
+// geral". Semântica dos filtros (a publicada antes desta frente): a BASE
+// do cálculo é a equipe do recorte de CARGO; o filtro de FUNCIONÁRIA só
+// restringe as linhas individuais -- a cobertura nunca "vira 1" porque uma
+// pessoa foi filtrada. Com um único cargo na base, só a geral (seria
+// repetida). A janela horária é a da base: todos os grupos usam o mesmo
+// eixo e continuam comparáveis.
 // Período padrão = semana OPERACIONAL corrente (segunda a domingo), a
 // mesma da visão Semanal -- inicioDaSemana de lib/funcionarios/escala.js.
 function inicioDaSemanaCorrente(data) {
@@ -191,6 +209,8 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
   const [dataFim, setDataFim] = useState(() => somarDias(inicioDaSemanaCorrente(dataLocalHoje()), 6));
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const altura = useAlturaGrade();
 
   const dias = useMemo(() => intervaloDeDias(dataInicio, dataFim), [dataInicio, dataFim]);
 
@@ -200,15 +220,30 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
   const [diaEscolhido, setDiaEscolhido] = useState('');
   const diaAtivo = diaSelecionadoNaLista(dias, dataLocalHoje(), diaEscolhido);
 
+  // Base do cálculo (recorte de cargo) x linhas exibidas (cargo +
+  // funcionária), ambas agrupadas por cargo.
+  const gruposBase = useMemo(() => agruparPorCargo(funcionariosDoCargo(funcionarios, filtro.cargoId)), [filtro.cargoId, funcionarios]);
+  const funcionariosExibidos = useMemo(() => filtrarFuncionariosEscala(funcionarios, filtro), [filtro, funcionarios]);
+  const grupos = useMemo(() => agruparPorCargo(funcionariosExibidos), [funcionariosExibidos]);
+  const filtroDescricao = descreverFiltroEscala(filtro, { cargos, funcionarios });
+  const { feriados, erroFeriados } = useFeriadosPeriodo(dias[0], dias[dias.length - 1]);
+
   useEffect(() => {
     let ativo = true;
     async function carregar() {
       setCarregando(true);
-      const idsFuncionarios = funcionarios.map((f) => f.id);
-      const mapa = await buscarEscalaPeriodo(idsFuncionarios, dias[0], dias[dias.length - 1]);
-      if (!ativo) return;
-      setMapaEscala(mapa);
-      setCarregando(false);
+      setErro('');
+      try {
+        const mapa = await buscarEscalaPeriodo(funcionarios.map((f) => f.id), dias[0], dias[dias.length - 1]);
+        if (!ativo) return;
+        setMapaEscala(mapa);
+      } catch {
+        if (!ativo) return;
+        // Nunca mostra uma escala incompleta.
+        setMapaEscala(null);
+        setErro('Não foi possível carregar a escala. Atualize a página para tentar novamente.');
+      }
+      if (ativo) setCarregando(false);
     }
     carregar();
     return () => {
@@ -217,25 +252,28 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataInicio, dataFim, funcionarios]);
 
-  // Semântica da Cobertura: o CÁLCULO usa a equipe do recorte de cargo
-  // (como sempre foi); o filtro de FUNCIONÁRIA só restringe as linhas
-  // individuais exibidas/exportadas -- a linha "Cobertura" nunca vira "1"
-  // só porque uma pessoa foi filtrada.
-  const funcionariosBase = useMemo(() => funcionariosDoCargo(funcionarios, filtro.cargoId), [filtro.cargoId, funcionarios]);
-  const funcionariosExibidos = useMemo(() => filtrarFuncionariosEscala(funcionarios, filtro), [filtro, funcionarios]);
-
-  // Resolve 1x por dia exibido (motor único, resolverCoberturaPeriodo) --
-  // quem cobre cada dia (por funcionario_id) e as faixas de cobertura
-  // agregada daquele dia; aqui só a janela horária da grade é derivada.
-  const { porFuncionarioEDia, faixasPorDia, janela } = useMemo(() => {
-    const { porFuncionarioEDia, faixasPorDia, todosOsPeriodos } = resolverCoberturaPeriodo({ funcionarios: funcionariosBase, mapaEscala, dias });
-    return { porFuncionarioEDia, faixasPorDia, janela: calcularJanelaHoraria(todosOsPeriodos) };
-  }, [dias, funcionariosBase, mapaEscala]);
-
-  const filtroDescricao = descreverFiltroEscala(filtro, { cargos, funcionarios });
+  // Resolve 1x por dia exibido e por BASE (motor único,
+  // resolverCoberturaPeriodo): a geral (equipe toda) dá as trilhas
+  // individuais, a janela horária e a "Cobertura geral"; cada cargo dá a
+  // sua linha de cobertura. Mesmas bases da exportação (basesDeCobertura).
+  const { porFuncionarioEDia, faixasGerais, faixasPorCargo, janela } = useMemo(() => {
+    if (!mapaEscala) return { porFuncionarioEDia: new Map(), faixasGerais: new Map(), faixasPorCargo: new Map(), janela: JANELA_PADRAO };
+    const [geral, ...porCargo] = basesDeCobertura(gruposBase, grupos);
+    const resolvidaGeral = resolverCoberturaPeriodo({ funcionarios: geral.funcionarios, mapaEscala, dias });
+    const faixasCargo = new Map();
+    for (const base of porCargo) {
+      faixasCargo.set(base.chave, resolverCoberturaPeriodo({ funcionarios: base.funcionarios, mapaEscala, dias }).faixasPorDia);
+    }
+    return {
+      porFuncionarioEDia: resolvidaGeral.porFuncionarioEDia,
+      faixasGerais: resolvidaGeral.faixasPorDia,
+      faixasPorCargo: faixasCargo,
+      janela: calcularJanelaHoraria(resolvidaGeral.todosOsPeriodos),
+    };
+  }, [dias, grupos, gruposBase, mapaEscala]);
 
   function exportar(formato) {
-    const modelo = montarExportacaoCobertura({ dias, funcionarios: funcionariosExibidos, funcionariosBase, mapaEscala, filtroDescricao });
+    const modelo = montarExportacaoCobertura({ dias, grupos, gruposBase, mapaEscala, filtroDescricao, feriados });
     return exportarRelatorio(modelo, formato);
   }
 
@@ -277,8 +315,12 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
   const numDias = Math.max(dias.length, 1);
   const gridColunas = `${LARGURA_FUNCIONARIO}px ${LARGURA_VINCULO}px repeat(${numDias}, ${LARGURA_DIA}px)`;
   const larguraTotalGrid = LARGURA_FUNCIONARIO + LARGURA_VINCULO + numDias * LARGURA_DIA;
+  const temPorCargo = faixasPorCargo.size > 0;
+  // Rótulo da linha geral: "Cobertura geral" com vários cargos na base; com
+  // um só (ex.: filtro de cargo), "Cobertura".
+  const rotuloGeral = temPorCargo ? 'Cobertura geral' : 'Cobertura';
 
-  const filtrosExportacao = (
+  const exportacao = (
     <EscalaFiltrosExportacao
       cargos={cargos}
       funcionarios={funcionarios}
@@ -286,7 +328,7 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
       onFiltroChange={onFiltroChange}
       rotuloVisao="Cobertura"
       onExportar={exportar}
-      desabilitarExportacao={carregando || dias.length === 0 || funcionariosExibidos.length === 0}
+      desabilitarExportacao={carregando || !mapaEscala || dias.length === 0 || funcionariosExibidos.length === 0}
     />
   );
 
@@ -302,7 +344,7 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
             onHoje={irParaHoje}
             onProximo={() => deslocarPeriodo(1)}
           />
-          <div className={estilos.grupoCompacto}>{filtrosExportacao}</div>
+          <div className={estilos.grupoCompacto}>{exportacao}</div>
         </div>
       ) : (
         <div className={estilos.cabecalhoSemana}>
@@ -312,7 +354,7 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
             <Button variante="secondary" tamanho="sm" onClick={() => deslocarPeriodo(1)}>Próximo período →</Button>
           </div>
           <h3 className={estilos.tituloSemana}>{dias.length > 0 ? formatarPeriodoSemana(dias) : ''}</h3>
-          {filtrosExportacao}
+          {exportacao}
         </div>
       )}
 
@@ -328,63 +370,116 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
         <span className={estilos.notaOcorrencia}>Máximo de {MAX_DIAS} dias por análise.</span>
       </div>
 
+      {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
+      <AvisoErroFeriados visivel={erroFeriados} />
+
       {filtro.funcionarioId && funcionariosExibidos.length > 0 && (
         <p className={estilos.notaOcorrencia}>
-          A linha <strong>Cobertura</strong> continua contando toda a equipe ({filtroDescricao.cargo ? `cargo ${filtroDescricao.cargo}` : 'todos os cargos'}) -- o filtro de funcionária só restringe as linhas individuais.
+          A linha <strong>{rotuloGeral}</strong> continua contando toda a equipe ({filtroDescricao.cargo ? `cargo ${filtroDescricao.cargo}` : 'todos os cargos'}) -- o filtro de funcionária só restringe as linhas individuais.
         </p>
       )}
 
-      {compacta && dias.length > 1 && <SeletorDia dias={dias} valor={diaAtivo} onEscolher={setDiaEscolhido} />}
+      {compacta && dias.length > 1 && <SeletorDia dias={dias} valor={diaAtivo} onEscolher={setDiaEscolhido} feriados={feriados} />}
 
       {carregando || dias.length === 0 ? (
         <p role="status">Carregando escala...</p>
-      ) : funcionariosExibidos.length === 0 ? (
+      ) : !mapaEscala ? null : funcionariosExibidos.length === 0 ? (
         <p className={estilos.notaOcorrencia}>Nenhum funcionário para este filtro.</p>
       ) : compacta ? (
         <div className={estilos.coberturaCompacta}>
           <div className={estilos.timelineCompacta}>
             <span className={estilos.cantoCompacto} />
-            <CabecalhoDiaCobertura data={diaAtivo} janela={janela} />
-            {funcionariosExibidos.map((funcionario) => (
-              <Fragment key={funcionario.id}>
-                <span className={estilos.nomeCompacto} title={funcionario.nome}>
-                  <span className={estilos.nomeCompactoTexto}>{funcionario.nome}</span>
-                  <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
-                </span>
-                <TrilhaFuncionarioDia item={porFuncionarioEDia.get(diaAtivo)?.get(funcionario.id) || null} janela={janela} />
+            <CabecalhoDiaCobertura data={diaAtivo} janela={janela} nomeFeriado={feriados.get(diaAtivo)} />
+            {grupos.map((grupo) => (
+              <Fragment key={grupo.chave}>
+                <TituloGrupoCobertura grupo={grupo} />
+                {grupo.funcionarios.map((funcionario) => (
+                  <Fragment key={funcionario.id}>
+                    <span className={estilos.nomeCompacto} title={funcionario.nome}>
+                      <span className={estilos.nomeCompactoTexto}>{nomeCompactoEscala(funcionario.nome)}</span>
+                      <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
+                    </span>
+                    <TrilhaFuncionarioDia item={porFuncionarioEDia.get(diaAtivo)?.get(funcionario.id) || null} janela={janela} />
+                  </Fragment>
+                ))}
+                {faixasPorCargo.has(grupo.chave) && (
+                  <>
+                    <span className={cx(estilos.nomeCompacto, estilos.nomeCompactoTotal)} title={`Cobertura · ${grupo.nome}`}>
+                      <strong className={estilos.nomeCompactoTexto}>Cobertura</strong>
+                    </span>
+                    <TrilhaCoberturaDia faixas={faixasPorCargo.get(grupo.chave).get(diaAtivo) || []} janela={janela} />
+                  </>
+                )}
               </Fragment>
             ))}
-            <span className={cx(estilos.nomeCompacto, estilos.nomeCompactoTotal)}><strong>Cobertura</strong></span>
-            <TrilhaCoberturaDia faixas={faixasPorDia.get(diaAtivo) || []} janela={janela} />
+            <span className={cx(estilos.nomeCompacto, estilos.nomeCompactoTotal)}>
+              <strong>{rotuloGeral}</strong>
+            </span>
+            <TrilhaCoberturaDia faixas={faixasGerais.get(diaAtivo) || []} janela={janela} />
           </div>
           <div className={estilos.secaoOcorrencia}>
-            <h4 className={estilos.tituloOcorrencia}>Cobertura por horário</h4>
-            <ListaFaixasCobertura faixas={faixasPorDia.get(diaAtivo) || []} />
+            <h4 className={estilos.tituloOcorrencia}>{temPorCargo ? 'Cobertura geral por horário' : 'Cobertura por horário'}</h4>
+            <ListaFaixasCobertura faixas={faixasGerais.get(diaAtivo) || []} />
           </div>
         </div>
       ) : (
-        <div className={estilos.envolucroCobertura}>
+        <div ref={altura.ref} className={estilos.envolucroCobertura} style={altura.estilo}>
           <div className={estilos.timelineCobertura} style={{ gridTemplateColumns: gridColunas, minWidth: `${larguraTotalGrid}px` }}>
             <span className={estilos.cantoCobertura} />
             <span className={estilos.cabecalhoVinculoCobertura} style={{ left: LARGURA_FUNCIONARIO }}>Vínculo</span>
             {dias.map((data) => (
-              <CabecalhoDiaCobertura key={data} data={data} janela={janela} />
+              <CabecalhoDiaCobertura key={data} data={data} janela={janela} nomeFeriado={feriados.get(data)} />
             ))}
 
-            {funcionariosExibidos.map((funcionario) => (
-              <FragmentoLinhaFuncionario key={funcionario.id} funcionario={funcionario} dias={dias} porFuncionarioEDia={porFuncionarioEDia} janela={janela} />
+            {grupos.map((grupo) => (
+              <Fragment key={grupo.chave}>
+                <TituloGrupoCobertura grupo={grupo} />
+                {grupo.funcionarios.map((funcionario) => (
+                  <FragmentoLinhaFuncionario key={funcionario.id} funcionario={funcionario} dias={dias} porFuncionarioEDia={porFuncionarioEDia} janela={janela} />
+                ))}
+                {faixasPorCargo.has(grupo.chave) && (
+                  <LinhaCobertura rotulo={`Cobertura · ${grupo.nome}`} dias={dias} faixasPorDia={faixasPorCargo.get(grupo.chave)} janela={janela} />
+                )}
+              </Fragment>
             ))}
 
-            <span className={cx(estilos.nomeCoberturaFixo, estilos.nomeCoberturaFixoTotal)}><strong>Cobertura</strong></span>
-            <span className={cx(estilos.vinculoCobertura, estilos.vinculoCoberturaTotal)} style={{ left: LARGURA_FUNCIONARIO }} />
-            {dias.map((data) => (
-              <TrilhaCoberturaDia key={data} faixas={faixasPorDia.get(data) || []} janela={janela} />
-            ))}
+            <LinhaCobertura rotulo={rotuloGeral} dias={dias} faixasPorDia={faixasGerais} janela={janela} />
           </div>
         </div>
       )}
 
-      <p className={estilos.legenda}>Visão somente leitura -- para editar a escala, use a visão Semanal.</p>
+      <p className={estilos.legenda}>Visão somente leitura -- para editar a escala, use a visão Semanal ou a Mensal.</p>
+      <LegendaFeriados feriados={feriados} dias={dias} />
+    </>
+  );
+}
+
+// Título do cargo: UM filho do grid ocupando a linha inteira (grid-column
+// 1 / -1); o texto fica preso à esquerda durante a rolagem horizontal.
+function TituloGrupoCobertura({ grupo }) {
+  return (
+    <div className={estilos.grupoCobertura} role="heading" aria-level={4}>
+      <span className={estilos.tituloGrupoCobertura}>
+        <span className={estilos.tituloGrupoNome}>{grupo.nome}</span>
+        <span className={estilos.tituloGrupoContagem}>{rotuloQuantidadeFuncionarias(grupo.funcionarios.length)}</span>
+      </span>
+    </div>
+  );
+}
+
+// Linha de cobertura agregada (do cargo ou geral): rótulo fixo + vínculo
+// vazio + 1 trilha por dia -- N+2 filhos diretos, como as linhas de
+// funcionário (precisa bater com gridColunas).
+function LinhaCobertura({ rotulo, dias, faixasPorDia, janela }) {
+  return (
+    <>
+      <span className={cx(estilos.nomeCoberturaFixo, estilos.nomeCoberturaFixoTotal)} title={rotulo}>
+        <strong className={estilos.nomeCoberturaTexto}>{rotulo}</strong>
+      </span>
+      <span className={cx(estilos.vinculoCobertura, estilos.vinculoCoberturaTotal)} style={{ left: LARGURA_FUNCIONARIO }} />
+      {dias.map((data) => (
+        <TrilhaCoberturaDia key={data} faixas={faixasPorDia.get(data) || []} janela={janela} />
+      ))}
     </>
   );
 }
@@ -399,7 +494,7 @@ function FragmentoLinhaFuncionario({ funcionario, dias, porFuncionarioEDia, jane
   return (
     <>
       <span className={estilos.nomeCoberturaFixo} title={funcionario.nome}>
-        {obterPrimeiroNome(funcionario.nome)}
+        {nomeCompactoEscala(funcionario.nome)}
       </span>
       <span className={estilos.vinculoCobertura} style={{ left: LARGURA_FUNCIONARIO }}>
         <IndicadorVinculo tipoVinculo={funcionario.tipo_vinculo} />
