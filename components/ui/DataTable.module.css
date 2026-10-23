@@ -171,6 +171,11 @@
   min-width: 0;
 }
 
+/* Coluna com `cartaoLargo`: ocupa a linha inteira da grade do cartão. */
+.metaItemLargo {
+  grid-column: 1 / -1;
+}
+
 .metaItem dt {
   font-size: var(--ds-fs-aux);
   line-height: var(--ds-lh-aux);

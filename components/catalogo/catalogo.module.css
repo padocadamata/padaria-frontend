@@ -93,6 +93,57 @@
   color: var(--ds-danger, #b3261e);
 }
 
+/* ------------------- listagem: colunas compactas/combinadas -------------- */
+
+/* Traço/texto discreto: fora de Produção, sem histórico, carregando, falha. */
+.discreto {
+  color: var(--ds-text-muted);
+}
+
+/* Seção / Categoria (e os dois selects na edição) empilhados. */
+.empilhado {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.secundario {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+/* Menor preço (3 meses): preço sem quebra; fornecedor pode quebrar. */
+.menorPreco {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 240px;
+}
+
+.menorPrecoValor {
+  font-weight: var(--ds-fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.menorPrecoFornecedor {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.menorPrecoAviso {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-warning);
+  overflow-wrap: anywhere;
+}
+
+.avisoPrecos {
+  margin: 0 0 var(--ds-sp-3);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
 /* --------------------------- página de detalhe -------------------------- */
 
 .voltar {

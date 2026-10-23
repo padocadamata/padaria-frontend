@@ -22,7 +22,11 @@ import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
 import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
+import { buscarMenorPrecoJanela, unidadeDoMenorPreco } from '../lib/pedidos/menorPreco';
+import { formatarPrecoBase } from '../lib/pedidos/historicoCompras';
 import { useAuth } from '../hooks/useAuth';
+
+const AJUDA_MENOR_PRECO = 'Menor preço comparável dos últimos 3 meses';
 
 // Lote pequeno e conservador de propósito: fica bem abaixo do db-max-rows
 // padrão do PostgREST/Supabase (tipicamente 1000) mesmo em configurações
@@ -102,8 +106,74 @@ function BadgeStatus({ ativo }) {
 // Produção acontece exclusivamente em DadosProdutoForm (dentro de
 // /catalogo/[id]), nunca aqui -- ver decisão da rodada de unificação
 // Catálogo x Produção (não criar uma terceira rota de escrita).
+// Compacto: o selo só aparece para quem ESTÁ em Produção; fora dela, um
+// traço discreto (mesma regra producaoAtiva de antes, só a apresentação mudou).
 function BadgeProducao({ ativo }) {
-  return <Badge tom={ativo ? 'info' : 'neutral'}>{ativo ? 'Em Produção' : 'Fora de Produção'}</Badge>;
+  if (ativo) return <Badge tom="info">Em produção</Badge>;
+  return (
+    <span className={estilos.discreto} title="Fora de Produção" aria-label="Fora de Produção">
+      —
+    </span>
+  );
+}
+
+// Célula "Menor preço (3 meses)" -- somente leitura (inclusive em edição),
+// três estados distintos: carregando (…), falha (Indisponível -- nunca "—",
+// que significaria "sem histórico") e sem compra comparável na janela (—).
+// A unidade é a da compra vencedora (snapshot unidade_base_no_momento),
+// nunca convertida; divergência com o cadastro atual é avisada.
+function CelulaMenorPreco({ produto, menorPreco }) {
+  if (menorPreco.estado === 'carregando') {
+    return (
+      <span className={estilos.discreto} role="status" aria-label="Carregando menor preço">
+        …
+      </span>
+    );
+  }
+  if (menorPreco.estado === 'erro') {
+    return (
+      <span className={estilos.discreto} title="Não foi possível carregar o histórico de preços.">
+        Indisponível
+      </span>
+    );
+  }
+
+  const menor = menorPreco.mapa.get(produto.id);
+  if (!menor) {
+    return (
+      <span className={estilos.discreto} title="Nenhuma compra comparável nos últimos 3 meses" aria-label="Sem histórico nos últimos 3 meses">
+        —
+      </span>
+    );
+  }
+
+  const { unidade, unidadeAtual, divergente, unidadesMistas } = unidadeDoMenorPreco(menor, produto.unidade_medida);
+
+  return (
+    <div className={estilos.menorPreco}>
+      <span className={estilos.menorPrecoValor}>{formatarPrecoBase(menor.precoBase, unidade)}</span>
+      <span className={estilos.menorPrecoFornecedor}>
+        {menor.fornecedor || 'Fornecedor não identificado'}
+        {menor.fornecedorAtivo === false && <span className={estilos.discreto}> (inativo)</span>}
+      </span>
+      {divergente && (
+        <span
+          className={estilos.menorPrecoAviso}
+          title={`O preço foi registrado por ${unidade}; o cadastro atual do produto usa ${unidadeAtual}. Nenhuma conversão é feita.`}
+        >
+          Unidade da compra: {unidade} (cadastro: {unidadeAtual})
+        </span>
+      )}
+      {!divergente && unidadesMistas && (
+        <span
+          className={estilos.menorPrecoAviso}
+          title={`Compras da janela em unidades diferentes: ${menor.unidadesNaJanela.join(', ')}. Nenhuma conversão é feita.`}
+        >
+          Compras em unidades diferentes
+        </span>
+      )}
+    </div>
+  );
 }
 
 // Mesmo princípio já usado em mensagemErroReaberturaRecebimento (pages/
@@ -144,10 +214,12 @@ async function carregarClassificacoes(supabase) {
   return { secoes: secoesData || [], categorias: categoriasData || [] };
 }
 
-// Listagem do Catálogo de Produtos (public.produtos). Deliberadamente SEM
-// nenhuma coluna de preço -- "Não transformar essa página em uma tabela
-// de preços" (preço/comparação de preço vive em /catalogo/[id], card
-// "Resumo de preços"). Permite ordenar por cabeçalho (client-side, sobre
+// Listagem do Catálogo de Produtos (public.produtos). Única informação de
+// preço da listagem: "Menor preço (3 meses)" + fornecedor, pela MESMA regra
+// de Pedidos > Solicitações (lib/pedidos/menorPreco.js, frente 2026-10-23,
+// revendo a decisão anterior de não ter preço aqui). Comparação/histórico
+// completo continuam em /catalogo/[id], card "Resumo de preços". Permite
+// ordenar por cabeçalho (client-side, sobre
 // o conjunto completo já carregado pelos lotes de buscarTodosProdutos) e
 // editar os campos principais direto na linha (nome/código G3/código de
 // barras/seção/categoria/unidade/status) sem abrir /catalogo/[id] --
@@ -176,6 +248,13 @@ function CatalogoConteudo() {
   // vez (mesmo padrão de secoes/categorias abaixo), não por linha.
   const [producaoPorProdutoId, setProducaoPorProdutoId] = useState(new Map());
 
+  // Menor preço (3 meses) de TODOS os produtos -- regra única de
+  // lib/pedidos/menorPreco.js (a mesma de Pedidos > Solicitações). Uma
+  // leitura em lotes da janela inteira, carregada UMA vez: filtros,
+  // busca, ordenação e paginação são todos no navegador e não disparam
+  // nova consulta. Falha aqui nunca bloqueia o resto do Catálogo.
+  const [menorPreco, setMenorPreco] = useState({ estado: 'carregando', mapa: new Map() });
+
   const [filtroStatus, setFiltroStatus] = useState('ativos');
   const [filtroSecaoId, setFiltroSecaoId] = useState('todas');
   const [filtroCategoriaId, setFiltroCategoriaId] = useState('todas');
@@ -186,8 +265,8 @@ function CatalogoConteudo() {
 
   // Ordenação do cabeçalho (lib/ordenacao): estado local, nunca salvo. O
   // Catálogo sempre abriu ordenado por Produto A → Z com a seta visível --
-  // `inicial` preserva isso. Ativo antes de Inativo no crescente; Seção/
-  // Categoria pelos nomes DERIVADOS (secaoNome/categoriaNome), vazios no fim.
+  // `inicial` preserva isso. Ativo antes de Inativo no crescente; Seção /
+  // Categoria pelos nomes DERIVADOS (Seção, depois Categoria), sem Seção no fim.
   const ordenacao = useOrdenacao({ inicial: { chave: 'nome', direcao: 'asc' }, aoMudar: () => setPagina(1) });
 
   // Edição inline: uma linha por produto.id em edicoes[] entra em modo
@@ -256,6 +335,34 @@ function CatalogoConteudo() {
     }
 
     carregarProducao();
+    return () => {
+      efeitoAtivo = false;
+    };
+  }, []);
+
+  // Sem dependência de filtroStatus: a janela de preços vale para qualquer
+  // recorte da lista (o Map é consultado por produto.id a cada render).
+  useEffect(() => {
+    let efeitoAtivo = true;
+
+    async function carregarMenorPreco() {
+      try {
+        const { mapa, error } = await buscarMenorPrecoJanela(createClient());
+        if (!efeitoAtivo) return;
+        if (error) {
+          console.error('Erro ao carregar menor preço (3 meses) do Catálogo:', error);
+          setMenorPreco({ estado: 'erro', mapa: new Map() });
+          return;
+        }
+        setMenorPreco({ estado: 'pronto', mapa });
+      } catch (error) {
+        if (!efeitoAtivo) return;
+        console.error('Erro ao carregar menor preço (3 meses) do Catálogo:', error);
+        setMenorPreco({ estado: 'erro', mapa: new Map() });
+      }
+    }
+
+    carregarMenorPreco();
     return () => {
       efeitoAtivo = false;
     };
@@ -504,6 +611,44 @@ function CatalogoConteudo() {
     setProdutoParaExcluir(null);
   }
 
+  // Selects de Seção/Categoria da edição em linha -- os MESMOS na coluna
+  // combinada da tabela e nos pares separados dos cartões.
+  function renderSecao(produto) {
+    const dados = edicoes[produto.id];
+    if (!dados) return produto.secaoNome || '—';
+    return (
+      <Select
+        value={dados.secao_id}
+        onChange={(e) => atualizarCampoEdicao(produto.id, 'secao_id', e.target.value)}
+        className={estilos.campoInline}
+        aria-label="Seção"
+      >
+        <option value="">— Nenhuma —</option>
+        {secoes.map((s) => (
+          <option key={s.id} value={s.id}>{s.nome}</option>
+        ))}
+      </Select>
+    );
+  }
+
+  function renderCategoria(produto) {
+    const dados = edicoes[produto.id];
+    if (!dados) return produto.categoriaNome || '—';
+    return (
+      <Select
+        value={dados.categoria_id}
+        onChange={(e) => atualizarCampoEdicao(produto.id, 'categoria_id', e.target.value)}
+        className={estilos.campoInline}
+        aria-label="Categoria"
+      >
+        <option value="">— Nenhuma —</option>
+        {categorias.map((c) => (
+          <option key={c.id} value={c.id}>{c.nome}</option>
+        ))}
+      </Select>
+    );
+  }
+
   // UMA definição de colunas para a tabela (desktop) e os cartões
   // (mobile) -- mesmo padrão de pages/fornecedores.js. Cada `render` olha
   // `edicoes[produto.id]` para decidir entre texto e campo editável: a
@@ -516,6 +661,8 @@ function CatalogoConteudo() {
       ordenavel: true,
       mobile: 'titulo',
       cartaoOrdem: 0,
+      // Nome nunca truncado: quebra em quantas linhas precisar.
+      minLargura: 220,
       render: (produto) => {
         const dados = edicoes[produto.id];
         if (!dados) return produto.nome;
@@ -592,54 +739,56 @@ function CatalogoConteudo() {
         );
       },
     },
+    // Seção / Categoria: UMA coluna visual na tabela (Seção em cima,
+    // Categoria embaixo; na edição, os dois selects empilhados). Ordenação
+    // explícita: pela Seção (A → Z / Z → A); dentro da mesma Seção, pela
+    // Categoria no mesmo sentido; produto sem Seção vai para o fim nos dois
+    // sentidos (convenção de vazios do sistema). Nos cartões continuam
+    // dois pares separados (secaoNome/categoriaNome, soCartao) -- sem
+    // ordenação própria, para o "Ordenar por" não oferecer o mesmo critério
+    // duas vezes.
     {
-      chave: 'secaoNome',
-      rotulo: 'Seção',
-      ordenavel: true,
+      chave: 'classificacao',
+      rotulo: 'Seção / Categoria',
+      ordenavel: {
+        valor: (produto) => (produto.secaoNome ? `${produto.secaoNome} › ${produto.categoriaNome || ''}` : null),
+      },
+      mobile: 'oculta',
+      minLargura: 150,
       render: (produto) => {
-        const dados = edicoes[produto.id];
-        if (!dados) return produto.secaoNome || '—';
+        if (edicoes[produto.id]) {
+          return (
+            <div className={estilos.empilhado}>
+              {renderSecao(produto)}
+              {renderCategoria(produto)}
+            </div>
+          );
+        }
         return (
-          <Select
-            value={dados.secao_id}
-            onChange={(e) => atualizarCampoEdicao(produto.id, 'secao_id', e.target.value)}
-            className={estilos.campoInline}
-            aria-label="Seção"
-          >
-            <option value="">— Nenhuma —</option>
-            {secoes.map((s) => (
-              <option key={s.id} value={s.id}>{s.nome}</option>
-            ))}
-          </Select>
+          <div className={estilos.empilhado}>
+            <span>{produto.secaoNome || '—'}</span>
+            <span className={estilos.secundario}>{produto.categoriaNome || '—'}</span>
+          </div>
         );
       },
     },
     {
+      chave: 'secaoNome',
+      rotulo: 'Seção',
+      soCartao: true,
+      render: renderSecao,
+    },
+    {
       chave: 'categoriaNome',
       rotulo: 'Categoria',
-      ordenavel: true,
-      render: (produto) => {
-        const dados = edicoes[produto.id];
-        if (!dados) return produto.categoriaNome || '—';
-        return (
-          <Select
-            value={dados.categoria_id}
-            onChange={(e) => atualizarCampoEdicao(produto.id, 'categoria_id', e.target.value)}
-            className={estilos.campoInline}
-            aria-label="Categoria"
-          >
-            <option value="">— Nenhuma —</option>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
-            ))}
-          </Select>
-        );
-      },
+      soCartao: true,
+      render: renderCategoria,
     },
     {
       chave: 'unidade_medida',
       rotulo: 'Unidade',
       ordenavel: true,
+      alinhar: 'centro',
       render: (produto) => {
         const dados = edicoes[produto.id];
         if (!dados) return produto.unidade_medida || '—';
@@ -659,7 +808,19 @@ function CatalogoConteudo() {
       chave: 'producao',
       rotulo: 'Produção',
       ordenavel: { tipo: 'booleano', valor: (produto) => produto.producaoAtiva },
+      semQuebra: true,
       render: (produto) => <BadgeProducao ativo={produto.producaoAtiva} />,
+    },
+    // Somente leitura sempre (inclusive com a linha em edição). Ordena pelo
+    // preço-base (vazios -- sem histórico/carregando/falha -- no fim).
+    {
+      chave: 'menorPreco',
+      rotulo: 'Menor preço (3 meses)',
+      ajuda: AJUDA_MENOR_PRECO,
+      ordenavel: { tipo: 'moeda', valor: (produto) => menorPreco.mapa.get(produto.id)?.precoBase ?? null },
+      minLargura: 150,
+      cartaoLargo: true,
+      render: (produto) => <CelulaMenorPreco produto={produto} menorPreco={menorPreco} />,
     },
   ];
 
@@ -699,7 +860,7 @@ function CatalogoConteudo() {
     <PageShell titulo="Catálogo">
       <PageHeader
         titulo="Catálogo"
-        subtitulo="Cadastro mestre de produtos comprados — nome, códigos, seção/categoria e unidade-base. Fornecedores e histórico de compras ficam na página de cada produto."
+        subtitulo="Cadastro mestre de produtos comprados — nome, códigos, seção/categoria e unidade-base. Menor preço dos últimos 3 meses na lista; fornecedores e histórico completo na página de cada produto."
         acoes={
           <>
             <Button variante="secondary" onClick={() => setModalClassificacoesAberto(true)}>
@@ -758,6 +919,11 @@ function CatalogoConteudo() {
         <EmptyState>Nenhum resultado para esta busca/filtro.</EmptyState>
       ) : (
         <div className={estilos.superficie}>
+          {menorPreco.estado === 'erro' && (
+            <p className={estilos.avisoPrecos} role="status">
+              Não foi possível carregar o menor preço (3 meses) agora. O restante do catálogo funciona normalmente.
+            </p>
+          )}
           <DataTable
             rotulo="Catálogo de produtos"
             colunas={colunas}

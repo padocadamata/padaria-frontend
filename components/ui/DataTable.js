@@ -27,6 +27,8 @@ import styles from './DataTable.module.css';
 //   ordenavel,         // opcional: true | { tipo, valor(linha), ordem, campoConsulta }
 //                      //   (ver lib/ordenacao/tabela.js) -- só com a prop `ordenacao`
 //   largura,           // opcional: largura da coluna ('104px', '22%') -- só com `layoutFixo`
+//   cartaoLargo,       // opcional: no cartão, o par rótulo/valor ocupa a largura inteira
+//   ajuda,             // opcional: texto de ajuda (tooltip) do cabeçalho na tabela
 // }]
 // renderAcoes(linha, { cartao }): conteúdo da coluna "Ações" / rodapé do cartão.
 // linhaExtra(linha): nó exibido logo abaixo da linha (ex.: mensagem de erro da linha).
@@ -124,7 +126,7 @@ export default function DataTable({
               {meta.length > 0 && (
                 <dl className={styles.meta}>
                   {meta.map((c) => (
-                    <div key={c.chave} className={styles.metaItem}>
+                    <div key={c.chave} className={cx(styles.metaItem, c.cartaoLargo && styles.metaItemLargo)}>
                       <dt>{c.rotulo}</dt>
                       <dd>{c.render ? c.render(linha) : linha[c.chave]}</dd>
                     </div>
@@ -182,6 +184,7 @@ export default function DataTable({
                   key={c.chave}
                   className={cx(c.alinhar === 'direita' && styles.dir, c.alinhar === 'centro' && styles.centro, def && styles.thOrdenavel)}
                   style={c.minLargura ? { minWidth: c.minLargura } : undefined}
+                  title={c.ajuda}
                   aria-sort={ariaSort(ativa, ordenacao?.direcao)}
                 >
                   {def ? (
