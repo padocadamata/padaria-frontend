@@ -29,6 +29,8 @@ import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_HISTORICO, regrasSaneamentoHistorico } from '../../lib/filtros/telas';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 // Ordenação pelo cabeçalho com paginação NA CONSULTA: só colunas que são
@@ -135,8 +137,9 @@ function HistoricoConteudo() {
   const [erro, setErro] = useState('');
   const [erroRegistros, setErroRegistros] = useState('');
   const [pagina, setPagina] = useState(1);
-  // Estado local (nunca salvo); mudar a ordenação volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Guardada durante a sessão de login (só a escolha; a consulta paginada
+  // continua ordenando no banco); mudar a ordenação volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'producao.historico' });
   const ordenacaoEscolhida = ordenacao.ordenacao;
 
   const [registroVisualizado, setRegistroVisualizado] = useState(null);
@@ -145,12 +148,19 @@ function HistoricoConteudo() {
   const [mostrarLancarRetroativo, setMostrarLancarRetroativo] = useState(false);
   const [recarregarTick, setRecarregarTick] = useState(0);
 
-  const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
-  const [filtroPeriodoFim, setFiltroPeriodoFim] = useState('');
-  const [filtroProduto, setFiltroProduto] = useState('todos');
-  const [filtroTurno, setFiltroTurno] = useState('todos');
-  const [filtroStatus, setFiltroStatus] = useState('todos');
-  const [filtroDiaSemana, setFiltroDiaSemana] = useState('todos');
+  // Filtros persistidos durante a sessão de login (lib/filtros). Produto
+  // salvo que não tem mais registro volta a "Todos" -- só depois da carga
+  // base sem erro; a consulta paginada só roda depois dela, então já usa o
+  // valor saneado (sem consulta dupla).
+  const filtros = useFiltrosPersistidos('producao.historico', FILTROS_HISTORICO);
+  const {
+    periodoInicio: filtroPeriodoInicio,
+    periodoFim: filtroPeriodoFim,
+    produto: filtroProduto,
+    turno: filtroTurno,
+    status: filtroStatus,
+    diaSemana: filtroDiaSemana,
+  } = useSanearFiltros(filtros, regrasSaneamentoHistorico({ baseCarregada: baseCarregada && !erro, receitaIdsComRegistro }));
 
   const aparencia = APARENCIA_FIXA;
 
@@ -380,9 +390,9 @@ function HistoricoConteudo() {
   ]);
 
   // Qualquer mudança de filtro volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -405,12 +415,7 @@ function HistoricoConteudo() {
   ].filter(Boolean).length;
 
   function limparFiltros() {
-    setFiltroPeriodoInicio('');
-    setFiltroPeriodoFim('');
-    setFiltroProduto('todos');
-    setFiltroTurno('todos');
-    setFiltroStatus('todos');
-    setFiltroDiaSemana('todos');
+    filtros.redefinir();
     setPagina(1);
   }
 
@@ -603,13 +608,13 @@ function HistoricoConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Período inicial">
-          <Input type="date" value={filtroPeriodoInicio} onChange={(e) => alterarFiltro(setFiltroPeriodoInicio)(e.target.value)} />
+          <Input type="date" value={filtroPeriodoInicio} onChange={(e) => alterarFiltro('periodoInicio')(e.target.value)} />
         </Field>
         <Field label="Período final">
-          <Input type="date" value={filtroPeriodoFim} onChange={(e) => alterarFiltro(setFiltroPeriodoFim)(e.target.value)} />
+          <Input type="date" value={filtroPeriodoFim} onChange={(e) => alterarFiltro('periodoFim')(e.target.value)} />
         </Field>
         <Field label="Produto">
-          <Select value={filtroProduto} onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}>
+          <Select value={filtroProduto} onChange={(e) => alterarFiltro('produto')(e.target.value)}>
             <option value="todos">Todos</option>
             {produtosDisponiveis.map((produto) => (
               <option key={produto.id} value={produto.id}>
@@ -619,14 +624,14 @@ function HistoricoConteudo() {
           </Select>
         </Field>
         <Field label="Turno">
-          <Select value={filtroTurno} onChange={(e) => alterarFiltro(setFiltroTurno)(e.target.value)}>
+          <Select value={filtroTurno} onChange={(e) => alterarFiltro('turno')(e.target.value)}>
             <option value="todos">Todos</option>
             <option value="manha">Manhã</option>
             <option value="tarde">Tarde</option>
           </Select>
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="todos">Todos</option>
             <option value="aberto">Aberto</option>
             <option value="fechado">Fechado</option>
@@ -634,7 +639,7 @@ function HistoricoConteudo() {
           </Select>
         </Field>
         <Field label="Dia da semana">
-          <Select value={filtroDiaSemana} onChange={(e) => alterarFiltro(setFiltroDiaSemana)(e.target.value)}>
+          <Select value={filtroDiaSemana} onChange={(e) => alterarFiltro('diaSemana')(e.target.value)}>
             <option value="todos">Todos</option>
             {DIA_SEMANA_OPCOES.map((opcao) => (
               <option key={opcao.value} value={opcao.value}>

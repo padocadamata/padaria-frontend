@@ -29,6 +29,8 @@ import { mensagemErroLoteExpositor } from '../../lib/producao/mensagensExpositor
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_EXPOSITORES, regrasSaneamentoExpositores } from '../../lib/filtros/telas';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { cx } from '../../lib/design/cx';
 
@@ -285,11 +287,16 @@ function ExpositoresConteudo() {
     [lotesComSituacao]
   );
 
-  // Filtros da seção "Produtos nos Expositores" + relatório.
-  const [filtroInicio, setFiltroInicio] = useState('');
-  const [filtroFim, setFiltroFim] = useState('');
-  const [filtroProdutoId, setFiltroProdutoId] = useState('todos');
-  const [filtroSituacao, setFiltroSituacao] = useState('todos');
+  // Filtros da seção "Produtos nos Expositores" + relatório, persistidos
+  // durante a sessão de login (lib/filtros). Produto salvo que não é mais
+  // controlado volta a "Todos" -- só depois da carga sem erro.
+  const filtros = useFiltrosPersistidos('producao.expositores', FILTROS_EXPOSITORES);
+  const {
+    inicio: filtroInicio,
+    fim: filtroFim,
+    produtoId: filtroProdutoId,
+    situacao: filtroSituacao,
+  } = useSanearFiltros(filtros, regrasSaneamentoExpositores({ produtosProntos: !carregando && !erro, produtosControlados }));
 
   const lotesNoPeriodoEProduto = useMemo(
     () =>
@@ -318,11 +325,11 @@ function ExpositoresConteudo() {
   // inline (quantidadeRetiradaPorLote etc.) ficam por lote_id, fora da
   // linha renderizada -- trocar de página não os perde.
   const [pagina, setPagina] = useState(1);
-  // Ordenação pelo cabeçalho -- estado local de cada tabela (nunca salvo).
-  // A da lista paginada volta para a página 1 ao mudar.
-  const ordenacaoUrgentes = useOrdenacao();
-  const ordenacaoLotes = useOrdenacao({ aoMudar: () => setPagina(1) });
-  const ordenacaoRelatorio = useOrdenacao();
+  // Ordenação pelo cabeçalho -- uma por tabela, guardada durante a sessão
+  // de login. A da lista paginada volta para a página 1 ao mudar.
+  const ordenacaoUrgentes = useOrdenacao({ persistirEm: 'producao.expositores.urgentes' });
+  const ordenacaoLotes = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'producao.expositores.lotes' });
+  const ordenacaoRelatorio = useOrdenacao({ persistirEm: 'producao.expositores.relatorio' });
 
   const quantidadeFiltrosAtivos = [
     filtroInicio !== '',
@@ -332,17 +339,14 @@ function ExpositoresConteudo() {
   ].filter(Boolean).length;
 
   function limparFiltros() {
-    setFiltroInicio('');
-    setFiltroFim('');
-    setFiltroProdutoId('todos');
-    setFiltroSituacao('todos');
+    filtros.redefinir();
     setPagina(1);
   }
 
   // Qualquer mudança de filtro volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -752,13 +756,13 @@ function ExpositoresConteudo() {
 
             <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
               <Field label="Entrada -- de">
-                <Input type="date" value={filtroInicio} onChange={(e) => alterarFiltro(setFiltroInicio)(e.target.value)} />
+                <Input type="date" value={filtroInicio} onChange={(e) => alterarFiltro('inicio')(e.target.value)} />
               </Field>
               <Field label="Entrada -- até">
-                <Input type="date" value={filtroFim} onChange={(e) => alterarFiltro(setFiltroFim)(e.target.value)} />
+                <Input type="date" value={filtroFim} onChange={(e) => alterarFiltro('fim')(e.target.value)} />
               </Field>
               <Field label="Produto">
-                <Select value={filtroProdutoId} onChange={(e) => alterarFiltro(setFiltroProdutoId)(e.target.value)}>
+                <Select value={filtroProdutoId} onChange={(e) => alterarFiltro('produtoId')(e.target.value)}>
                   <option value="todos">Todos</option>
                   {produtosControlados.map((pr) => (
                     <option key={pr.id} value={pr.id}>{pr.nome}</option>
@@ -766,7 +770,7 @@ function ExpositoresConteudo() {
                 </Select>
               </Field>
               <Field label="Situação">
-                <Select value={filtroSituacao} onChange={(e) => alterarFiltro(setFiltroSituacao)(e.target.value)}>
+                <Select value={filtroSituacao} onChange={(e) => alterarFiltro('situacao')(e.target.value)}>
                   <option value="todos">Todas</option>
                   <option value="atrasado">Atrasado</option>
                   <option value="retirar_hoje">Retirar hoje</option>

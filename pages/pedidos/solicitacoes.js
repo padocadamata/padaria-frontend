@@ -17,6 +17,8 @@ import { lerEmLotes } from '../../lib/supabase/lerEmLotes';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { buscarHistoricoComprasEmLote } from '../../lib/pedidos/historicoCompras';
+import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_SOLICITACOES } from '../../lib/filtros/telas';
 import {
   podeSelecionarSolicitacao,
   idsSelecionaveis,
@@ -116,11 +118,14 @@ function SolicitacoesConteudo() {
   const [erro, setErro] = useState('');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
-  const [mostrarRealizadas, setMostrarRealizadas] = useState(false);
-  // Ordenação do cabeçalho da lista: estado local desta tela (nunca salvo).
+  // "Mostrar realizadas" persistido durante a sessão de login (lib/filtros).
+  const preferencias = useFiltrosPersistidos('pedidos.solicitacoes', FILTROS_SOLICITACOES);
+  const { mostrarRealizadas } = preferencias.valores;
+  const setMostrarRealizadas = (valor) => preferencias.definir('mostrarRealizadas', valor);
+  // Ordenação do cabeçalho da lista, guardada durante a sessão de login.
   // Fica aqui (e não dentro da lista) para sobreviver a filtros que esvaziam
   // a lista momentaneamente.
-  const ordenacaoLista = useOrdenacao();
+  const ordenacaoLista = useOrdenacao({ persistirEm: 'pedidos.solicitacoes' });
 
   const [modalForm, setModalForm] = useState(null); // { modo: 'criar'|'editar', solicitacao }
   const [confirmarExclusao, setConfirmarExclusao] = useState(null);

@@ -29,6 +29,8 @@ import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { somarDias } from '../../lib/data/dataLocal';
 import Paginacao from '../../components/Paginacao';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_SACOS } from '../../lib/filtros/telas';
 
 // Controle de Sacos Fechados (migrations 0041/0042 + complementar de
 // operação inicial). Leitura via RPC listar_sacos_fechados_configuracoes
@@ -130,24 +132,25 @@ function SacosConteudo() {
   const [recarregarTick, setRecarregarTick] = useState(0);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
 
-  // Filtros da lista de Movimentações + página atual. "busca" é o que a
-  // pessoa digita; "buscaAplicada" é o valor com debounce que realmente
-  // dispara a consulta.
-  const [busca, setBusca] = useState('');
-  const [buscaAplicada, setBuscaAplicada] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState('todos');
-  const [filtroDe, setFiltroDe] = useState('');
-  const [filtroAte, setFiltroAte] = useState('');
+  // Filtros da lista de Movimentações (e a busca do Saldo, mais abaixo)
+  // persistidos durante a sessão de login (lib/filtros) + página atual
+  // (nunca guardada). "busca" é o que a pessoa digita; "buscaAplicada" é o
+  // valor com debounce que realmente dispara a consulta -- já nasce com a
+  // busca restaurada, para a primeira consulta usar o filtro salvo.
+  const filtros = useFiltrosPersistidos('producao.sacos', FILTROS_SACOS);
+  const { definir: definirFiltro } = filtros;
+  const { busca, tipo: filtroTipo, de: filtroDe, ate: filtroAte, buscaSaldo } = filtros.valores;
+  const [buscaAplicada, setBuscaAplicada] = useState(busca);
   const [pagina, setPagina] = useState(1);
-  // Ordenação pelo cabeçalho (estado local, nunca salvo). Saldo: lista
+  // Ordenação pelo cabeçalho, guardada durante a sessão de login. Saldo: lista
   // inteira em memória, ordenada no navegador. Movimentações: paginadas NA
   // CONSULTA -- só a Data (criado_em, campo da própria tabela) pode ser
   // ordenada corretamente sobre o conjunto inteiro; Produto/Fornecedor/
   // Responsável vêm de outras tabelas, Kg é calculado e Movimento/Origem/
   // Quantidade são exibidos por rótulo/valor absoluto (a ordem do banco não
   // bateria com o que se vê) -- ficam sem ordenação.
-  const ordenacaoSaldo = useOrdenacao();
-  const ordenacaoMov = useOrdenacao({ aoMudar: () => setPagina(1) });
+  const ordenacaoSaldo = useOrdenacao({ persistirEm: 'producao.sacos.saldo' });
+  const ordenacaoMov = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'producao.sacos.movimentacoes' });
   const ordenacaoMovEscolhida = ordenacaoMov.ordenacao;
 
   // Carga "base": configurações (RPC), nomes de usuários e quais
@@ -358,7 +361,6 @@ function SacosConteudo() {
   // sobre as configurações que a RPC já entregou (poucas linhas, sem
   // consulta nova): texto parcial, sem diferenciar maiúsculas/acentos,
   // casando produto OU fornecedor.
-  const [buscaSaldo, setBuscaSaldo] = useState('');
   const configuracoesSaldoFiltradas = useMemo(() => {
     const termo = normalizarTexto(buscaSaldo);
     if (!termo) return configuracoesControladas;
@@ -384,19 +386,17 @@ function SacosConteudo() {
   const filtrosAtivos = Boolean(busca || filtroTipo !== 'todos' || filtroDe || filtroAte);
 
   // Qualquer mudança de filtro volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      definirFiltro(campo, valor);
       setPagina(1);
     };
   }
 
   function limparFiltros() {
-    setBusca('');
+    // Só os filtros de Movimentações; a busca do Saldo é independente.
+    definirFiltro({ busca: '', tipo: 'todos', de: '', ate: '' });
     setBuscaAplicada('');
-    setFiltroTipo('todos');
-    setFiltroDe('');
-    setFiltroAte('');
     setPagina(1);
   }
 
@@ -514,13 +514,13 @@ function SacosConteudo() {
               </EmptyState>
             ) : (
               <>
-                <FilterBar ativos={buscaSaldo ? 1 : 0} onLimpar={() => setBuscaSaldo('')}>
+                <FilterBar ativos={buscaSaldo ? 1 : 0} onLimpar={() => definirFiltro('buscaSaldo', '')}>
                   <Field label="Produto ou fornecedor" id="sacos-saldo-busca">
                     <Input
                       id="sacos-saldo-busca"
                       type="search"
                       value={buscaSaldo}
-                      onChange={(e) => setBuscaSaldo(e.target.value)}
+                      onChange={(e) => definirFiltro('buscaSaldo', e.target.value)}
                       placeholder="Buscar..."
                     />
                   </Field>
@@ -559,14 +559,14 @@ function SacosConteudo() {
                   type="search"
                   value={busca}
                   onChange={(e) => {
-                    setBusca(e.target.value);
+                    definirFiltro('busca', e.target.value);
                     setPagina(1);
                   }}
                   placeholder="Buscar..."
                 />
               </Field>
               <Field label="Movimento" id="sacos-filtro-tipo">
-                <Select id="sacos-filtro-tipo" value={filtroTipo} onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}>
+                <Select id="sacos-filtro-tipo" value={filtroTipo} onChange={(e) => alterarFiltro('tipo')(e.target.value)}>
                   <option value="todos">Todos</option>
                   {Object.entries(TIPO_MOVIMENTO_LABEL).map(([valor, rotulo]) => (
                     <option key={valor} value={valor}>{rotulo}</option>
@@ -579,7 +579,7 @@ function SacosConteudo() {
                   type="date"
                   value={filtroDe}
                   max={filtroAte || undefined}
-                  onChange={(e) => alterarFiltro(setFiltroDe)(e.target.value)}
+                  onChange={(e) => alterarFiltro('de')(e.target.value)}
                 />
               </Field>
               <Field label="Data -- até" id="sacos-filtro-ate">
@@ -588,7 +588,7 @@ function SacosConteudo() {
                   type="date"
                   value={filtroAte}
                   min={filtroDe || undefined}
-                  onChange={(e) => alterarFiltro(setFiltroAte)(e.target.value)}
+                  onChange={(e) => alterarFiltro('ate')(e.target.value)}
                 />
               </Field>
             </FilterBar>

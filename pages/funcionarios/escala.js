@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RequireAuth from '../../components/RequireAuth';
 import FuncionariosSubNav from '../../components/funcionarios/FuncionariosSubNav';
 import EscalaDiaModal from '../../components/funcionarios/EscalaDiaModal';
@@ -45,6 +45,8 @@ import { montarExportacaoSemanal, montarExportacaoMensal } from '../../lib/funci
 import { exportarRelatorio } from '../../lib/exportacao/exportar';
 import estilos from '../../components/funcionarios/escala.module.css';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_ESCALA, filtrosEscalaSemanal, filtrosEscalaMensal, regrasSaneamentoEscala } from '../../lib/filtros/telas';
 import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { ESCALA_COMPACTA_ATE, MQ_ESCALA_COMPACTA, contarFiltrosEscalaAtivos } from '../../lib/funcionarios/escalaMobile';
@@ -114,7 +116,12 @@ function useMensagemTemporaria() {
 // antes desta frente -- nem o filtro nem o agrupamento viram escopo de
 // escrita.
 function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange }) {
-  const [semanaInicio, setSemanaInicio] = useState(() => inicioDaSemana(dataLocalHoje()));
+  // Semana exibida, guardada durante a sessão de login: sem nada salvo abre
+  // na semana corrente e, daí em diante, fica onde o usuário deixou (não
+  // avança sozinha quando vira o dia).
+  const periodo = useFiltrosPersistidos('escala.semanal', filtrosEscalaSemanal({ semanaAtual: inicioDaSemana(dataLocalHoje()), inicioDaSemana }));
+  const { semanaInicio } = periodo.valores;
+  const setSemanaInicio = (valor) => periodo.definir('semanaInicio', valor);
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -128,10 +135,10 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
   const [copiandoSemana, setCopiandoSemana] = useState(false);
   const [erroCopiaSemana, setErroCopiaSemana] = useState('');
   const [mensagemSucesso, setMensagemSucesso] = useMensagemTemporaria();
-  // Ordenação do cabeçalho (Funcionário/Vínculo): estado local, nunca salvo,
-  // UMA só para a página -- clicar no cabeçalho de qualquer tabela ordena
-  // as funcionárias dentro de TODOS os cargos; a ordem dos cargos não muda.
-  const ordenacao = useOrdenacao();
+  // Ordenação do cabeçalho (Funcionário/Vínculo), guardada durante a sessão
+  // de login, UMA só para a página -- clicar no cabeçalho de qualquer tabela
+  // ordena as funcionárias dentro de TODOS os cargos; a ordem dos cargos não muda.
+  const ordenacao = useOrdenacao({ persistirEm: 'escala.semanal' });
 
   const dias = diasDaSemana(semanaInicio);
 
@@ -516,7 +523,11 @@ function VisaoSemanal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange
 // os dados quando a nova leitura chega. "Carregando escala..." no lugar da
 // grade só na 1ª carga e na troca de mês.
 function VisaoMensal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange }) {
-  const [mesInicio, setMesInicio] = useState(() => inicioDoMes(dataLocalHoje()));
+  // Mês exibido, guardado durante a sessão de login (mesma regra da semana
+  // na Semanal: não muda sozinho quando vira o dia/mês).
+  const periodo = useFiltrosPersistidos('escala.mensal', filtrosEscalaMensal({ mesAtual: inicioDoMes(dataLocalHoje()) }));
+  const { mesInicio } = periodo.valores;
+  const setMesInicio = (valor) => periodo.definir('mesInicio', valor);
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
@@ -529,9 +540,9 @@ function VisaoMensal({ funcionarios, cargos, podeEditar, filtro, onFiltroChange 
   // Mês cujos dados estão na tela -- distingue troca de mês (carregamento
   // com a grade escondida) de recarga do MESMO mês (segundo plano).
   const mesCarregadoRef = useRef(null);
-  // Ordenação pelo cabeçalho "Funcionário" da grade: estado local, aplicado
-  // dentro de cada cargo.
-  const ordenacao = useOrdenacao();
+  // Ordenação pelo cabeçalho "Funcionário" da grade, guardada durante a
+  // sessão de login, aplicada dentro de cada cargo.
+  const ordenacao = useOrdenacao({ persistirEm: 'escala.mensal' });
 
   const dias = useMemo(() => diasDoMes(mesInicio), [mesInicio]);
   // Celular/tablet pequeno: calendário por funcionário no lugar da grade.
@@ -751,14 +762,15 @@ function EscalaConteudo() {
   const { permissoes } = useAuth();
   const podeEditar = hasPermissao(permissoes, PERMISSOES.ESCALA_EDITAR);
 
-  const [visao, setVisao] = useState('semanal');
   const [funcionarios, setFuncionarios] = useState([]);
   const [carregandoFuncionarios, setCarregandoFuncionarios] = useState(true);
   const [erro, setErro] = useState('');
-  // Filtro compartilhado pelas três visões (trocar de Semanal para Mensal
-  // mantém o recorte) e pelas exportações -- o agrupamento por cargo é
-  // aplicado SOBRE a população filtrada.
-  const [filtro, setFiltro] = useState(FILTRO_ESCALA_VAZIO);
+  // Visão + filtro Cargo/Funcionária, guardados durante a sessão de login
+  // (lib/filtros). O filtro é compartilhado pelas três visões (trocar de
+  // Semanal para Mensal mantém o recorte) e pelas exportações -- o
+  // agrupamento por cargo é aplicado SOBRE a população filtrada.
+  const preferencias = useFiltrosPersistidos('escala', FILTROS_ESCALA);
+  const setVisao = (valor) => preferencias.definir('visao', valor);
 
   useEffect(() => {
     let ativo = true;
@@ -797,6 +809,24 @@ function EscalaConteudo() {
     }
     return ordenarOpcoes(Array.from(porId.values()));
   }, [funcionarios]);
+
+  // Cargo/Funcionária salvos que não existem mais (ou funcionária fora do
+  // cargo) voltam a "Todos"/"Todas" -- só esse campo, e só depois que as
+  // funcionárias carregaram sem erro.
+  const valores = useSanearFiltros(
+    preferencias,
+    regrasSaneamentoEscala({ funcionariosProntos: !carregandoFuncionarios && !erro, funcionarios, cargos })
+  );
+  const { visao } = valores;
+  const filtro = useMemo(
+    () => ({ ...FILTRO_ESCALA_VAZIO, cargoId: valores.cargoId, funcionarioId: valores.funcionarioId }),
+    [valores.cargoId, valores.funcionarioId]
+  );
+  const { definir: definirPreferencias } = preferencias;
+  const setFiltro = useCallback(
+    (novo) => definirPreferencias({ cargoId: novo?.cargoId || '', funcionarioId: novo?.funcionarioId || '' }),
+    [definirPreferencias]
+  );
 
   return (
     <PageShell titulo="Folha de Pagamento">

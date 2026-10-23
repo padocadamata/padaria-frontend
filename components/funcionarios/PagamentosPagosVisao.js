@@ -13,6 +13,8 @@ import { rotuloTipoLancamento, centavos } from '../../lib/funcionarios/pagamento
 import { OPCOES_VINCULO } from '../../lib/funcionarios/vinculo';
 import estilosPagamentos from './pagamentos.module.css';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_PAGAMENTOS_PAGOS, regrasSaneamentoPagamentosPagos } from '../../lib/filtros/telas';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { PAGAMENTOS_CARTOES_ATE } from './PagamentosAPagarVisao';
@@ -31,14 +33,17 @@ function formatarDataExibicao(dataYYYYMMDD) {
 // Histórico de pagamentos (confirmados e cancelados). Filtros: período
 // (data efetiva), pessoa, vínculo e forma de remuneração -- os dois últimos
 // pelo SNAPSHOT do pagamento, nunca pelo cadastro atual -- e status.
-// podeCancelar controla só a AÇÃO dentro do detalhe.
-export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
-  const [funcionarioId, setFuncionarioId] = useState('');
-  const [status, setStatus] = useState('');
-  const [tipoVinculo, setTipoVinculo] = useState('');
-  const [natureza, setNatureza] = useState('');
-  const [dataInicio, setDataInicio] = useState('');
-  const [dataFim, setDataFim] = useState('');
+// podeCancelar controla só a AÇÃO dentro do detalhe. Filtros e ordenação
+// persistidos durante a sessão de login (lib/filtros); funcionariosProntos
+// = lista de pessoas carregada sem erro (só então uma pessoa salva que não
+// existe mais volta a "Todas").
+export default function PagamentosPagosVisao({ funcionarios, funcionariosProntos = false, podeCancelar }) {
+  const filtros = useFiltrosPersistidos('pagamentos.pagos', FILTROS_PAGAMENTOS_PAGOS);
+  const { definir: definirFiltro } = filtros;
+  const { funcionarioId, status, tipoVinculo, natureza, dataInicio, dataFim } = useSanearFiltros(
+    filtros,
+    regrasSaneamentoPagamentosPagos({ funcionariosProntos, funcionarios })
+  );
   const [pagamentos, setPagamentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [detalhe, setDetalhe] = useState(null);
@@ -46,8 +51,8 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
   // página, paginarLista + Paginacao): filtro ou ordenação novos voltam à
   // página 1; os totais acima continuam sendo do filtro INTEIRO.
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho: estado local (nunca salvo).
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho, guardada durante a sessão de login.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'pagamentos.pagos' });
   const cartoes = useMediaQuery(`(max-width: ${PAGAMENTOS_CARTOES_ATE}px)`);
 
   async function carregar() {
@@ -145,13 +150,13 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
     <>
       <div className={estilosPagamentos.controlesFiltro}>
         <Field label="Data efetiva — de" className={estilosPagamentos.filtroData}>
-          <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+          <Input type="date" value={dataInicio} onChange={(e) => definirFiltro('dataInicio', e.target.value)} />
         </Field>
         <Field label="até" className={estilosPagamentos.filtroData}>
-          <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+          <Input type="date" value={dataFim} onChange={(e) => definirFiltro('dataFim', e.target.value)} />
         </Field>
         <Field label="Pessoa">
-          <Select value={funcionarioId} onChange={(e) => setFuncionarioId(e.target.value)}>
+          <Select value={funcionarioId} onChange={(e) => definirFiltro('funcionarioId', e.target.value)}>
             <option value="">Todas</option>
             {ordenarOpcoes(funcionarios).map((f) => (
               <option key={f.id} value={f.id}>
@@ -162,7 +167,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           </Select>
         </Field>
         <Field label="Vínculo">
-          <Select value={tipoVinculo} onChange={(e) => setTipoVinculo(e.target.value)}>
+          <Select value={tipoVinculo} onChange={(e) => definirFiltro('tipoVinculo', e.target.value)}>
             <option value="">Todos</option>
             {OPCOES_VINCULO.map((o) => (
               <option key={o.valor} value={o.valor}>
@@ -172,7 +177,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           </Select>
         </Field>
         <Field label="Forma">
-          <Select value={natureza} onChange={(e) => setNatureza(e.target.value)}>
+          <Select value={natureza} onChange={(e) => definirFiltro('natureza', e.target.value)}>
             <option value="">Todas</option>
             <option value="por_hora">Por hora</option>
             <option value="mensal">Mensal</option>
@@ -180,7 +185,7 @@ export default function PagamentosPagosVisao({ funcionarios, podeCancelar }) {
           </Select>
         </Field>
         <Field label="Status">
-          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Select value={status} onChange={(e) => definirFiltro('status', e.target.value)}>
             <option value="">Todos</option>
             <option value="confirmado">Confirmado</option>
             <option value="cancelado">Cancelado</option>

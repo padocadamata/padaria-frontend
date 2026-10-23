@@ -21,6 +21,8 @@ import estilos from '../components/catalogo/catalogo.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_CATALOGO, regrasSaneamentoCatalogo } from '../lib/filtros/telas';
 import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
 import { buscarMenorPrecoJanela, unidadeDoMenorPreco } from '../lib/pedidos/menorPreco';
 import { formatarPrecoBase } from '../lib/pedidos/historicoCompras';
@@ -207,11 +209,11 @@ function mensagemErroExclusaoProduto(error) {
 }
 
 async function carregarClassificacoes(supabase) {
-  const [{ data: secoesData }, { data: categoriasData }] = await Promise.all([
+  const [{ data: secoesData, error: erroSecoes }, { data: categoriasData, error: erroCategorias }] = await Promise.all([
     supabase.from('catalogo_secoes').select('id, nome').order('nome'),
     supabase.from('catalogo_categorias').select('id, nome').order('nome'),
   ]);
-  return { secoes: secoesData || [], categorias: categoriasData || [] };
+  return { secoes: secoesData || [], categorias: categoriasData || [], erro: erroSecoes || erroCategorias || null };
 }
 
 // Listagem do Catálogo de Produtos (public.produtos). Única informação de
@@ -241,6 +243,9 @@ function CatalogoConteudo() {
 
   const [secoes, setSecoes] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  // Só com as classificações carregadas SEM erro uma Seção/Categoria salva
+  // pode ser considerada inexistente (saneamento do filtro persistido).
+  const [classificacoesProntas, setClassificacoesProntas] = useState(false);
   const [modalClassificacoesAberto, setModalClassificacoesAberto] = useState(false);
 
   // Estado REAL de "Produto de Produção" por produto, para o badge da
@@ -255,19 +260,20 @@ function CatalogoConteudo() {
   // nova consulta. Falha aqui nunca bloqueia o resto do Catálogo.
   const [menorPreco, setMenorPreco] = useState({ estado: 'carregando', mapa: new Map() });
 
-  const [filtroStatus, setFiltroStatus] = useState('ativos');
-  const [filtroSecaoId, setFiltroSecaoId] = useState('todas');
-  const [filtroCategoriaId, setFiltroCategoriaId] = useState('todas');
-  const [busca, setBusca] = useState('');
+  // Busca/Status/Seção/Categoria persistidos durante a sessão de login
+  // (lib/filtros). Já nascem com o valor salvo -- a primeira consulta de
+  // produtos usa o Status restaurado (ver useFiltrosPersistidos).
+  const filtros = useFiltrosPersistidos('catalogo', FILTROS_CATALOGO);
   // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS de
   // filtros/busca/ordenação -- mesmo padrão de pages/fornecedores.js).
   const [pagina, setPagina] = useState(1);
 
-  // Ordenação do cabeçalho (lib/ordenacao): estado local, nunca salvo. O
-  // Catálogo sempre abriu ordenado por Produto A → Z com a seta visível --
-  // `inicial` preserva isso. Ativo antes de Inativo no crescente; Seção /
-  // Categoria pelos nomes DERIVADOS (Seção, depois Categoria), sem Seção no fim.
-  const ordenacao = useOrdenacao({ inicial: { chave: 'nome', direcao: 'asc' }, aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho (lib/ordenacao), guardada durante a sessão de
+  // login. O Catálogo sempre abriu ordenado por Produto A → Z com a seta
+  // visível -- `inicial` preserva isso. Ativo antes de Inativo no crescente;
+  // Seção / Categoria pelos nomes DERIVADOS (Seção, depois Categoria), sem
+  // Seção no fim. A página (acima) nunca é guardada.
+  const ordenacao = useOrdenacao({ inicial: { chave: 'nome', direcao: 'asc' }, aoMudar: () => setPagina(1), persistirEm: 'catalogo' });
 
   // Edição inline: uma linha por produto.id em edicoes[] entra em modo
   // edição. Múltiplas linhas podem estar em edição ao mesmo tempo -- cada
@@ -299,8 +305,10 @@ function CatalogoConteudo() {
       const supabase = createClient();
       const resultado = await carregarClassificacoes(supabase);
       if (!efeitoAtivo) return;
+      if (resultado.erro) console.error('Erro ao carregar classificações do Catálogo:', resultado.erro);
       setSecoes(ordenarOpcoes(resultado.secoes));
       setCategorias(ordenarOpcoes(resultado.categorias));
+      setClassificacoesProntas(!resultado.erro);
     }
 
     carregar();
@@ -368,6 +376,18 @@ function CatalogoConteudo() {
     };
   }, []);
 
+  const secoesPorId = useMemo(() => new Map(secoes.map((s) => [s.id, s])), [secoes]);
+  const categoriasPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
+
+  // Seção/Categoria salvas que deixaram de existir voltam a "Todas" (só
+  // elas) depois que as classificações carregaram; enquanto carregam, o
+  // valor salvo espera.
+  const valoresFiltro = useSanearFiltros(
+    filtros,
+    regrasSaneamentoCatalogo({ classificacoesProntas, secoesPorId, categoriasPorId })
+  );
+  const { busca, status: filtroStatus, secaoId: filtroSecaoId, categoriaId: filtroCategoriaId } = valoresFiltro;
+
   useEffect(() => {
     let efeitoAtivo = true;
 
@@ -397,9 +417,6 @@ function CatalogoConteudo() {
       efeitoAtivo = false;
     };
   }, [filtroStatus]);
-
-  const secoesPorId = useMemo(() => new Map(secoes.map((s) => [s.id, s])), [secoes]);
-  const categoriasPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
 
   // secaoNome/categoriaNome são resolvidos aqui, a cada render -- se uma
   // classificação for renomeada no modal (atualizando secoes/categorias),
@@ -437,9 +454,9 @@ function CatalogoConteudo() {
   });
 
   // Qualquer mudança de filtro/busca volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -453,10 +470,7 @@ function CatalogoConteudo() {
 
   // Volta aos valores iniciais da tela (Status = Ativos, demais em "todas"/vazio).
   function limparFiltros() {
-    setFiltroStatus('ativos');
-    setFiltroSecaoId('todas');
-    setFiltroCategoriaId('todas');
-    setBusca('');
+    filtros.redefinir();
     setPagina(1);
   }
 
@@ -880,19 +894,19 @@ function CatalogoConteudo() {
           <Input
             type="text"
             value={busca}
-            onChange={(e) => alterarFiltro(setBusca)(e.target.value)}
+            onChange={(e) => alterarFiltro('busca')(e.target.value)}
             placeholder="Nome, código G3 ou código de barras"
           />
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="ativos">Ativos</option>
             <option value="inativos">Inativos</option>
             <option value="todos">Todos</option>
           </Select>
         </Field>
         <Field label="Seção">
-          <Select value={filtroSecaoId} onChange={(e) => alterarFiltro(setFiltroSecaoId)(e.target.value)}>
+          <Select value={filtroSecaoId} onChange={(e) => alterarFiltro('secaoId')(e.target.value)}>
             <option value="todas">Todas</option>
             {secoes.map((s) => (
               <option key={s.id} value={s.id}>{s.nome}</option>
@@ -900,7 +914,7 @@ function CatalogoConteudo() {
           </Select>
         </Field>
         <Field label="Categoria">
-          <Select value={filtroCategoriaId} onChange={(e) => alterarFiltro(setFiltroCategoriaId)(e.target.value)}>
+          <Select value={filtroCategoriaId} onChange={(e) => alterarFiltro('categoriaId')(e.target.value)}>
             <option value="todas">Todas</option>
             {categorias.map((c) => (
               <option key={c.id} value={c.id}>{c.nome}</option>

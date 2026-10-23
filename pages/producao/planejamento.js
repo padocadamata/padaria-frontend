@@ -24,6 +24,8 @@ import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_PLANEJAMENTO, regrasSaneamentoPlanejamento } from '../../lib/filtros/telas';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { lerEmLotes } from '../../lib/supabase/lerEmLotes';
 
@@ -179,17 +181,27 @@ function PlanejamentoConteudo() {
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [detalheAberto, setDetalheAberto] = useState(null);
 
-  const [filtroDataInicial, setFiltroDataInicial] = useState(hoje);
-  const [filtroDataFinal, setFiltroDataFinal] = useState(() => domingoDaSemana(hoje));
-  const [filtroGrupo, setFiltroGrupo] = useState('todos');
-  const [filtroProduto, setFiltroProduto] = useState('todos');
-  const [filtroTurno, setFiltroTurno] = useState('todos');
+  // Período/Grupo/Produto/Turno persistidos durante a sessão de login
+  // (lib/filtros). As datas ficam null enquanto o usuário não escolher
+  // (null = padrão dinâmico: hoje até o domingo da semana corrente);
+  // escolhidas, ficam como ele deixou até um novo login.
+  const filtros = useFiltrosPersistidos('producao.planejamento', FILTROS_PLANEJAMENTO);
+  // Produto salvo que deixou de ser um produto controlado ativo volta a
+  // "Todos" -- só depois que a lista completa carregou sem erro. O Grupo não
+  // é saneado (continua selecionado e visível no select).
+  const valoresFiltro = useSanearFiltros(
+    filtros,
+    regrasSaneamentoPlanejamento({ produtosProntos: !carregandoBase && !erro, produtos })
+  );
+  const filtroDataInicial = valoresFiltro.dataInicial ?? hoje;
+  const filtroDataFinal = valoresFiltro.dataFinal ?? domingoDaSemana(hoje);
+  const { grupo: filtroGrupo, produto: filtroProduto, turno: filtroTurno } = valoresFiltro;
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho (Data, Grupo, Produto, Turno): estado local,
-  // nunca salvo; mudar volta para a página 1. Quantidade/Observação são
-  // campos em edição e Sugestão é calculada -- sem ordenação (as linhas
+  // Ordenação do cabeçalho (Data, Grupo, Produto, Turno), guardada durante
+  // a sessão de login; mudar volta para a página 1. Quantidade/Observação
+  // são campos em edição e Sugestão é calculada -- sem ordenação (as linhas
   // não podem "pular" enquanto se digita).
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'producao.planejamento' });
   // Mesma media query do DataTable abaixo: só decide detalhes de
   // apresentação da célula Sugestão (resumo em linha nos cartões; no
   // tooltip na tabela).
@@ -303,18 +315,15 @@ function PlanejamentoConteudo() {
   ].filter(Boolean).length;
 
   function limparFiltros() {
-    setFiltroDataInicial(dataInicialPadrao);
-    setFiltroDataFinal(dataFinalPadrao);
-    setFiltroGrupo('todos');
-    setFiltroProduto('todos');
-    setFiltroTurno('todos');
+    // Volta ao padrão DINÂMICO (datas null = hoje até o domingo).
+    filtros.redefinir();
     setPagina(1);
   }
 
   // Qualquer mudança de filtro volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -495,7 +504,9 @@ function PlanejamentoConteudo() {
     setMensagemSucesso('Planejamento salvo.');
   }
 
-  const gruposDisponiveis = ordenarOpcoes(Array.from(new Set(produtos.map((p) => p.grupo).filter((g) => g != null && g !== ''))));
+  const gruposDisponiveis = ordenarOpcoes(
+    Array.from(new Set([...produtos.map((p) => p.grupo).filter((g) => g != null && g !== ''), ...(filtroGrupo !== 'todos' ? [filtroGrupo] : [])]))
+  );
   const produtosOpcoes = ordenarOpcoes(produtos);
 
   const produtosFiltrados = produtos.filter((p) => {
@@ -761,13 +772,13 @@ function PlanejamentoConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Data inicial">
-          <Input type="date" value={filtroDataInicial} onChange={(e) => alterarFiltro(setFiltroDataInicial)(e.target.value)} />
+          <Input type="date" value={filtroDataInicial} onChange={(e) => alterarFiltro('dataInicial')(e.target.value)} />
         </Field>
         <Field label="Data final">
-          <Input type="date" value={filtroDataFinal} onChange={(e) => alterarFiltro(setFiltroDataFinal)(e.target.value)} />
+          <Input type="date" value={filtroDataFinal} onChange={(e) => alterarFiltro('dataFinal')(e.target.value)} />
         </Field>
         <Field label="Grupo">
-          <Select value={filtroGrupo} onChange={(e) => alterarFiltro(setFiltroGrupo)(e.target.value)}>
+          <Select value={filtroGrupo} onChange={(e) => alterarFiltro('grupo')(e.target.value)}>
             <option value="todos">Todos</option>
             {gruposDisponiveis.map((g) => (
               <option key={g} value={g}>
@@ -777,7 +788,7 @@ function PlanejamentoConteudo() {
           </Select>
         </Field>
         <Field label="Produto">
-          <Select value={filtroProduto} onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}>
+          <Select value={filtroProduto} onChange={(e) => alterarFiltro('produto')(e.target.value)}>
             <option value="todos">Todos</option>
             {produtosOpcoes.map((p) => (
               <option key={p.id} value={p.id}>
@@ -787,7 +798,7 @@ function PlanejamentoConteudo() {
           </Select>
         </Field>
         <Field label="Turno">
-          <Select value={filtroTurno} onChange={(e) => alterarFiltro(setFiltroTurno)(e.target.value)}>
+          <Select value={filtroTurno} onChange={(e) => alterarFiltro('turno')(e.target.value)}>
             <option value="todos">Todos</option>
             <option value="manha">Manhã</option>
             <option value="tarde">Tarde</option>

@@ -28,6 +28,14 @@ const CORES_CATEGORIA = {
   ENCOMENDA: '#7B1FA2',
 };
 
+// Date local -> 'YYYY-MM-DD' (sem passar por UTC).
+function dataLocalIso(data) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
+
 function somarUmDia(dataYYYYMMDD) {
   const data = new Date(`${dataYYYYMMDD}T12:00:00`);
   data.setDate(data.getDate() + 1);
@@ -48,7 +56,12 @@ function somarUmDia(dataYYYYMMDD) {
 // left/center continuam existindo só na API) -- cabeçalho próprio do DS
 // (Anterior/Hoje/Próximo + título) comanda a MESMA api do FullCalendar
 // via calendarioRef, sem nenhuma lógica de data nova.
-export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, onClicarOcorrencia, onClicarData, onClicarCheckboxTarefa }) {
+//
+// dataInicial (opcional, 'YYYY-MM-DD'): data em que o calendário abre (o
+// período que o usuário deixou, persistido pela página); ausente = hoje.
+// onMudarJanela recebe também { dataAtual, inicioPeriodo, fimPeriodo } do
+// período visível (fim exclusivo) para a página decidir o que guardar.
+export default function AgendaCalendario({ visao, dataInicial, ocorrencias, onMudarJanela, onClicarOcorrencia, onClicarData, onClicarCheckboxTarefa }) {
   const calendarioRef = useRef(null);
   const [titulo, setTitulo] = useState('');
 
@@ -180,6 +193,7 @@ export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, on
         ref={calendarioRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={visao}
+        initialDate={dataInicial || undefined}
         headerToolbar={false}
         locale={ptBrLocale}
         height="auto"
@@ -191,7 +205,11 @@ export default function AgendaCalendario({ visao, ocorrencias, onMudarJanela, on
         select={(info) => onClicarData(info.startStr)}
         datesSet={(info) => {
           setTitulo(info.view.title);
-          onMudarJanela(info.startStr.slice(0, 10), info.endStr.slice(0, 10));
+          onMudarJanela(info.startStr.slice(0, 10), info.endStr.slice(0, 10), {
+            dataAtual: dataLocalIso(info.view.calendar.getDate()),
+            inicioPeriodo: dataLocalIso(info.view.currentStart),
+            fimPeriodo: dataLocalIso(info.view.currentEnd),
+          });
         }}
       />
     </div>

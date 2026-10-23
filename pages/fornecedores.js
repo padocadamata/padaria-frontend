@@ -17,6 +17,8 @@ import estilos from '../components/fornecedores/fornecedores.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos } from '../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_FORNECEDORES } from '../lib/filtros/telas';
 import { nomeExibicaoFornecedor } from '../lib/fornecedores/nomeExibicao';
 import { useAuth } from '../hooks/useAuth';
 
@@ -85,9 +87,10 @@ function FornecedoresConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
-  const [filtroStatus, setFiltroStatus] = useState('ativos');
-  const [filtroModalidade, setFiltroModalidade] = useState('todas');
-  const [busca, setBusca] = useState('');
+  // Busca/Status/Modalidade persistidos durante a sessão de login
+  // (lib/filtros) -- a primeira consulta já usa o Status restaurado.
+  const filtros = useFiltrosPersistidos('fornecedores', FILTROS_FORNECEDORES);
+  const { status: filtroStatus, modalidade: filtroModalidade, busca } = filtros.valores;
   // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS da
   // busca/filtros -- ver `paginacao` abaixo).
   const [pagina, setPagina] = useState(1);
@@ -96,9 +99,9 @@ function FornecedoresConteudo() {
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
-  // Ordenação escolhida no cabeçalho: estado local desta tela (nunca salvo);
-  // mudar a ordenação volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação escolhida no cabeçalho, guardada durante a sessão de login;
+  // mudar a ordenação volta para a página 1 (a página nunca é guardada).
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'fornecedores' });
 
   useEffect(() => {
     let efeitoAtivo = true;
@@ -243,9 +246,9 @@ function FornecedoresConteudo() {
   );
 
   // Qualquer mudança de filtro/busca volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -258,9 +261,7 @@ function FornecedoresConteudo() {
 
   // Volta aos valores iniciais da tela (Status = Ativos, demais em "todas"/vazio).
   function limparFiltros() {
-    setFiltroStatus('ativos');
-    setFiltroModalidade('todas');
-    setBusca('');
+    filtros.redefinir();
     setPagina(1);
   }
 
@@ -375,19 +376,19 @@ function FornecedoresConteudo() {
           <Input
             type="text"
             value={busca}
-            onChange={(e) => alterarFiltro(setBusca)(e.target.value)}
+            onChange={(e) => alterarFiltro('busca')(e.target.value)}
             placeholder="Nome, razão social, documento, telefone..."
           />
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="ativos">Ativos</option>
             <option value="inativos">Inativos</option>
             <option value="todos">Todos</option>
           </Select>
         </Field>
         <Field label="Modalidade">
-          <Select value={filtroModalidade} onChange={(e) => alterarFiltro(setFiltroModalidade)(e.target.value)}>
+          <Select value={filtroModalidade} onChange={(e) => alterarFiltro('modalidade')(e.target.value)}>
             <option value="todas">Todas</option>
             <option value="pedido_com_entrega">Pedido com entrega</option>
             <option value="compra_presencial">Compra presencial</option>

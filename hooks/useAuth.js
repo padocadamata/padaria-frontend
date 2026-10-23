@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { createClient } from '../lib/supabase/client';
+import { extrairSessaoId, persistenciaFiltros } from '../lib/filtros/persistenciaFiltros';
 
 // Contexto único de autenticação/autorização, montado uma vez em
 // pages/_app.js. Isso evita que cada página/componente que chama useAuth()
@@ -7,6 +8,14 @@ import { createClient } from '../lib/supabase/client';
 // redundante a usuarios/perfil_permissoes e seu próprio listener de sessão
 // — todos compartilham o mesmo estado.
 const AuthContext = createContext(null);
+
+// Filtros persistidos (lib/filtros) são separados por usuário + sessão de
+// login (claim session_id do access token -- só o id é lido; o token nunca
+// é guardado nem logado). Mesma sessão (F5, TOKEN_REFRESHED, recuperação
+// automática) mantém os filtros; sessão nova começa limpa.
+function informarSessaoFiltros(session) {
+  persistenciaFiltros.definirSessao(session?.user?.id ?? null, extrairSessaoId(session?.access_token));
+}
 
 export function AuthProvider({ children }) {
   const supabase = createClient();
@@ -85,6 +94,12 @@ export function AuthProvider({ children }) {
       // cookie/localStorage local (getSession() não verifica o JWT).
       const { data: { user } } = await supabase.auth.getUser();
       if (!ativo) return;
+      // Sessão local (já validada pelo getUser acima) só para o session_id
+      // dos filtros -- informado ANTES de liberar as páginas, para que a
+      // primeira renderização/consulta de cada tela já use o filtro salvo.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!ativo) return;
+      informarSessaoFiltros(user && session?.user?.id === user.id ? session : null);
       setUsuarioAuth(user);
       await carregarPerfil(user);
       if (ativo) setCarregando(false);
@@ -92,7 +107,11 @@ export function AuthProvider({ children }) {
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_evento, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (evento, session) => {
+      // SIGNED_OUT (logout aqui ou em outra aba, sessão encerrada/expirada):
+      // apaga os filtros. Demais eventos: mesma sessão não muda nada.
+      if (evento === 'SIGNED_OUT') persistenciaFiltros.encerrarSessao();
+      else informarSessaoFiltros(session);
       const user = session?.user ?? null;
       setUsuarioAuth(user);
       await carregarPerfil(user);
@@ -119,6 +138,9 @@ export function AuthProvider({ children }) {
   }, [supabase, carregarPerfil]);
 
   const signOut = useCallback(async () => {
+    // Limpa os filtros da sessão ANTES do logout (nada sobra para o
+    // próximo login, mesmo que o signOut falhe na rede).
+    persistenciaFiltros.encerrarSessao();
     await supabase.auth.signOut();
     setUsuarioAuth(null);
     setPerfilUsuario(null);

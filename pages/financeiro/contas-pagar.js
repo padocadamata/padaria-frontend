@@ -22,6 +22,8 @@ import estilos from '../../components/financeiro/financeiro.module.css';
 import { PERMISSOES, hasPermissao } from '../../lib/auth/permissoes';
 import { useAuth } from '../../hooks/useAuth';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_CONTAS_PAGAR, regrasSaneamentoContasPagar } from '../../lib/filtros/telas';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 import { dataLocalHoje, inicioDoMes } from '../../lib/data/dataLocal';
 import {
@@ -43,6 +45,8 @@ const VISOES = [
   { chave: 'sem_lancamento', rotulo: 'Compras sem lançamento' },
 ];
 
+// Filtros da barra (os mesmos campos de FILTROS_CONTAS_PAGAR em
+// lib/filtros/telas.js, que também guarda visão e período de Pagas).
 const FILTROS_VAZIOS = { credor: '', origem: '', forma: '', grupo: '', categoria: '', de: '', ate: '' };
 
 function CredorCelula({ linha }) {
@@ -64,10 +68,15 @@ function ContasPagarConteudo() {
   const podePagar = hasPermissao(permissoes, PERMISSOES.CONTAS_PAGAR_PAGAR);
   const hoje = dataLocalHoje();
 
-  const [visao, setVisao] = useState('a_pagar');
-  const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
-  const [pagoDe, setPagoDe] = useState(inicioDoMes(hoje));
-  const [pagoAte, setPagoAte] = useState(hoje);
+  // Visão + filtros + período de Pagas persistidos durante a sessão de
+  // login (lib/filtros). "Pago de/até" ficam null até o usuário escolher
+  // (null = início do mês / hoje, como antes); escolhidos, ficam como ele
+  // deixou até um novo login.
+  const estadoFiltros = useFiltrosPersistidos('contas-pagar', FILTROS_CONTAS_PAGAR);
+  const { definir: definirFiltros } = estadoFiltros;
+  const visao = estadoFiltros.valores.visao;
+  const pagoDe = estadoFiltros.valores.pagoDe ?? inicioDoMes(hoje);
+  const pagoAte = estadoFiltros.valores.pagoAte ?? hoje;
   const [linhas, setLinhas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -75,6 +84,9 @@ function ContasPagarConteudo() {
   const [mensagem, setMensagem] = useState('');
 
   const [categorias, setCategorias] = useState([]);
+  // Só com as categorias carregadas SEM erro uma categoria salva pode ser
+  // considerada inexistente (saneamento do filtro persistido).
+  const [categoriasProntas, setCategoriasProntas] = useState(false);
   const [fornecedores, setFornecedores] = useState([]);
 
   const [contaAberta, setContaAberta] = useState(null);
@@ -82,12 +94,12 @@ function ContasPagarConteudo() {
   const [lancando, setLancando] = useState(null);
   const [novaDespesa, setNovaDespesa] = useState(false);
   const [gerenciarCategorias, setGerenciarCategorias] = useState(false);
-  // Ordenação do cabeçalho: estado local, UM por visão (cada aba guarda a
-  // sua escolha enquanto a tela estiver aberta; nunca salvo). Em "A Pagar"
-  // a mesma escolha vale dentro de cada grupo de situação.
-  const ordenacaoAPagar = useOrdenacao();
-  const ordenacaoPagas = useOrdenacao();
-  const ordenacaoSemLancamento = useOrdenacao();
+  // Ordenação do cabeçalho: UMA por visão (cada aba guarda a sua escolha),
+  // guardada durante a sessão de login. Em "A Pagar" a mesma escolha vale
+  // dentro de cada grupo de situação.
+  const ordenacaoAPagar = useOrdenacao({ persistirEm: 'contas-pagar.a-pagar' });
+  const ordenacaoPagas = useOrdenacao({ persistirEm: 'contas-pagar.pagas' });
+  const ordenacaoSemLancamento = useOrdenacao({ persistirEm: 'contas-pagar.sem-lancamento' });
 
   // ?conta=<id> abre o detalhe (link vindo do detalhe da compra).
   useEffect(() => {
@@ -99,6 +111,7 @@ function ContasPagarConteudo() {
     Promise.all([buscarCategorias(), buscarFornecedoresAtivos()]).then(([cats, forns]) => {
       if (!ativo) return;
       setCategorias(cats.dados);
+      setCategoriasProntas(!cats.erro);
       setFornecedores(forns);
     });
     return () => {
@@ -127,9 +140,10 @@ function ContasPagarConteudo() {
     };
   }, [visao, pagoDe, pagoAte, tick]);
 
+  // Trocar de visão limpa os filtros da barra (como antes); o período de
+  // Pagas é independente e permanece.
   function trocarVisao(nova) {
-    setVisao(nova);
-    setFiltros(FILTROS_VAZIOS);
+    definirFiltros({ visao: nova, ...FILTROS_VAZIOS });
     setMensagem('');
   }
 
@@ -143,13 +157,26 @@ function ContasPagarConteudo() {
     if (router.query.conta) router.replace('/financeiro/contas-pagar', undefined, { shallow: true });
   }
 
-  const alterarFiltro = (campo) => (e) => setFiltros((f) => ({ ...f, [campo]: e.target.value }));
-  const filtrosAtivos = Object.values(filtros).filter(Boolean).length;
+  const alterarFiltro = (campo) => (e) => definirFiltros(campo, e.target.value);
 
-  const credores = useMemo(
-    () => ordenarOpcoes(Array.from(new Set(linhas.map((l) => l.credor_exibicao || l.fornecedor_nome).filter(Boolean)))),
-    [linhas]
+  // Só a Categoria salva é saneada, contra o cadastro de categorias (carga
+  // sem erro). O Credor NÃO: as opções vêm das linhas da visão/período
+  // carregados -- um credor sem contas no período continua selecionado e a
+  // lista fica vazia.
+  const valoresFiltro = useSanearFiltros(estadoFiltros, regrasSaneamentoContasPagar({ categoriasProntas, categorias }));
+  const filtros = useMemo(
+    () => Object.fromEntries(Object.keys(FILTROS_VAZIOS).map((campo) => [campo, valoresFiltro[campo]])),
+    [valoresFiltro]
   );
+
+  // Credor escolhido sem linhas no período continua na lista de opções
+  // (senão o select mostraria "Todos" com o filtro ainda aplicado).
+  const credores = useMemo(() => {
+    const nomes = new Set(linhas.map((l) => l.credor_exibicao || l.fornecedor_nome).filter(Boolean));
+    if (filtros.credor) nomes.add(filtros.credor);
+    return ordenarOpcoes(Array.from(nomes));
+  }, [linhas, filtros.credor]);
+  const filtrosAtivos = Object.values(filtros).filter(Boolean).length;
 
   const filtradas = useMemo(() => {
     if (visao === 'sem_lancamento') {
@@ -254,7 +281,7 @@ function ContasPagarConteudo() {
       {mensagem && <Alert tom="success">{mensagem}</Alert>}
       {erro && <Alert tom="danger">{erro}</Alert>}
 
-      <FilterBar ativos={filtrosAtivos} onLimpar={() => setFiltros(FILTROS_VAZIOS)}>
+      <FilterBar ativos={filtrosAtivos} onLimpar={() => definirFiltros(FILTROS_VAZIOS)}>
         <Field label={visao === 'sem_lancamento' ? 'Fornecedor' : 'Fornecedor / credor'}>
           <Select value={filtros.credor} onChange={alterarFiltro('credor')}>
             <option value="">Todos</option>
@@ -266,10 +293,10 @@ function ContasPagarConteudo() {
         {visao === 'pagas' ? (
           <>
             <Field label="Pago de">
-              <Input type="date" value={pagoDe} onChange={(e) => setPagoDe(e.target.value)} />
+              <Input type="date" value={pagoDe} onChange={(e) => definirFiltros('pagoDe', e.target.value)} />
             </Field>
             <Field label="até">
-              <Input type="date" value={pagoAte} onChange={(e) => setPagoAte(e.target.value)} />
+              <Input type="date" value={pagoAte} onChange={(e) => definirFiltros('pagoAte', e.target.value)} />
             </Field>
           </>
         ) : (

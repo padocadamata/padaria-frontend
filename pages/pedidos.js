@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import RequireAuth from '../components/RequireAuth';
 import PedidoForm from '../components/pedidos/PedidoForm';
@@ -26,32 +26,22 @@ import { APARENCIA_FIXA } from '../lib/branding/tema';
 import { JANELA_RECEBIDOS_DIAS } from '../lib/pedidos/resumoConfig';
 import { lerEmLotes } from '../lib/supabase/lerEmLotes';
 import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../lib/filtros/useFiltrosPersistidos';
+import {
+  FILTROS_PEDIDOS,
+  regrasSaneamentoPedidos,
+  queryComStatusPedidos,
+  sincronizarStatusPedidos,
+  statusExibidoPedidos,
+} from '../lib/filtros/telas';
 import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
 import { nomeExibicaoFornecedor } from '../lib/fornecedores/nomeExibicao';
 
-// A URL (?filtro=<chave>) é a ÚNICA fonte persistente do filtro de
-// Status -- não existe mais um useState('filtroStatus') separado que
-// pudesse divergir dela. Mapa bidirecional entre a chave pública da URL
-// (também usada por pages/pedidos/resumo.js nos 4 cards) e o valor
-// interno já usado pelo <select>/pela lógica de filtragem -- "todos"
-// nunca aparece aqui de propósito: ausência de ?filtro= (ou uma chave
-// desconhecida) já significa "todos" (sem parâmetro).
-const FILTRO_URL_PARA_STATUS = {
-  aguardando: 'aguardando_entrega',
-  atrasados: 'atrasado',
-  previstos_hoje: 'previsto_hoje',
-  recebido: 'recebido',
-  recebidos_recentemente: 'recebidos_recente',
-  cancelado: 'cancelado',
-};
-const FILTRO_STATUS_PARA_URL = {
-  aguardando_entrega: 'aguardando',
-  atrasado: 'atrasados',
-  previsto_hoje: 'previstos_hoje',
-  recebido: 'recebido',
-  recebidos_recente: 'recebidos_recentemente',
-  cancelado: 'cancelado',
-};
+// Status: a URL (?filtro=<chave>, mapa em lib/filtros/telas.js -- a mesma
+// chave pública dos cards de pages/pedidos/resumo.js) é a fonte do filtro
+// exibido. O valor também é guardado durante a sessão de login: entrar em
+// /pedidos sem ?filtro= restaura o salvo; um ?filtro= válido vence o salvo
+// e passa a ser o salvo (ver sincronizarStatusPedidos).
 
 const STATUS_LABEL = {
   aguardando_entrega: 'Aguardando entrega',
@@ -155,15 +145,16 @@ function PedidosConteudo() {
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
 
-  const [filtroFornecedor, setFiltroFornecedor] = useState('todos');
-  const [filtroModalidade, setFiltroModalidade] = useState('todas');
-  const [filtroPeriodoInicio, setFiltroPeriodoInicio] = useState('');
-  const [filtroPeriodoFim, setFiltroPeriodoFim] = useState('');
+  // Status/Fornecedor/Modalidade/Período guardados durante a sessão de
+  // login (lib/filtros). Página, modais e ?id= nunca são guardados.
+  const filtros = useFiltrosPersistidos('pedidos', FILTROS_PEDIDOS);
+  // Entrada na tela já sincronizada com a URL (restaurar/persistir Status).
+  const [statusSincronizado, setStatusSincronizado] = useState(false);
   // Página da lista (paginação VISUAL, 20 por página, aplicada DEPOIS dos
   // filtros -- ver `paginacao` abaixo).
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho, guardada durante a sessão de login; mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'pedidos' });
 
   // "Ver pedido" (somente leitura).
   const [pedidoDetalhe, setPedidoDetalhe] = useState(null);
@@ -334,31 +325,54 @@ function PedidosConteudo() {
     }
   }, [router.isReady, router.query.id, pedidos, carregando]);
 
-  // filtroStatus é DERIVADO da URL, nunca guardado em useState -- a URL é
-  // a única fonte de verdade, então não existem dois estados que possam
-  // divergir. Antes de router.isReady (só no instante inicial de um
-  // hard-refresh), trata como "todos" -- mesma janela já tolerada pelo
-  // efeito de ?id= acima, sem efeito prático (a tabela ainda mostra
-  // "Carregando pedidos..." nesse instante).
-  const filtroParamUrl = router.isReady && typeof router.query.filtro === 'string' ? router.query.filtro : undefined;
-  const filtroStatus = (filtroParamUrl && FILTRO_URL_PARA_STATUS[filtroParamUrl]) || 'todos';
+  // filtroStatus é DERIVADO da URL -- não existe um segundo estado de
+  // Status que possa divergir dela. Só enquanto a entrada na tela ainda não
+  // sincronizou (instante inicial, antes do router.replace da restauração)
+  // vale o Status salvo, para não piscar "Todos".
+  const paramFiltroUrl = typeof router.query.filtro === 'string' ? router.query.filtro : undefined;
+  const filtroStatus = statusExibidoPedidos({
+    routerPronto: router.isReady,
+    paramFiltro: paramFiltroUrl,
+    statusSalvo: filtros.valores.status,
+    inicializado: statusSincronizado,
+  });
+
+  // URL <-> Status salvo. Na entrada: ?filtro= válido vence (e é salvo);
+  // sem ele, o salvo é restaurado com router.replace (sem nova parada no
+  // histórico). Depois: a URL (select, voltar/avançar, link interno) só é
+  // salva, nunca reescrita -- sem loop de router.
+  const { definir: definirFiltros } = filtros;
+  useEffect(() => {
+    const decisao = sincronizarStatusPedidos({
+      routerPronto: router.isReady,
+      paramFiltro: paramFiltroUrl,
+      statusSalvo: filtros.valores.status,
+      inicializado: statusSincronizado,
+    });
+    if (decisao.acao === 'aguardar') return;
+    if (decisao.acao === 'restaurar') {
+      // Continua "não sincronizado" (exibindo o salvo) até a URL mudar --
+      // a próxima execução encontra o ?filtro= e conclui a entrada.
+      router.replace({ pathname: '/pedidos', query: queryComStatusPedidos(router.query, decisao.status) }, undefined, { shallow: true });
+      return;
+    }
+    definirFiltros('status', decisao.status);
+    if (!statusSincronizado) setStatusSincronizado(true);
+    // Só a URL e a entrada na tela disparam a sincronização (o Status salvo
+    // é lido, nunca observado -- senão restaurar viraria loop).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, paramFiltroUrl]);
 
   // Único ponto de escrita do filtro de Status: atualiza a URL (nunca um
   // setState local) -- "Todos" remove ?filtro= por completo; qualquer
   // outro valor grava a chave pública correspondente. Usa router.push
   // (não replace) para que voltar/avançar no navegador percorra cada
   // escolha de filtro como uma parada de histórico própria, e preserva
-  // todo o resto de router.query (?id=, se presente) via o spread.
+  // todo o resto de router.query (?id=, se presente). O efeito acima salva
+  // a escolha quando a URL muda.
   function aoMudarFiltroStatus(novoStatus) {
     setPagina(1);
-    const novaQuery = { ...router.query };
-    const chaveUrl = FILTRO_STATUS_PARA_URL[novoStatus];
-    if (chaveUrl) {
-      novaQuery.filtro = chaveUrl;
-    } else {
-      delete novaQuery.filtro;
-    }
-    router.push({ pathname: '/pedidos', query: novaQuery }, undefined, { shallow: true });
+    router.push({ pathname: '/pedidos', query: queryComStatusPedidos(router.query, novoStatus) }, undefined, { shallow: true });
   }
 
   function abrirNovoPedido() {
@@ -455,9 +469,11 @@ function PedidosConteudo() {
     setPedidoDetalhe(null);
     // Limpa o ?id= da URL ao fechar manualmente, para não reabrir sozinho
     // numa próxima recarga de `pedidos` (ex.: depois de um Receber/Cancelar
-    // feito na linha, com o parâmetro ainda na URL).
+    // feito na linha, com o parâmetro ainda na URL). Só o ?id= sai -- o
+    // ?filtro= (Status) continua.
     if (router.query.id) {
-      router.replace('/pedidos', undefined, { shallow: true });
+      const { id: _id, ...semId } = router.query;
+      router.replace({ pathname: '/pedidos', query: semId }, undefined, { shallow: true });
     }
   }
 
@@ -567,9 +583,23 @@ function PedidosConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
+  const fornecedorIds = useMemo(() => new Set(pedidos.map((p) => p.fornecedor_id)), [pedidos]);
   const fornecedoresDisponiveis = ordenarOpcoes(
-    Array.from(new Set(pedidos.map((p) => p.fornecedor_id))).map((id) => ({ id, nome: fornecedorNomePorId[id] || id }))
+    Array.from(fornecedorIds).map((id) => ({ id, nome: fornecedorNomePorId[id] || id }))
   );
+
+  // Fornecedor salvo que não aparece mais em nenhum pedido volta a "Todos"
+  // -- só depois que os pedidos carregaram sem erro.
+  const valoresFiltro = useSanearFiltros(
+    filtros,
+    regrasSaneamentoPedidos({ pedidosProntos: !carregando && !erro, fornecedorIds })
+  );
+  const {
+    fornecedorId: filtroFornecedor,
+    modalidade: filtroModalidade,
+    periodoInicio: filtroPeriodoInicio,
+    periodoFim: filtroPeriodoFim,
+  } = valoresFiltro;
 
   const cutoffRecebidosRecentes = somarDias(hoje, -JANELA_RECEBIDOS_DIAS);
 
@@ -597,9 +627,9 @@ function PedidosConteudo() {
   });
 
   // Qualquer mudança de filtro volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -620,10 +650,7 @@ function PedidosConteudo() {
   // Volta cada filtro ao valor inicial pelos MESMOS caminhos de sempre
   // (estado local; o Status limpa o ?filtro= da URL via aoMudarFiltroStatus).
   function limparFiltros() {
-    setFiltroFornecedor('todos');
-    setFiltroModalidade('todas');
-    setFiltroPeriodoInicio('');
-    setFiltroPeriodoFim('');
+    filtros.definir({ fornecedorId: 'todos', modalidade: 'todas', periodoInicio: '', periodoFim: '' });
     setPagina(1);
     if (filtroStatus !== 'todos') aoMudarFiltroStatus('todos');
   }
@@ -743,7 +770,7 @@ function PedidosConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Fornecedor">
-          <Select value={filtroFornecedor} onChange={(e) => alterarFiltro(setFiltroFornecedor)(e.target.value)}>
+          <Select value={filtroFornecedor} onChange={(e) => alterarFiltro('fornecedorId')(e.target.value)}>
             <option value="todos">Todos</option>
             {fornecedoresDisponiveis.map((f) => (
               <option key={f.id} value={f.id}>
@@ -764,17 +791,17 @@ function PedidosConteudo() {
           </Select>
         </Field>
         <Field label="Modalidade">
-          <Select value={filtroModalidade} onChange={(e) => alterarFiltro(setFiltroModalidade)(e.target.value)}>
+          <Select value={filtroModalidade} onChange={(e) => alterarFiltro('modalidade')(e.target.value)}>
             <option value="todas">Todas</option>
             <option value="pedido_com_entrega">Entrega</option>
             <option value="compra_presencial">Retirada</option>
           </Select>
         </Field>
         <Field label="Período inicial">
-          <Input type="date" value={filtroPeriodoInicio} onChange={(e) => alterarFiltro(setFiltroPeriodoInicio)(e.target.value)} />
+          <Input type="date" value={filtroPeriodoInicio} onChange={(e) => alterarFiltro('periodoInicio')(e.target.value)} />
         </Field>
         <Field label="Período final">
-          <Input type="date" value={filtroPeriodoFim} onChange={(e) => alterarFiltro(setFiltroPeriodoFim)(e.target.value)} />
+          <Input type="date" value={filtroPeriodoFim} onChange={(e) => alterarFiltro('periodoFim')(e.target.value)} />
         </Field>
       </FilterBar>
 

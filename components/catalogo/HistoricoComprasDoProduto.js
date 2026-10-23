@@ -47,8 +47,9 @@ export default function HistoricoComprasDoProduto({ produtoId, lancamentos, conf
   const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState(null);
   const [excluindo, setExcluindo] = useState(false);
   const [erroExclusao, setErroExclusao] = useState('');
-  // Ordenação do cabeçalho: estado local (nunca salvo).
-  const ordenacao = useOrdenacao();
+  // Ordenação do cabeçalho, guardada durante a sessão de login (a mesma
+  // escolha vale para o histórico de qualquer produto).
+  const ordenacao = useOrdenacao({ persistirEm: 'catalogo.historico-compras' });
 
   function abrirNovoLancamento() {
     setLancamentoEmEdicao(null);

@@ -90,8 +90,8 @@ function ResumoConteudo() {
   const [fornecedorNomePorId, setFornecedorNomePorId] = useState({});
   const [carregandoPedidos, setCarregandoPedidos] = useState(podeVerPedidos);
   const [erroPedidos, setErroPedidos] = useState('');
-  // Ordenação do cabeçalho da tabela de atenção: estado local (nunca salvo).
-  const ordenacao = useOrdenacao();
+  // Ordenação do cabeçalho da tabela de atenção, guardada durante a sessão de login.
+  const ordenacao = useOrdenacao({ persistirEm: 'pedidos.resumo' });
 
   const [totalSolicitacoesPendentes, setTotalSolicitacoesPendentes] = useState(null);
   const [carregandoSolicitacoes, setCarregandoSolicitacoes] = useState(podeVerSolicitacoes);

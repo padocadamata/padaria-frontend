@@ -23,6 +23,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { dataLocalHoje, diaDaSemanaExibicao } from '../../lib/data/dataLocal';
 import { formatarTelefone } from '../../lib/clientes/telefone';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_ENCOMENDAS } from '../../lib/filtros/telas';
 import { carregarEncomendas, definirStatusEncomenda, LIMITE_ENCOMENDAS } from '../../lib/encomendas/encomendas';
 import {
   encomendaPassaFiltro,
@@ -64,15 +66,18 @@ function EncomendasConteudo() {
   const podeCadastrarCliente = hasPermissao(permissoes, PERMISSOES.CLIENTES_EDITAR);
   const hoje = dataLocalHoje();
 
-  const [periodo, setPeriodo] = useState('proximos');
-  const [periodoInicio, setPeriodoInicio] = useState(hoje);
-  const [periodoFim, setPeriodoFim] = useState(hoje);
-  const [busca, setBusca] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('pendente');
-  const [filtroProduto, setFiltroProduto] = useState('');
+  // Período/Busca/Status/Produto persistidos durante a sessão de login
+  // (lib/filtros). Os presets ("Próximos 30 dias"...) continuam relativos a
+  // hoje; De/Até do Personalizado ficam null até o usuário escolher (null =
+  // hoje, como antes) e, escolhidos, ficam como ele deixou até novo login.
+  const filtros = useFiltrosPersistidos('encomendas', FILTROS_ENCOMENDAS);
+  const periodo = filtros.valores.periodo;
+  const periodoInicio = filtros.valores.periodoInicio ?? hoje;
+  const periodoFim = filtros.valores.periodoFim ?? hoje;
+  const { busca, status: filtroStatus, produto: filtroProduto } = filtros.valores;
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho, guardada durante a sessão de login; mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'encomendas' });
 
   const [encomendas, setEncomendas] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -119,9 +124,9 @@ function EncomendasConteudo() {
     () => encomendas.filter((e) => encomendaPassaFiltro(e, { termo: busca, status: filtroStatus, produto: filtroProduto })),
     [encomendas, busca, filtroStatus, filtroProduto]
   );
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -129,10 +134,8 @@ function EncomendasConteudo() {
   const quantidadeFiltrosAtivos = [periodo !== 'proximos', busca !== '', filtroStatus !== 'pendente', filtroProduto !== ''].filter(Boolean).length;
 
   function limparFiltros() {
-    setPeriodo('proximos');
-    setBusca('');
-    setFiltroStatus('pendente');
-    setFiltroProduto('');
+    // Como antes: De/Até não são limpos (só deixam de valer fora do Personalizado).
+    filtros.definir({ periodo: 'proximos', busca: '', status: 'pendente', produto: '' });
     setPagina(1);
   }
 
@@ -240,7 +243,7 @@ function EncomendasConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Retirada">
-          <Select value={periodo} onChange={(e) => alterarFiltro(setPeriodo)(e.target.value)}>
+          <Select value={periodo} onChange={(e) => alterarFiltro('periodo')(e.target.value)}>
             {Object.entries(PERIODOS).map(([chave, p]) => (
               <option key={chave} value={chave}>
                 {p.rotulo}
@@ -251,18 +254,18 @@ function EncomendasConteudo() {
         {periodo === 'personalizado' && (
           <>
             <Field label="De">
-              <Input type="date" value={periodoInicio} onChange={(e) => alterarFiltro(setPeriodoInicio)(e.target.value)} />
+              <Input type="date" value={periodoInicio} onChange={(e) => alterarFiltro('periodoInicio')(e.target.value)} />
             </Field>
             <Field label="Até">
-              <Input type="date" value={periodoFim} onChange={(e) => alterarFiltro(setPeriodoFim)(e.target.value)} />
+              <Input type="date" value={periodoFim} onChange={(e) => alterarFiltro('periodoFim')(e.target.value)} />
             </Field>
           </>
         )}
         <Field label="Buscar">
-          <Input type="search" value={busca} onChange={(e) => alterarFiltro(setBusca)(e.target.value)} placeholder="Cliente, telefone ou produto" />
+          <Input type="search" value={busca} onChange={(e) => alterarFiltro('busca')(e.target.value)} placeholder="Cliente, telefone ou produto" />
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="pendente">Pendentes</option>
             <option value="concluida">Concluídas</option>
             <option value="cancelada">Canceladas</option>
@@ -270,13 +273,18 @@ function EncomendasConteudo() {
           </Select>
         </Field>
         <Field label="Produto">
-          <Select value={filtroProduto} onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}>
+          <Select value={filtroProduto} onChange={(e) => alterarFiltro('produto')(e.target.value)}>
             <option value="">Todos os produtos</option>
             {opcoesProduto.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome} ({p.quantidade})
               </option>
             ))}
+            {/* Produto escolhido (filtro guardado) sem encomendas no período:
+                não é saneado -- continua selecionado e visível. */}
+            {filtroProduto && !opcoesProduto.some((p) => p.id === filtroProduto) && (
+              <option value={filtroProduto}>Produto selecionado (sem encomendas no período)</option>
+            )}
           </Select>
         </Field>
       </FilterBar>

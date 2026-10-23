@@ -20,6 +20,8 @@ import { dataCurta } from '../../../lib/tarefas/calendario';
 import { compararPorFrequencia, descreverRegra, proximaVersao, regraReferencia, regraVigente } from '../../../lib/tarefas/regras';
 import { carregarCadastro, excluirTarefa } from '../../../lib/tarefas/consultas';
 import { mensagemErro } from '../../../lib/tarefas/erros';
+import { useFiltrosPersistidos } from '../../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_TAREFAS_CADASTRO } from '../../../lib/filtros/telas';
 import estilos from '../../../components/tarefas/tarefas.module.css';
 
 // Folha de Pagamento > Tarefas > Cadastro (migration 0061). Regras sempre
@@ -46,7 +48,10 @@ function TarefasCadastro() {
   const [recarregar, setRecarregar] = useState(0);
   const [erro, setErro] = useState('');
   const [mensagem, setMensagem] = useState('');
-  const [mostrarInativas, setMostrarInativas] = useState(false);
+  // "Mostrar tarefas inativas" persistido durante a sessão de login (lib/filtros).
+  const preferencias = useFiltrosPersistidos('tarefas.cadastro', FILTROS_TAREFAS_CADASTRO);
+  const { mostrarInativas } = preferencias.valores;
+  const setMostrarInativas = (valor) => preferencias.definir('mostrarInativas', valor);
 
   const [formulario, setFormulario] = useState(null); // { modo, tarefa }
   const [inativando, setInativando] = useState(null);

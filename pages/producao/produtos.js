@@ -20,6 +20,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import Paginacao, { paginarLista } from '../../components/Paginacao';
 import { useOrdenacao } from '../../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_PRODUCAO_PRODUTOS, regrasSaneamentoProducaoProdutos } from '../../lib/filtros/telas';
 import { ordenarOpcoes } from '../../lib/ordenacao/opcoes';
 
 function formatarRendimento(quantidade, unidade) {
@@ -50,14 +52,12 @@ function ProdutosProducaoConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
-  const [filtroStatus, setFiltroStatus] = useState('ativos');
-  const [filtroTelaHoje, setFiltroTelaHoje] = useState('todas');
-  const [filtroTipo, setFiltroTipo] = useState('todos');
-  const [filtroGrupo, setFiltroGrupo] = useState('todos');
-  const [busca, setBusca] = useState('');
+  // Busca/Status/Tela Hoje/Tipo/Grupo persistidos durante a sessão de
+  // login (lib/filtros).
+  const filtros = useFiltrosPersistidos('producao.produtos', FILTROS_PRODUCAO_PRODUTOS);
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho: estado local (nunca salvo); mudar volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho, guardada durante a sessão de login; mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'producao.produtos' });
 
   const [modalAberto, setModalAberto] = useState(false);
   const [receitaEmEdicao, setReceitaEmEdicao] = useState(null);
@@ -68,6 +68,9 @@ function ProdutosProducaoConteudo() {
   // Tipo/Grupo de Produção, separado da unificação Catálogo x Produção.
   const [tiposProducao, setTiposProducao] = useState([]);
   const [gruposProducao, setGruposProducao] = useState([]);
+  // Só com tipos E grupos carregados SEM erro um Tipo/Grupo salvo pode ser
+  // considerado inexistente (saneamento do filtro persistido).
+  const [classificacoesProntas, setClassificacoesProntas] = useState(false);
   const [modalClassificacoesAberto, setModalClassificacoesAberto] = useState(false);
   const [classificacoesTick, setClassificacoesTick] = useState(0);
 
@@ -173,6 +176,8 @@ function ProdutosProducaoConteudo() {
       } else {
         setGruposProducao(grupos || []);
       }
+
+      setClassificacoesProntas(!erroTipos && !erroGrupos);
     }
 
     carregarClassificacoes();
@@ -207,9 +212,27 @@ function ProdutosProducaoConteudo() {
     setRecarregarTick((tick) => tick + 1);
   }
 
-  const tiposDisponiveis = ordenarOpcoes(Array.from(new Set(receitas.map((r) => r.tipo).filter((v) => v != null && v !== ''))));
+  // Tipo/Grupo salvos que deixaram de existir no CADASTRO de classificações
+  // (producao_tipos/producao_grupos, carregados sem erro) voltam a "Todos".
+  // Classificação que existe mas não tem receita continua selecionada.
+  const {
+    busca,
+    status: filtroStatus,
+    telaHoje: filtroTelaHoje,
+    tipo: filtroTipo,
+    grupo: filtroGrupo,
+  } = useSanearFiltros(
+    filtros,
+    regrasSaneamentoProducaoProdutos({ classificacoesProntas, tiposProducao, gruposProducao })
+  );
 
-  const gruposDisponiveis = ordenarOpcoes(Array.from(new Set(receitas.map((r) => r.grupo).filter((v) => v != null && v !== ''))));
+  // Opções = valores usados pelas receitas + o valor escolhido (se nenhuma
+  // receita o usa, ele continua visível no select e a lista fica vazia).
+  const opcoesComEscolhido = (valores, escolhido) =>
+    ordenarOpcoes(Array.from(new Set([...valores.filter((v) => v != null && v !== ''), ...(escolhido !== 'todos' ? [escolhido] : [])])));
+  const tiposDisponiveis = opcoesComEscolhido(receitas.map((r) => r.tipo), filtroTipo);
+
+  const gruposDisponiveis = opcoesComEscolhido(receitas.map((r) => r.grupo), filtroGrupo);
 
   const buscaNormalizada = busca.trim().toLowerCase();
 
@@ -247,18 +270,14 @@ function ProdutosProducaoConteudo() {
 
   // Volta aos valores iniciais da tela (Status = Ativas, demais em "todos").
   function limparFiltros() {
-    setFiltroStatus('ativos');
-    setFiltroTelaHoje('todas');
-    setFiltroTipo('todos');
-    setFiltroGrupo('todos');
-    setBusca('');
+    filtros.redefinir();
     setPagina(1);
   }
 
   // Qualquer mudança de filtro/busca volta para a página 1.
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -316,24 +335,24 @@ function ProdutosProducaoConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Buscar por nome">
-          <Input type="text" value={busca} onChange={(e) => alterarFiltro(setBusca)(e.target.value)} placeholder="Nome do produto..." />
+          <Input type="text" value={busca} onChange={(e) => alterarFiltro('busca')(e.target.value)} placeholder="Nome do produto..." />
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="ativos">Ativas</option>
             <option value="inativos">Inativas</option>
             <option value="todos">Todas</option>
           </Select>
         </Field>
         <Field label="Exibição na Tela Hoje">
-          <Select value={filtroTelaHoje} onChange={(e) => alterarFiltro(setFiltroTelaHoje)(e.target.value)}>
+          <Select value={filtroTelaHoje} onChange={(e) => alterarFiltro('telaHoje')(e.target.value)}>
             <option value="todas">Todas</option>
             <option value="na_tela_hoje">Na Tela Hoje</option>
             <option value="fora_tela_hoje">Fora da Tela Hoje</option>
           </Select>
         </Field>
         <Field label="Tipo">
-          <Select value={filtroTipo} onChange={(e) => alterarFiltro(setFiltroTipo)(e.target.value)}>
+          <Select value={filtroTipo} onChange={(e) => alterarFiltro('tipo')(e.target.value)}>
             <option value="todos">Todos</option>
             {tiposDisponiveis.map((tipo) => (
               <option key={tipo} value={tipo}>
@@ -343,7 +362,7 @@ function ProdutosProducaoConteudo() {
           </Select>
         </Field>
         <Field label="Grupo">
-          <Select value={filtroGrupo} onChange={(e) => alterarFiltro(setFiltroGrupo)(e.target.value)}>
+          <Select value={filtroGrupo} onChange={(e) => alterarFiltro('grupo')(e.target.value)}>
             <option value="todos">Todos</option>
             {gruposDisponiveis.map((grupo) => (
               <option key={grupo} value={grupo}>

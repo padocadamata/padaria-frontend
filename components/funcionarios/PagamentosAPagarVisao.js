@@ -19,6 +19,8 @@ import { buscarSituacaoRemuneracaoEmLote, buscarPendenciasPorHora, buscarPendenc
 import { agruparPorForma, centavos, chaveJornada, formatarValorEditavel, resolverValorAPagar, somarValoresAPagar } from '../../lib/funcionarios/pagamentosCalculo';
 import { agruparPorCompetencia, descreverPendencias, descreverPix, plural, totalPendenteJornadas, totalPendenteMensal } from '../../lib/funcionarios/pagamentosApresentacao';
 import { cx } from '../../lib/design/cx';
+import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_PAGAMENTOS_A_PAGAR } from '../../lib/filtros/telas';
 import estilosPagamentos from './pagamentos.module.css';
 
 // Até esta largura (px) as telas de Pagamentos usam o layout compacto de
@@ -698,7 +700,12 @@ export default function PagamentosAPagarVisao({ funcionarios, podeConfirmar, pod
   const [historico, setHistorico] = useState({ disponivel: false, jornadas: [] });
   const [carregando, setCarregando] = useState(true);
   const [recarregarHistorico, setRecarregarHistorico] = useState(0);
-  const [competencia, setCompetencia] = useState(() => inicioDoMes(dataLocalHoje()));
+  // Competência do Mensal persistida durante a sessão de login (lib/filtros):
+  // null até o usuário escolher (= mês corrente, como antes); escolhida,
+  // fica como ele deixou até um novo login.
+  const preferencias = useFiltrosPersistidos('pagamentos.a-pagar', FILTROS_PAGAMENTOS_A_PAGAR);
+  const competencia = preferencias.valores.competencia ?? inicioDoMes(dataLocalHoje());
+  const setCompetencia = (nova) => preferencias.definir('competencia', nova);
   // Migration 0076 -- lançamentos pendentes (1 consulta para todos) e tipos.
   // disponivel = false sem a 0076 no banco: seções e ações nem aparecem.
   const [lancamentos, setLancamentos] = useState({ disponivel: false, lancamentos: [] });

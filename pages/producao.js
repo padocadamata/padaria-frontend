@@ -25,8 +25,9 @@ import {
   tiposDasLinhas,
   contarFiltrosHojeAtivos,
   SITUACOES_TURNO,
-  FILTROS_HOJE_PADRAO,
 } from '../lib/producao/linhasHoje';
+import { useFiltrosPersistidos } from '../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_PRODUCAO_HOJE } from '../lib/filtros/telas';
 
 // Desktop (>= 1280px): tabela (DataTable), uma linha operacional por
 // Produto × Turno. Abaixo disso (tablet e celular) continuam os cartões de
@@ -175,15 +176,22 @@ function ProducaoConteudo() {
   }
 
   // Uma linha operacional por Produto × Turno, na ordem da tela (Francês
-  // primeiro). Filtros: estado local desta tela (Todos/Todos/Todos ao abrir).
-  const [filtros, setFiltros] = useState(FILTROS_HOJE_PADRAO);
+  // primeiro). Filtros (Tipo/Situação/Turno) persistidos durante a sessão
+  // de login (lib/filtros); a DATA da tela continua sendo sempre o hoje
+  // automático -- nada de data é guardado.
+  const estadoFiltros = useFiltrosPersistidos('producao.hoje', FILTROS_PRODUCAO_HOJE);
+  const { definir: definirFiltros, redefinir: redefinirFiltros } = estadoFiltros;
   const tipoPorReceita = {};
   for (const r of receitasAtivas) tipoPorReceita[r.id] = r.tipo;
   const linhas = montarLinhasHoje({ blocos: blocosProduto, turnos: TURNOS, registroDoBloco, tipoPorReceita });
+  // Sem saneamento: os tipos vêm só das linhas de HOJE -- um tipo escolhido
+  // sem produção hoje continua selecionado (lista vazia) e visível no select.
+  const filtros = estadoFiltros.valores;
+  const tiposDoDia = tiposDasLinhas(linhas);
+  const tiposDisponiveis = filtros.tipo && !tiposDoDia.includes(filtros.tipo) ? ordenarOpcoes([...tiposDoDia, filtros.tipo]) : tiposDoDia;
   const linhasFiltradas = filtrarLinhasHoje(linhas, filtros);
-  const tiposDisponiveis = tiposDasLinhas(linhas);
   const visiveis = new Set(linhasFiltradas.map((l) => l.chave));
-  const alterarFiltro = (campo) => (e) => setFiltros((atual) => ({ ...atual, [campo]: e.target.value }));
+  const alterarFiltro = (campo) => (e) => definirFiltros(campo, e.target.value);
 
   return (
     <PaginaProducao ativo="hoje" titulo="Hoje" subtitulo={capitalizarPrimeiraLetra(dataLocalExibicao())}>
@@ -201,7 +209,7 @@ function ProducaoConteudo() {
             onAtualizado={carregarDados}
           />
 
-          <FilterBar ativos={contarFiltrosHojeAtivos(filtros)} onLimpar={() => setFiltros(FILTROS_HOJE_PADRAO)}>
+          <FilterBar ativos={contarFiltrosHojeAtivos(filtros)} onLimpar={redefinirFiltros}>
             <Field label="Tipo de produto">
               <Select value={filtros.tipo} onChange={alterarFiltro('tipo')}>
                 <option value="">Todos</option>

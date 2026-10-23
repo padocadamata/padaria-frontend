@@ -22,6 +22,8 @@ import { useAuth } from '../hooks/useAuth';
 import { OPCOES_VINCULO, rotuloVinculo, tomVinculo } from '../lib/funcionarios/vinculo';
 import { funcionarioPassaFiltro } from '../lib/funcionarios/filtros';
 import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos } from '../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_FUNCIONARIOS } from '../lib/filtros/telas';
 import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
 
 function BadgeStatus({ ativo }) {
@@ -38,9 +40,9 @@ function FuncionariosConteudo() {
   const [cargos, setCargos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('ativos');
-  const [filtroVinculo, setFiltroVinculo] = useState('');
-  const [busca, setBusca] = useState('');
+  // Busca/Status/Vínculo persistidos durante a sessão de login (lib/filtros).
+  const filtros = useFiltrosPersistidos('funcionarios', FILTROS_FUNCIONARIOS);
+  const { status: filtroStatus, vinculo: filtroVinculo, busca } = filtros.valores;
   // Paginação VISUAL (client-side, 20 por página): a listagem já carrega
   // o conjunto completo (limit 1000, ver `carregar` abaixo) -- aqui só se
   // fatia o resultado já filtrado. Mesmo padrão de pages/fornecedores.js/
@@ -48,8 +50,8 @@ function FuncionariosConteudo() {
   // iguais; nenhum registro fica de fora dos cálculos porque tudo já está
   // em memória (`funcionarios`), só a EXIBIÇÃO é paginada.
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho, guardada durante a sessão de login; mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'funcionarios' });
   const [modalCargosAberto, setModalCargosAberto] = useState(false);
 
   async function carregar() {
@@ -83,9 +85,9 @@ function FuncionariosConteudo() {
     return funcionarios.filter((f) => funcionarioPassaFiltro(f, { termo: busca, status: filtroStatus, vinculo: filtroVinculo }));
   }, [funcionarios, filtroStatus, filtroVinculo, busca]);
 
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -93,9 +95,7 @@ function FuncionariosConteudo() {
   const quantidadeFiltrosAtivos = [filtroStatus !== 'ativos', filtroVinculo !== '', busca !== ''].filter(Boolean).length;
 
   function limparFiltros() {
-    setFiltroStatus('ativos');
-    setFiltroVinculo('');
-    setBusca('');
+    filtros.redefinir();
     setPagina(1);
   }
 
@@ -146,17 +146,17 @@ function FuncionariosConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Buscar">
-          <Input type="text" value={busca} onChange={(e) => alterarFiltro(setBusca)(e.target.value)} placeholder="Nome do funcionário" />
+          <Input type="text" value={busca} onChange={(e) => alterarFiltro('busca')(e.target.value)} placeholder="Nome do funcionário" />
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="ativos">Ativos</option>
             <option value="inativos">Inativos</option>
             <option value="todos">Todos</option>
           </Select>
         </Field>
         <Field label="Vínculo">
-          <Select value={filtroVinculo} onChange={(e) => alterarFiltro(setFiltroVinculo)(e.target.value)}>
+          <Select value={filtroVinculo} onChange={(e) => alterarFiltro('vinculo')(e.target.value)}>
             <option value="">Todos os vínculos</option>
             {OPCOES_VINCULO.map((o) => (
               <option key={o.valor} value={o.valor}>{o.rotulo}</option>

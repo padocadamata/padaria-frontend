@@ -39,9 +39,9 @@ function UsuariosConteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [modal, setModal] = useState(null); // { modo: 'novo' } | { modo: 'vincular', login }
-  // Ordenação do cabeçalho de cada tabela: estado local (nunca salvo).
-  const ordenacaoUsuarios = useOrdenacao();
-  const ordenacaoSemVinculo = useOrdenacao();
+  // Ordenação do cabeçalho de cada tabela, guardada durante a sessão de login.
+  const ordenacaoUsuarios = useOrdenacao({ persistirEm: 'admin.usuarios' });
+  const ordenacaoSemVinculo = useOrdenacao({ persistirEm: 'admin.usuarios.sem-vinculo' });
 
   async function carregar() {
     const supabase = createClient();

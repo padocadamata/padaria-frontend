@@ -19,7 +19,6 @@ import { dataLocalHoje, mesExibicao } from '../../../lib/data/dataLocal';
 import { MQ_MOBILE } from '../../../lib/design/breakpoints';
 import { useMediaQuery } from '../../../lib/design/useMediaQuery';
 import {
-  FILTROS_PADRAO,
   agruparExecucoes,
   dataExtensa,
   diasDoMes,
@@ -37,6 +36,8 @@ import {
   removerExecucao,
 } from '../../../lib/tarefas/consultas';
 import { mensagemErro } from '../../../lib/tarefas/erros';
+import { useFiltrosPersistidos, useSanearFiltros } from '../../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_TAREFAS, diaMobileTarefas, mesOuAutomatico, regrasSaneamentoTarefas } from '../../../lib/filtros/telas';
 import estilos from '../../../components/tarefas/tarefas.module.css';
 
 // Folha de Pagamento > Tarefas -- calendário mensal (migrations 0061/0062).
@@ -53,7 +54,12 @@ function TarefasCalendario() {
   const mobile = useMediaQuery(MQ_MOBILE);
   const hoje = dataLocalHoje();
 
-  const [mes, setMes] = useState(() => inicioDoMes(hoje));
+  // Mês, dia do celular e filtros persistidos durante a sessão de login
+  // (lib/filtros). mes = null enquanto o usuário está no mês corrente e
+  // diaMobile = null enquanto está no dia padrão (segue o hoje dinâmico);
+  // escolhidos, ficam como ele deixou até um novo login.
+  const preferencias = useFiltrosPersistidos('tarefas', FILTROS_TAREFAS);
+  const { definir: definirPreferencias } = preferencias;
   const [cadastro, setCadastro] = useState(null);
   const [ocorrencias, setOcorrencias] = useState([]);
   const [execucoesPorOcorrencia, setExecucoesPorOcorrencia] = useState(() => new Map());
@@ -64,10 +70,31 @@ function TarefasCalendario() {
   const [recarregar, setRecarregar] = useState(0);
   const [erro, setErro] = useState('');
   const [mensagem, setMensagem] = useState('');
-  const [filtros, setFiltros] = useState(FILTROS_PADRAO);
+  // Categoria salva que não existe mais volta a "Todas" -- só com o
+  // cadastro carregado sem erro. Responsável NÃO é saneado: as opções
+  // dependem das ocorrências do mês exibido (o valor pode valer em outro mês).
+  const valoresPreferencias = useSanearFiltros(
+    preferencias,
+    regrasSaneamentoTarefas({ cadastroPronto: !!cadastro && !carregando && !erro, categorias: cadastro?.categorias || [] })
+  );
+  const mes = valoresPreferencias.mes ?? inicioDoMes(hoje);
+  // Trocar de mês volta o dia do celular ao padrão do novo mês (hoje, se
+  // for o mês corrente; senão o dia 1) -- mesmo comportamento de antes.
+  // Mesmo mês (ex.: "Hoje" já no mês corrente) não mexe em nada.
+  const setMes = (novo) => {
+    if (novo === mes) return;
+    definirPreferencias({ mes: mesOuAutomatico(novo, inicioDoMes(hoje)), diaMobile: null });
+  };
+  const filtros = useMemo(
+    () => ({ responsavel: valoresPreferencias.responsavel, situacao: valoresPreferencias.situacao, categoria: valoresPreferencias.categoria }),
+    [valoresPreferencias.responsavel, valoresPreferencias.situacao, valoresPreferencias.categoria]
+  );
+  const setFiltros = (novos) => definirPreferencias({ responsavel: novos.responsavel, situacao: novos.situacao, categoria: novos.categoria });
 
   const [diaAberto, setDiaAberto] = useState('');
-  const [diaMobile, setDiaMobile] = useState(hoje);
+  const diaMobile = diaMobileTarefas({ diaSalvo: valoresPreferencias.diaMobile, mes, hoje });
+  // Escolher o dia padrão (hoje) grava null = segue o hoje dinâmico.
+  const setDiaMobile = (dia) => definirPreferencias('diaMobile', dia === hoje ? null : dia);
   const [ocorrenciaAberta, setOcorrenciaAberta] = useState(null); // { ocorrencia, tarefa }
   const [novaAvulsa, setNovaAvulsa] = useState(null); // { tarefa, data }
   const [programarAberto, setProgramarAberto] = useState(false);
@@ -104,11 +131,6 @@ function TarefasCalendario() {
       ativo = false;
     };
   }, [mes, dias, recarregar]);
-
-  // Dia exibido no celular acompanha o mês navegado.
-  useEffect(() => {
-    setDiaMobile((atual) => (atual.startsWith(mes.slice(0, 7)) ? atual : hoje.startsWith(mes.slice(0, 7)) ? hoje : mes));
-  }, [mes, hoje]);
 
   const tarefasPorId = useMemo(() => new Map((cadastro?.tarefas || []).map((t) => [t.id, t])), [cadastro]);
   const dataReferencia = useMemo(() => {
@@ -177,9 +199,9 @@ function TarefasCalendario() {
 
       <div className={estilos.barraMes}>
         <div className={estilos.navegacaoMes}>
-          <Button variante="secondary" tamanho="sm" onClick={() => setMes((m) => somarMeses(m, -1))} aria-label="Mês anterior">←</Button>
+          <Button variante="secondary" tamanho="sm" onClick={() => setMes(somarMeses(mes, -1))} aria-label="Mês anterior">←</Button>
           <Button variante="secondary" tamanho="sm" onClick={() => setMes(inicioDoMes(hoje))}>Hoje</Button>
-          <Button variante="secondary" tamanho="sm" onClick={() => setMes((m) => somarMeses(m, 1))} aria-label="Próximo mês">→</Button>
+          <Button variante="secondary" tamanho="sm" onClick={() => setMes(somarMeses(mes, 1))} aria-label="Próximo mês">→</Button>
         </div>
         <h2 className={estilos.tituloMes}>{mesExibicao(mes)}</h2>
         <div className={estilos.acoesMes}>

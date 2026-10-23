@@ -21,6 +21,8 @@ import { carregarClientes, definirStatusCliente } from '../lib/clientes/clientes
 import { clientePassaFiltro, produtosComInteresse, rotuloSituacaoProduto } from '../lib/clientes/filtros';
 import { formatarTelefone } from '../lib/clientes/telefone';
 import { useOrdenacao } from '../lib/ordenacao/useOrdenacao';
+import { useFiltrosPersistidos } from '../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_CLIENTES } from '../lib/filtros/telas';
 
 const MAX_PRODUTOS_NA_LINHA = 3;
 
@@ -62,12 +64,12 @@ function ClientesConteudo() {
   const [erro, setErro] = useState('');
   const [limiteAtingido, setLimiteAtingido] = useState(false);
   const [mensagem, setMensagem] = useState('');
-  const [busca, setBusca] = useState('');
-  const [filtroProduto, setFiltroProduto] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('ativos');
+  // Busca/Produto/Status persistidos durante a sessão de login (lib/filtros).
+  const filtros = useFiltrosPersistidos('clientes', FILTROS_CLIENTES);
+  const { busca, produto: filtroProduto, status: filtroStatus } = filtros.valores;
   const [pagina, setPagina] = useState(1);
-  // Ordenação do cabeçalho: estado local da tela (nunca salvo); mudar volta para a página 1.
-  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1) });
+  // Ordenação do cabeçalho, guardada durante a sessão de login; mudar volta para a página 1.
+  const ordenacao = useOrdenacao({ aoMudar: () => setPagina(1), persistirEm: 'clientes' });
   const [modal, setModal] = useState(null); // { cliente } | { cliente: null } para novo
 
   async function carregar() {
@@ -97,9 +99,9 @@ function ClientesConteudo() {
     [clientes, busca, filtroProduto, filtroStatus]
   );
 
-  function alterarFiltro(setter) {
+  function alterarFiltro(campo) {
     return (valor) => {
-      setter(valor);
+      filtros.definir(campo, valor);
       setPagina(1);
     };
   }
@@ -107,9 +109,7 @@ function ClientesConteudo() {
   const quantidadeFiltrosAtivos = [busca !== '', filtroProduto !== '', filtroStatus !== 'ativos'].filter(Boolean).length;
 
   function limparFiltros() {
-    setBusca('');
-    setFiltroProduto('');
-    setFiltroStatus('ativos');
+    filtros.redefinir();
     setPagina(1);
   }
 
@@ -161,20 +161,25 @@ function ClientesConteudo() {
 
       <FilterBar ativos={quantidadeFiltrosAtivos} onLimpar={limparFiltros}>
         <Field label="Buscar">
-          <Input type="search" value={busca} onChange={(e) => alterarFiltro(setBusca)(e.target.value)} placeholder="Nome ou telefone" />
+          <Input type="search" value={busca} onChange={(e) => alterarFiltro('busca')(e.target.value)} placeholder="Nome ou telefone" />
         </Field>
         <Field label="Produto de interesse">
-          <Select value={filtroProduto} onChange={(e) => alterarFiltro(setFiltroProduto)(e.target.value)}>
+          <Select value={filtroProduto} onChange={(e) => alterarFiltro('produto')(e.target.value)}>
             <option value="">Todos os produtos</option>
             {opcoesProduto.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome} ({p.quantidade}){rotuloSituacaoProduto(p) ? ` — ${rotuloSituacaoProduto(p)}` : ''}
               </option>
             ))}
+            {/* Produto escolhido (filtro guardado) sem nenhum cliente na lista
+                atual: não é saneado -- continua selecionado e visível. */}
+            {filtroProduto && !produtoSelecionado && (
+              <option value={filtroProduto}>Produto selecionado (sem clientes)</option>
+            )}
           </Select>
         </Field>
         <Field label="Status">
-          <Select value={filtroStatus} onChange={(e) => alterarFiltro(setFiltroStatus)(e.target.value)}>
+          <Select value={filtroStatus} onChange={(e) => alterarFiltro('status')(e.target.value)}>
             <option value="ativos">Ativos</option>
             <option value="inativos">Inativos</option>
             <option value="todos">Todos</option>

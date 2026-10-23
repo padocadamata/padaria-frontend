@@ -17,6 +17,9 @@ import Button from '../components/ui/Button';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { createClient } from '../lib/supabase/client';
 import { ordenarOpcoes } from '../lib/ordenacao/opcoes';
+import { useFiltrosPersistidos, useSanearFiltros } from '../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_AGENDA, dataReferenciaAgenda, regrasSaneamentoAgenda } from '../lib/filtros/telas';
+import { dataLocalHoje } from '../lib/data/dataLocal';
 import { useAuth } from '../hooks/useAuth';
 import { expandirRecorrencia } from '../lib/agenda/expandirRecorrencia';
 import { buscarItensDaAgenda, buscarNascimentosParaAgenda } from '../lib/agenda/consultasAgenda';
@@ -49,16 +52,34 @@ function AgendaConteudo() {
   // gravada em agenda_itens; só consultada por quem tem encomendas.visualizar.
   const podeVerEncomendas = hasPermissao(permissoes, PERMISSOES.ENCOMENDAS_VISUALIZAR);
 
-  const [visao, setVisao] = useState('dayGridMonth');
+  // Visão (Mês/Semana/Dia), período navegado e filtros persistidos durante
+  // a sessão de login (lib/filtros). dataReferencia = null enquanto o
+  // período visível contém hoje (segue o hoje dinâmico); navegado para
+  // outro período, fica como o usuário deixou até um novo login.
+  const preferencias = useFiltrosPersistidos('agenda', FILTROS_AGENDA);
+  const { definir: definirPreferencias } = preferencias;
   const [janela, setJanela] = useState(null); // { inicio, fim }
   const [itens, setItens] = useState([]);
   const [excecoes, setExcecoes] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  // Só com as categorias carregadas SEM erro uma categoria salva pode ser
+  // considerada inexistente (saneamento do filtro persistido).
+  const [categoriasProntas, setCategoriasProntas] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [recarregarTick, setRecarregarTick] = useState(0);
 
-  const [filtro, setFiltro] = useState({ categoria: 'todas', tipo: 'todos', status: 'todos' });
+  const valoresPreferencias = useSanearFiltros(preferencias, regrasSaneamentoAgenda({ categoriasProntas, categorias }));
+  const { visao, dataReferencia } = valoresPreferencias;
+  const filtro = useMemo(
+    () => ({ categoria: valoresPreferencias.categoria, tipo: valoresPreferencias.tipo, status: valoresPreferencias.status }),
+    [valoresPreferencias.categoria, valoresPreferencias.tipo, valoresPreferencias.status]
+  );
+  const setVisao = useCallback((nova) => definirPreferencias('visao', nova), [definirPreferencias]);
+  const setFiltro = useCallback(
+    (novo) => definirPreferencias({ categoria: novo.categoria, tipo: novo.tipo, status: novo.status }),
+    [definirPreferencias]
+  );
   const [modalForm, setModalForm] = useState(null); // { modo, item, dataCorte, dataInicialSugerida }
   const [ocorrenciaDetalhe, setOcorrenciaDetalhe] = useState(null);
   const [mostrarCategorias, setMostrarCategorias] = useState(false);
@@ -86,6 +107,7 @@ function AgendaConteudo() {
         return;
       }
       setCategorias(ordenarOpcoes(data || [], (c) => c.valor));
+      setCategoriasProntas(true);
     }
     carregarCategorias();
     return () => {
@@ -218,9 +240,13 @@ function AgendaConteudo() {
     });
   }, [itens, itensAniversario, itensEncomenda, excecoes, janela, filtro]);
 
-  const onMudarJanela = useCallback((inicio, fim) => {
-    setJanela((atual) => (atual && atual.inicio === inicio && atual.fim === fim ? atual : { inicio, fim }));
-  }, []);
+  const onMudarJanela = useCallback(
+    (inicio, fim, periodo) => {
+      setJanela((atual) => (atual && atual.inicio === inicio && atual.fim === fim ? atual : { inicio, fim }));
+      if (periodo) definirPreferencias('dataReferencia', dataReferenciaAgenda({ ...periodo, hoje: dataLocalHoje() }));
+    },
+    [definirPreferencias]
+  );
 
   function fecharModalForm() {
     setModalForm(null);
@@ -317,6 +343,7 @@ function AgendaConteudo() {
         {carregando && <p className={estilos.carregandoCalendario} role="status">Carregando...</p>}
         <AgendaCalendario
           visao={visao}
+          dataInicial={dataReferencia}
           ocorrencias={ocorrencias}
           onMudarJanela={onMudarJanela}
           onClicarOcorrencia={(oc) =>

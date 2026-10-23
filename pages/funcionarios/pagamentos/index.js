@@ -11,6 +11,8 @@ import Button from '../../../components/ui/Button';
 import { PERMISSOES, hasPermissao } from '../../../lib/auth/permissoes';
 import { createClient } from '../../../lib/supabase/client';
 import { useAuth } from '../../../hooks/useAuth';
+import { useFiltrosPersistidos } from '../../../lib/filtros/useFiltrosPersistidos';
+import { FILTROS_PAGAMENTOS } from '../../../lib/filtros/telas';
 import estilosEscala from '../../../components/funcionarios/escala.module.css';
 
 // Folha de Pagamento > Pagamentos (migrations 0065/0066) -- 3 "visões"
@@ -25,7 +27,11 @@ function PagamentosConteudo() {
   const podeRegras = hasPermissao(permissoes, PERMISSOES.FOLHA_PAGAMENTOS_REGRAS);
   const podeEditar = hasPermissao(permissoes, PERMISSOES.FOLHA_PAGAMENTOS_EDITAR);
 
-  const [visao, setVisao] = useState('a_pagar');
+  // Visão escolhida (A Pagar / Pagos / Configurações) persistida durante a
+  // sessão de login (lib/filtros).
+  const preferencias = useFiltrosPersistidos('pagamentos', FILTROS_PAGAMENTOS);
+  const visao = preferencias.valores.visao;
+  const setVisao = (nova) => preferencias.definir('visao', nova);
   const [funcionarios, setFuncionarios] = useState([]);
   const [carregandoFuncionarios, setCarregandoFuncionarios] = useState(true);
   const [erro, setErro] = useState('');
@@ -78,7 +84,7 @@ function PagamentosConteudo() {
       ) : visao === 'a_pagar' ? (
         <PagamentosAPagarVisao funcionarios={ativos} podeConfirmar={podeConfirmar} podeEditar={podeEditar} onIrParaConfiguracoes={() => setVisao('configuracoes')} />
       ) : visao === 'pagos' ? (
-        <PagamentosPagosVisao funcionarios={funcionarios} podeCancelar={podeCancelar} />
+        <PagamentosPagosVisao funcionarios={funcionarios} funcionariosProntos={!erro} podeCancelar={podeCancelar} />
       ) : (
         <PagamentosConfiguracoesVisao funcionarios={ativos} podeRegras={podeRegras} podeEditar={podeEditar} />
       )}

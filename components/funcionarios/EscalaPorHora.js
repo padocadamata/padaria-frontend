@@ -19,6 +19,8 @@ import { NavegacaoCompacta, SeletorDia } from './EscalaCompacta';
 import { useAlturaGrade } from './useAlturaGrade';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { MQ_ESCALA_COMPACTA, diaSelecionadoNaLista } from '../../lib/funcionarios/escalaMobile';
+import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
+import { filtrosEscalaPorHora } from '../../lib/filtros/telas';
 import estilos from './escala.module.css';
 
 const MAX_DIAS = 7;
@@ -205,8 +207,12 @@ function inicioDaSemanaCorrente(data) {
 }
 
 export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroChange }) {
-  const [dataInicio, setDataInicio] = useState(() => inicioDaSemanaCorrente(dataLocalHoje()));
-  const [dataFim, setDataFim] = useState(() => somarDias(inicioDaSemanaCorrente(dataLocalHoje()), 6));
+  // Período (e dia escolhido no celular) guardados durante a sessão de
+  // login: sem nada salvo abre na semana corrente e, daí em diante, fica
+  // onde o usuário deixou (não avança sozinho quando vira o dia).
+  const periodo = useFiltrosPersistidos('escala.cobertura', filtrosEscalaPorHora({ semanaAtual: inicioDaSemanaCorrente(dataLocalHoje()) }));
+  const { dataInicio, dataFim, diaEscolhido } = periodo.valores;
+  const { definir: definirPeriodo } = periodo;
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -217,7 +223,7 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
   // Celular/tablet pequeno: UM dia do período por vez (seletor de dia), na
   // largura da tela -- mesmas trilhas, mesmo motor e mesma janela horária.
   const compacta = useMediaQuery(MQ_ESCALA_COMPACTA);
-  const [diaEscolhido, setDiaEscolhido] = useState('');
+  const setDiaEscolhido = (valor) => definirPeriodo('diaEscolhido', valor);
   const diaAtivo = diaSelecionadoNaLista(dias, dataLocalHoje(), diaEscolhido);
 
   // Base do cálculo (recorte de cargo) x linhas exibidas (cargo +
@@ -279,14 +285,12 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
 
   function aoMudarDataInicio(novoValor) {
     const { inicio, fim } = normalizarIntervalo(novoValor, dataFim);
-    setDataInicio(inicio);
-    setDataFim(fim);
+    definirPeriodo({ dataInicio: inicio, dataFim: fim });
   }
 
   function aoMudarDataFim(novoValor) {
     const { inicio, fim } = normalizarIntervalo(dataInicio, novoValor);
-    setDataInicio(inicio);
-    setDataFim(fim);
+    definirPeriodo({ dataInicio: inicio, dataFim: fim });
   }
 
   // Período de 7 dias -> volta à semana operacional corrente (segunda a
@@ -296,14 +300,12 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
     const hoje = dataLocalHoje();
     const base = span === MAX_DIAS ? inicioDaSemanaCorrente(hoje) : hoje;
     const { inicio, fim } = normalizarIntervalo(base, somarDias(base, span - 1));
-    setDataInicio(inicio);
-    setDataFim(fim);
+    definirPeriodo({ dataInicio: inicio, dataFim: fim });
   }
 
   function deslocarPeriodo(sinal) {
     const span = Math.max(dias.length, 1);
-    setDataInicio((atual) => somarDias(atual, sinal * span));
-    setDataFim((atual) => somarDias(atual, sinal * span));
+    definirPeriodo({ dataInicio: somarDias(dataInicio, sinal * span), dataFim: somarDias(dataFim, sinal * span) });
   }
 
   // Larguras FIXAS em px (nunca "fr") -- um grid com faixas flexíveis some
