@@ -16,7 +16,6 @@ import EscalaFiltrosExportacao from './EscalaFiltrosExportacao';
 import { useFeriadosPeriodo, AvisoErroFeriados, MarcaFeriado, LegendaFeriados } from './EscalaFeriados';
 import { ListaFaixasCobertura } from './EscalaCoberturaDiaModal';
 import { NavegacaoCompacta, SeletorDia } from './EscalaCompacta';
-import { useAlturaGrade } from './useAlturaGrade';
 import { useMediaQuery } from '../../lib/design/useMediaQuery';
 import { MQ_ESCALA_COMPACTA, diaSelecionadoNaLista } from '../../lib/funcionarios/escalaMobile';
 import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
@@ -216,7 +215,6 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
   const [mapaEscala, setMapaEscala] = useState(new Map());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const altura = useAlturaGrade();
 
   const dias = useMemo(() => intervaloDeDias(dataInicio, dataFim), [dataInicio, dataFim]);
 
@@ -425,7 +423,7 @@ export default function EscalaPorHora({ funcionarios, cargos, filtro, onFiltroCh
           </div>
         </div>
       ) : (
-        <div ref={altura.ref} className={estilos.envolucroCobertura} style={altura.estilo}>
+        <div className={estilos.envolucroCobertura}>
           <div className={estilos.timelineCobertura} style={{ gridTemplateColumns: gridColunas, minWidth: `${larguraTotalGrid}px` }}>
             <span className={estilos.cantoCobertura} />
             <span className={estilos.cabecalhoVinculoCobertura} style={{ left: LARGURA_FUNCIONARIO }}>Vínculo</span>

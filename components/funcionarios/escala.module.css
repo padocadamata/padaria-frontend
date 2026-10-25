@@ -317,9 +317,12 @@
   color: var(--ds-text-muted);
 }
 
+/* Mesmo padrão da Mensal (.envolucroMensal): só rolagem HORIZONTAL, sem
+   altura máxima -- a grade cresce com as funcionárias e a única rolagem
+   vertical é a da página (cabeçalho dos dias não fica preso ao topo). */
 .envolucroCobertura {
-  overflow: auto;
-  max-height: 70vh;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
 }
