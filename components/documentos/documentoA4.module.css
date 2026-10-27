@@ -1,0 +1,168 @@
+/* Folha A4 retrato (210 x 297 mm, margem 20 mm) -- mesmas medidas do PDF
+   e do Word: tamanhos e espaços vêm de lib/documentos/layout.js
+   (TIPOGRAFIA/ESPACOS) como variáveis CSS --a4-* aplicadas pelo
+   DocumentoA4. Na tela é uma folha branca com sombra; na impressão a
+   margem vem do @page e a folha flui por quantas páginas o texto precisar.
+   Arial/Helvetica, como no PDF e no Word. */
+
+.folha {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: var(--a4-margem, 20mm);
+  background: #fff;
+  color: #212121;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: var(--a4-corpo, 12pt);
+  line-height: var(--a4-lh-corpo, 1.55);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  overflow-wrap: anywhere;
+}
+
+.previa {
+  outline: 2px dashed var(--ds-border, #c8cdcc);
+  outline-offset: -8px;
+}
+
+.marcaPrevia {
+  position: absolute;
+  top: 6mm;
+  right: 8mm;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #9a9a9a;
+}
+
+.cabecalho {
+  border-bottom: 1px solid #3c3c3c;
+  padding-bottom: var(--a4-cabecalho-linha);
+  margin-bottom: var(--a4-identificacao-antes);
+}
+
+.empresa {
+  margin: 0;
+  font-size: var(--a4-empresa);
+  font-weight: 700;
+  line-height: var(--a4-lh-empresa);
+}
+
+.empresaLinha {
+  margin: 0;
+  font-size: var(--a4-empresa-linha);
+  color: #646464;
+  line-height: var(--a4-lh-empresa);
+}
+
+.identificacao {
+  margin: 0;
+  text-align: right;
+  font-size: var(--a4-identificacao);
+  color: #646464;
+  line-height: var(--a4-lh-empresa);
+}
+
+.cancelado {
+  margin: 3mm 0 0;
+  font-size: var(--a4-cancelado);
+  font-weight: 700;
+  color: #b00020;
+  line-height: var(--a4-lh-empresa);
+}
+
+.titulo {
+  margin: var(--a4-titulo-antes) 0 var(--a4-titulo-depois);
+  text-align: center;
+  font-size: var(--a4-titulo);
+  font-weight: 700;
+  line-height: var(--a4-lh-titulo);
+}
+
+.paragrafo {
+  margin: 0 0 var(--a4-paragrafo);
+}
+
+.linha {
+  display: block;
+  white-space: pre-wrap;
+}
+
+/* Local/data + assinaturas: juntos na mesma página sempre que cabem. */
+.fechamento {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.localData {
+  margin: var(--a4-local-data-antes) 0 0;
+  text-align: right;
+}
+
+/* O padding-top é o espaço livre para assinar acima da linha. */
+.parAssinaturas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--a4-colunas-assinatura);
+  padding-top: var(--a4-assinatura);
+  margin-bottom: var(--a4-assinatura-depois);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.assinatura {
+  border-top: 1px solid #3c3c3c;
+  margin: 0 var(--a4-recuo-assinatura);
+  padding-top: 1.5mm;
+  text-align: center;
+  font-size: var(--a4-assinatura-fonte);
+  line-height: var(--a4-lh-assinatura);
+}
+
+.assinaturaLinha {
+  margin: 0;
+}
+
+.negrito {
+  font-weight: 700;
+}
+
+/* Celular: a folha ocupa a largura disponível (sem rolagem horizontal);
+   margens internas e letra um pouco menores, mesma ordem dos blocos. */
+@media (max-width: 640px) {
+  .folha {
+    min-height: 0;
+    padding: 8mm 6mm;
+    font-size: 11pt;
+  }
+
+  .titulo {
+    margin-top: 9mm;
+    font-size: 14pt;
+  }
+
+  .parAssinaturas {
+    column-gap: 4mm;
+  }
+
+  .assinatura {
+    margin: 0;
+  }
+}
+
+@media print {
+  .folha {
+    max-width: none;
+    min-height: 0;
+    padding: 0;
+    box-shadow: none;
+    outline: none;
+    font-size: var(--a4-corpo, 12pt);
+  }
+
+  .marcaPrevia {
+    display: none;
+  }
+}

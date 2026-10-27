@@ -99,6 +99,10 @@ function FuncionariosConteudo() {
     setPagina(1);
   }
 
+  // Geometria ESTÁVEL no desktop (layoutFixo): colunas curtas com largura
+  // fixa, Cargo/Chave PIX proporcionais e o Nome com o restante -- uma chave
+  // PIX longa quebra dentro da própria coluna (nada é cortado) em vez de
+  // espremer o Nome e empurrar as Ações para fora da tabela.
   const colunas = [
     {
       chave: 'nome',
@@ -108,10 +112,10 @@ function FuncionariosConteudo() {
       ordenavel: true,
       render: (f) => f.nome,
     },
-    { chave: 'vinculo', rotulo: 'Vínculo', ordenavel: { valor: (f) => f.tipo_vinculo, ordem: OPCOES_VINCULO.map((o) => o.valor) }, render: (f) => <Badge tom={tomVinculo(f.tipo_vinculo)}>{rotuloVinculo(f.tipo_vinculo)}</Badge> },
-    { chave: 'status', rotulo: 'Status', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'booleano', valor: (f) => f.ativo }, render: (f) => <BadgeStatus ativo={f.ativo} /> },
-    { chave: 'cargo', rotulo: 'Cargo', ordenavel: { valor: (f) => f.funcionarios_cargos?.nome }, render: (f) => f.funcionarios_cargos?.nome || '—' },
-    { chave: 'chave_pix', rotulo: 'Chave PIX', render: (f) => f.chave_pix || '—' },
+    { chave: 'vinculo', rotulo: 'Vínculo', largura: '112px', ordenavel: { valor: (f) => f.tipo_vinculo, ordem: OPCOES_VINCULO.map((o) => o.valor) }, render: (f) => <Badge tom={tomVinculo(f.tipo_vinculo)}>{rotuloVinculo(f.tipo_vinculo)}</Badge> },
+    { chave: 'status', rotulo: 'Status', largura: '96px', mobile: 'titulo', cartaoOrdem: 1, ordenavel: { tipo: 'booleano', valor: (f) => f.ativo }, render: (f) => <BadgeStatus ativo={f.ativo} /> },
+    { chave: 'cargo', rotulo: 'Cargo', largura: '16%', ordenavel: { valor: (f) => f.funcionarios_cargos?.nome }, render: (f) => f.funcionarios_cargos?.nome || '—' },
+    { chave: 'chave_pix', rotulo: 'Chave PIX', largura: '22%', render: (f) => f.chave_pix || '—' },
   ];
 
   // Ordem padrão da tela, ou a coluna escolhida no cabeçalho -- aplicada ao
@@ -181,8 +185,10 @@ function FuncionariosConteudo() {
             linhas={paginacao.itens}
             chaveLinha={(f) => f.id}
             destaque={(f) => (f.ativo ? null : 'inativo')}
-            cartoesAte={900}
+            cartoesAte={1100}
             ordenacao={ordenacao.props}
+            layoutFixo
+            larguraAcoes="112px"
             renderAcoes={(f) => (
               <Button variante="secondary" tamanho="sm" icone={podeEditar ? 'pencil' : 'eye'} onClick={() => router.push(`/funcionarios/${f.id}`)}>
                 {podeEditar ? 'Editar' : 'Ver'}

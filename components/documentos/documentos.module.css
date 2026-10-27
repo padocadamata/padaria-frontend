@@ -1,0 +1,319 @@
+/* Folha de Pagamento > Comunicação (documentos de RH). Só tokens do Design
+   System; mesma linguagem visual de Pagamentos/Tarefas. */
+
+.visoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  margin-bottom: var(--ds-sp-4);
+}
+
+.superficie {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.resumo {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-aux);
+}
+
+.mensagem {
+  margin-bottom: var(--ds-sp-4);
+}
+
+.secundario {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-aux);
+}
+
+.numero {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Página de duas colunas (formulário | prévia) ----------------------- */
+
+.duasColunas {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--ds-sp-4);
+  align-items: start;
+}
+
+.colunaPrevia {
+  position: sticky;
+  top: var(--ds-sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+  min-width: 0;
+}
+
+.areaFolha {
+  background: var(--ds-surface-muted);
+  border-radius: var(--ds-radius-lg);
+  padding: var(--ds-sp-4);
+  overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+  .duasColunas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .colunaPrevia {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .areaFolha {
+    padding: var(--ds-sp-2);
+  }
+}
+
+/* --- Formulários -------------------------------------------------------- */
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.grade2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+@media (max-width: 640px) {
+  .grade2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.grupoOpcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2) var(--ds-sp-4);
+  align-items: center;
+}
+
+.legenda {
+  margin: 0 0 var(--ds-sp-1);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-text);
+}
+
+.rodapeAcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  justify-content: flex-end;
+}
+
+/* Rodapé dentro do card (Dados da empresa): divisória, nota à esquerda e
+   botão à direita; no celular o botão ocupa a largura. */
+.mensagensCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-4);
+}
+
+.rodapeCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+  margin-top: var(--ds-sp-4);
+  padding-top: var(--ds-sp-4);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+.rodapeCard p {
+  margin: 0;
+}
+
+.rodapeCard > :last-child {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .rodapeCard > :last-child {
+    width: 100%;
+  }
+}
+
+.listaErros {
+  margin: 0;
+  padding-left: var(--ds-sp-4);
+}
+
+.corpoTexto {
+  font-family: var(--ds-font);
+  min-height: 320px;
+  line-height: 1.5;
+}
+
+/* --- Variáveis (inserção no corpo) ------------------------------------- */
+
+.paineisVariaveis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+@media (max-width: 900px) {
+  .paineisVariaveis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.painel {
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-sp-3);
+  background: var(--ds-surface);
+  min-width: 0;
+}
+
+.painelTitulo {
+  margin: 0 0 var(--ds-sp-1);
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.listaVariaveis {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-1);
+}
+
+/* Chip de variável: nome humano em cima, chave técnica discreta embaixo. */
+.variavel {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: var(--ds-sp-1) var(--ds-sp-2);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-muted);
+  color: var(--ds-text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.variavel:hover {
+  border-color: var(--ds-primary);
+}
+
+.variavel:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+/* Já aparece no texto: realce leve + ✓. */
+.variavelUsada {
+  border-color: var(--ds-success);
+  background: var(--ds-success-soft);
+}
+
+.variavelRotulo {
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-aux);
+}
+
+.variavelMarca {
+  color: var(--ds-success);
+}
+
+.variavelChave {
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+  color: var(--ds-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Variável de um campo do modelo, só informativa (não editável). */
+.variavelTecnica {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* --- Campos do modelo --------------------------------------------------- */
+
+.listaCampos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.cartaoCampo {
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-sp-3);
+  background: var(--ds-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.cartaoCampoErro {
+  border-color: var(--ds-danger, #b00020);
+}
+
+.cabecalhoCampo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+/* --- Documento emitido -------------------------------------------------- */
+
+.metadados {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--ds-sp-3);
+  margin: 0;
+}
+
+.metadados dt {
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.metadados dd {
+  margin: 2px 0 0;
+  font-weight: var(--ds-fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.blocoCancelamento {
+  margin-top: var(--ds-sp-3);
+}
+
+.acoesDocumento {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+}

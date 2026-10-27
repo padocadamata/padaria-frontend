@@ -1,0 +1,42 @@
+/* Página de impressão do documento (A4 retrato): barra de ações só na
+   tela; no papel sobra apenas a folha (DocumentoA4). */
+
+.pagina {
+  min-height: 100vh;
+  padding: 16px;
+  background: #e9e9e9;
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  max-width: 210mm;
+  margin: 0 auto 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+
+.barra a {
+  color: inherit;
+}
+
+.dica {
+  flex-basis: 100%;
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+}
+
+@media print {
+  .pagina {
+    min-height: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .barra {
+    display: none !important;
+  }
+}

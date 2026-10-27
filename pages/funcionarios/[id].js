@@ -5,6 +5,7 @@ import DadosFuncionarioForm from '../../components/funcionarios/DadosFuncionario
 import DependentesTab from '../../components/funcionarios/DependentesTab';
 import BeneficiosTab from '../../components/funcionarios/BeneficiosTab';
 import EscalaPadraoTab from '../../components/funcionarios/EscalaPadraoTab';
+import DocumentosFuncionarioTab from '../../components/documentos/DocumentosFuncionarioTab';
 import PageShell from '../../components/shell/PageShell';
 import PageHeader from '../../components/ui/PageHeader';
 import Alert from '../../components/ui/Alert';
@@ -23,6 +24,9 @@ const ABAS = [
   { chave: 'dependentes', label: 'Dependentes' },
   { chave: 'beneficios', label: 'Benefícios' },
   { chave: 'escala_padrao', label: 'Escala Padrão' },
+  // Migration 0077 -- documentos de RH individuais deste funcionário; só
+  // para quem vê documentos (folha_documentos.visualizar).
+  { chave: 'documentos', label: 'Documentos', permissao: PERMISSOES.FOLHA_DOCUMENTOS_VISUALIZAR },
 ];
 
 // Diffs mínimos que valem auditoria dedicada, além do "editou" genérico
@@ -61,6 +65,8 @@ function FuncionarioDetalheConteudo() {
   const podeEditar = hasPermissao(permissoes, PERMISSOES.FUNCIONARIOS_EDITAR);
   const podeVerEscala = hasPermissao(permissoes, PERMISSOES.ESCALA_VISUALIZAR);
   const podeEditarEscala = hasPermissao(permissoes, PERMISSOES.ESCALA_EDITAR);
+  const podeEmitirDocumento = hasPermissao(permissoes, PERMISSOES.FOLHA_DOCUMENTOS_EMITIR);
+  const abas = ABAS.filter((a) => !a.permissao || hasPermissao(permissoes, a.permissao));
 
   const [funcionario, setFuncionario] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -127,7 +133,7 @@ function FuncionarioDetalheConteudo() {
       />
 
       <div className={estilos.abas} role="tablist">
-        {ABAS.map((a) => (
+        {abas.map((a) => (
           <button
             key={a.chave}
             type="button"
@@ -149,6 +155,9 @@ function FuncionarioDetalheConteudo() {
         {aba === 'beneficios' && <BeneficiosTab funcionarioId={funcionario.id} podeEditar={podeEditar} />}
         {aba === 'escala_padrao' && (
           <EscalaPadraoTab funcionarioId={funcionario.id} podeVer={podeVerEscala} podeEditar={podeEditarEscala} />
+        )}
+        {aba === 'documentos' && abas.some((a) => a.chave === 'documentos') && (
+          <DocumentosFuncionarioTab funcionarioId={funcionario.id} podeEmitir={podeEmitirDocumento} />
         )}
       </Card>
     </PageShell>
