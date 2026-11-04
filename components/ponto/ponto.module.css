@@ -1,0 +1,495 @@
+/* Folha de Pagamento > Cartão-Ponto (migration 0078) -- mesmos tokens do
+   Design System usados pela Escala e por Pagamentos. */
+
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.mensagem {
+  margin: 0;
+}
+
+/* Navegação de competência (‹ Mês ›) -- mesmo desenho da Escala. */
+.navegacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.tituloCompetencia {
+  margin: 0;
+  min-width: 150px;
+  text-align: center;
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+}
+
+.avisos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.avisoLinha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+/* Totais do mês. */
+.totais {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ds-sp-2);
+}
+
+.total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border: var(--ds-border-w, 1px) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+
+.totalRotulo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.totalValor {
+  font-size: var(--ds-fs-section);
+  font-weight: var(--ds-fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.totalSufixo {
+  margin-left: 4px;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-regular);
+  color: var(--ds-text-muted);
+}
+
+.tomsuccess .totalValor {
+  color: var(--ds-success, #1b7a3c);
+}
+
+.tomdanger .totalValor {
+  color: var(--ds-danger);
+}
+
+.tomwarning {
+  border-color: var(--ds-warning-border);
+  background: var(--ds-warning-soft);
+}
+
+.tomwarning .totalValor {
+  color: var(--ds-warning, #8a5a00);
+}
+
+.totalNota {
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+  color: var(--ds-text-muted);
+}
+
+.resumo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.totaisPrincipais {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.maisIndicadores > summary {
+  cursor: pointer;
+  width: fit-content;
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.maisIndicadores[open] > summary {
+  margin-bottom: var(--ds-sp-2);
+}
+
+/* Barra acima da grade: filtro, próximo pendente e estado do salvamento. */
+.barraGrade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+.filtro {
+  display: inline-flex;
+  padding: 2px;
+  border: var(--ds-border-w, 1px) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+
+.filtroOpcao {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: calc(var(--ds-radius-md) - 2px);
+  background: transparent;
+  color: var(--ds-text);
+  font: inherit;
+  font-size: var(--ds-fs-label);
+  cursor: pointer;
+}
+
+.filtroOpcao[aria-pressed='true'] {
+  background: var(--ds-primary-soft);
+  color: var(--ds-primary);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.filtroOpcao:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 1px;
+}
+
+/* Estado do salvamento: sempre visível acima da grade. */
+.estadoSalvo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+}
+
+.estadoOk {
+  color: var(--ds-success, #1b7a3c);
+}
+
+.estadoPendente {
+  color: var(--ds-warning, #8a5a00);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.barraSalvarOk {
+  border-color: var(--ds-success, #1b7a3c);
+}
+
+.discreto {
+  margin: 0;
+}
+
+/* Grade diária. */
+.dia {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.diaData {
+  font-weight: var(--ds-fw-semibold);
+  white-space: nowrap;
+}
+
+/* Feriado: texto que QUEBRA linha dentro da coluna (nomes longos aumentam a
+   altura da linha; nunca invadem o Previsto). Não é folga: a situação do
+   dia continua vindo da Escala. */
+.feriado {
+  max-width: 100%;
+  padding: 1px 6px;
+  border-radius: var(--ds-radius-sm, 4px);
+  background: var(--ds-info-soft);
+  color: var(--ds-info);
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+  font-weight: var(--ds-fw-semibold);
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.aux {
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+  color: var(--ds-text-muted);
+}
+
+.situacao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.horarios {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ds-sp-1);
+  align-items: center;
+}
+
+.horarioCampo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Rótulo do campo de horário: só nos cartões (celular/tablet). */
+.rotuloCampo {
+  display: none;
+  font-size: var(--ds-fs-aux, var(--ds-fs-label));
+  color: var(--ds-text-muted);
+}
+
+@media (max-width: 1180px) {
+  .rotuloCampo {
+    display: block;
+  }
+}
+
+.horarioCampo input {
+  min-width: 0;
+  width: 100%;
+  padding-left: 6px;
+  padding-right: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ícone do seletor nativo ocupa espaço demais na grade (o valor é digitado). */
+.horarioCampo input::-webkit-calendar-picker-indicator {
+  margin-left: 2px;
+  padding: 0;
+  width: 14px;
+}
+
+.desvios {
+  display: block;
+  max-width: 170px;
+  white-space: normal;
+}
+
+.horariosTexto {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.previsto {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+
+.numero {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.saldo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.saldosuccess {
+  color: var(--ds-success, #1b7a3c);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.saldodanger {
+  color: var(--ds-danger);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.saldowarning {
+  color: var(--ds-warning, #8a5a00);
+  font-weight: var(--ds-fw-semibold);
+}
+
+/* "A lançar": pendência (sem horário), visualmente diferente de um saldo negativo. */
+.saldoALancar {
+  padding: 0 6px;
+  border: 1px dashed var(--ds-warning-border, var(--ds-warning));
+  border-radius: var(--ds-radius-sm, 4px);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.notaFalta {
+  color: var(--ds-danger);
+}
+
+/* Ações da linha (desktop): botões com texto, empilhados (não alargam a tabela). */
+.acoesDia {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.botaoDia {
+  justify-content: center;
+  min-height: 0;
+  padding: 2px 6px;
+  font-size: var(--ds-fs-label);
+}
+
+.pendencias {
+  margin: 0;
+  padding-left: var(--ds-sp-4);
+  color: var(--ds-text);
+  font-size: var(--ds-fs-label);
+}
+
+.extraDia {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pendenteLinha {
+  margin: 0;
+  color: var(--ds-warning, #8a5a00);
+  font-size: var(--ds-fs-label);
+}
+
+.erroLinha {
+  margin: 0;
+  color: var(--ds-danger);
+  font-size: var(--ds-fs-label);
+}
+
+/* Barra de salvar (fixa no rodapé da área de conteúdo). */
+.barraSalvar {
+  position: sticky;
+  bottom: calc(var(--ds-sp-3) + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-3);
+  border: var(--ds-border-w, 1px) solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-shadow-md);
+}
+
+@media (max-width: 768px) {
+  .barraSalvar {
+    bottom: calc(var(--ds-bottomnav-h, 64px) + var(--ds-sp-2) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .horarios {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Modais. */
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-3);
+}
+
+.linhaCampos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+.periodo {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: var(--ds-sp-2);
+  align-items: end;
+}
+
+.rodapeModal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ds-sp-2);
+  margin-top: var(--ds-sp-2);
+}
+
+.lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.itemLista {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border: var(--ds-border-w, 1px) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.itemCancelado {
+  opacity: 0.6;
+}
+
+.itemTexto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.impacto {
+  padding: var(--ds-sp-2) var(--ds-sp-3);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-muted);
+  font-size: var(--ds-fs-label);
+}
+
+.impacto ul {
+  margin: var(--ds-sp-1) 0 0;
+  padding-left: var(--ds-sp-4);
+}
+
+.historico {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+}
+
+.historico li {
+  padding-bottom: var(--ds-sp-2);
+  border-bottom: var(--ds-border-w, 1px) solid var(--ds-border);
+}
+
+.vazioFiltro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-3);
+  border: var(--ds-border-w, 1px) dashed var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-text-muted);
+}
