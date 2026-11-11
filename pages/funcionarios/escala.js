@@ -777,17 +777,21 @@ function EscalaConteudo() {
     async function carregar() {
       setCarregandoFuncionarios(true);
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from('funcionarios')
-        .select('id, nome, ativo, tipo_vinculo, cargo_id, funcionarios_cargos(nome)')
-        .eq('ativo', true)
-        .order('nome');
+      // RPC (migration 0079) em vez de SELECT direto em public.funcionarios:
+      // a RLS dessa tabela exige funcionarios.visualizar, então um usuário
+      // só com escala.visualizar recebia 0 linhas (sem erro) e via a Escala
+      // vazia. A RPC exige escala.visualizar e devolve SÓ as colunas da
+      // escala (nunca CPF/salário/endereço). Mesmo formato de antes
+      // (funcionarios_cargos.nome) para não mexer em filtros/exportação.
+      const { data, error } = await supabase.rpc('escala_listar_funcionarios');
       if (!ativo) return;
       if (error) {
         console.error('Erro ao carregar funcionários para a escala:', error);
         setErro('Não foi possível carregar os funcionários.');
       }
-      setFuncionarios(data || []);
+      setFuncionarios(
+        (data || []).map(({ cargo_nome, ...f }) => ({ ...f, funcionarios_cargos: f.cargo_id ? { nome: cargo_nome || '' } : null }))
+      );
       setCarregandoFuncionarios(false);
     }
     carregar();
