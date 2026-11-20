@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import RequireAuth from '../../components/RequireAuth';
 import PaginaPedidos from '../../components/pedidos/PaginaPedidos';
@@ -19,6 +19,13 @@ import { APARENCIA_FIXA } from '../../lib/branding/tema';
 import { buscarHistoricoComprasEmLote } from '../../lib/pedidos/historicoCompras';
 import { useFiltrosPersistidos } from '../../lib/filtros/useFiltrosPersistidos';
 import { FILTROS_SOLICITACOES } from '../../lib/filtros/telas';
+import {
+  destaqueForaDoFiltro,
+  estadoDoDestaque,
+  idDestaqueDaQuery,
+  idDomDaSolicitacao,
+  solicitacoesExibidas,
+} from '../../lib/pedidos/solicitacaoDestaque';
 import {
   podeSelecionarSolicitacao,
   idsSelecionaveis,
@@ -316,14 +323,56 @@ function SolicitacoesConteudo() {
     return () => clearTimeout(timer);
   }, [mensagemSucesso]);
 
-  const solicitacoesVisiveis = solicitacoes.filter((s) => (mostrarRealizadas ? true : s.status === 'pendente'));
+  // Abertura direta via /pedidos/solicitacoes?id=<uuid> (link da Central de
+  // Notificações, migration 0080 -- lib/pedidos/solicitacaoDestaque.js). A
+  // solicitação aberta é realçada e, se estiver realizada, aparece mesmo com
+  // "Mostrar realizadas" desligado -- sem alterar o filtro salvo. Excluída:
+  // só um aviso informativo. A permissão para ver é a mesma que já protege a
+  // página (RequireAuth, pedidos_solicitacoes.visualizar).
+  const idDestaque = router.isReady ? idDestaqueDaQuery(router.query.id) : null;
+  // Antes de dizer "não encontrada", recarrega a lista UMA vez por id: quem
+  // já estava nesta tela e abre uma notificação nova teria uma lista
+  // anterior à solicitação.
+  const [idConferidoNoBanco, setIdConferidoNoBanco] = useState(null);
+  const estadoBase = estadoDoDestaque(idDestaque, solicitacoes, carregando);
+  const precisaConferir = estadoBase === 'nao_encontrada' && idConferidoNoBanco !== idDestaque;
+  const estadoDestaque = precisaConferir ? 'carregando' : estadoBase;
+  const destaqueOculto = destaqueForaDoFiltro(solicitacoes, mostrarRealizadas, idDestaque);
+  const roladoParaRef = useRef(null);
+
+  useEffect(() => {
+    if (!precisaConferir) return;
+    setIdConferidoNoBanco(idDestaque);
+    setCarregando(true); // mesmo lote: o aviso "não encontrada" não pisca antes da recarga
+    setRecarregarTick((t) => t + 1);
+  }, [precisaConferir, idDestaque]);
+
+  useEffect(() => {
+    if (estadoDestaque !== 'encontrada' || roladoParaRef.current === idDestaque) return undefined;
+    // Espera o DataTable decidir entre tabela e cartões (useMediaQuery).
+    const quadro = window.requestAnimationFrame(() => {
+      const alvo = document.getElementById(idDomDaSolicitacao(idDestaque));
+      if (!alvo) return;
+      roladoParaRef.current = idDestaque;
+      alvo.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(quadro);
+  }, [estadoDestaque, idDestaque]);
+
+  function limparDestaque() {
+    const { id: _id, ...semId } = router.query;
+    roladoParaRef.current = null;
+    router.replace({ pathname: '/pedidos/solicitacoes', query: semId }, undefined, { shallow: true });
+  }
+
+  const solicitacoesVisiveis = solicitacoesExibidas(solicitacoes, mostrarRealizadas, idDestaque);
 
   const permissoesLote = { podeRealizar, podeExcluir };
   const selecaoHabilitada = podeRealizar || podeExcluir;
   const idsVisiveisSelecionaveis = useMemo(
     () => idsSelecionaveis(solicitacoesVisiveis, permissoesLote),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [solicitacoes, mostrarRealizadas, podeRealizar, podeExcluir]
+    [solicitacoes, mostrarRealizadas, podeRealizar, podeExcluir, idDestaque]
   );
 
   // Toda vez que o conjunto exibido muda (recarga após ação, filtro), tira
@@ -649,6 +698,30 @@ function SolicitacoesConteudo() {
       {mensagemSucesso && <Alert tom="success" className={estilos.mensagem}>{mensagemSucesso}</Alert>}
       {erro && <Alert tom="danger" className={estilos.mensagem}>{erro}</Alert>}
 
+      {!erro && estadoDestaque === 'nao_encontrada' && (
+        <Alert tom="info" className={estilos.mensagem}>
+          <p>
+            <strong>Solicitação não encontrada.</strong> Ela pode ter sido excluída. O aviso continua registrado no
+            histórico de notificações.
+          </p>
+          <div className={estilos.botoesAviso}>
+            <Button tamanho="sm" variante="secondary" onClick={limparDestaque}>
+              Fechar
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {estadoDestaque === 'encontrada' && destaqueOculto && (
+        <Alert tom="info" className={estilos.mensagem}>
+          <p>Esta solicitação já foi concluída. Ela aparece destacada abaixo, mesmo com “Mostrar realizadas” desligado.</p>
+          <div className={estilos.botoesAviso}>
+            <Button tamanho="sm" variante="secondary" onClick={limparDestaque}>
+              Fechar
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       {erroVinculo && (
         <Alert tom="warning" className={estilos.avisoVinculo}>
           <p>
@@ -754,6 +827,8 @@ function SolicitacoesConteudo() {
           onExcluirPedido={abrirConfirmarExcluirPedido}
           selecao={selecaoTabela}
           ordenacao={ordenacaoLista}
+          idDestaque={estadoDestaque === 'encontrada' ? idDestaque : null}
+          idDomDaLinha={(s) => idDomDaSolicitacao(s.id)}
         />
       )}
 

@@ -1,5 +1,6 @@
 import { AuthProvider } from '../hooks/useAuth';
 import { FavoritosProvider } from '../hooks/useFavoritos';
+import { NotificacoesProvider } from '../hooks/useNotificacoes';
 // Design System (nova base visual). Só declaram variáveis e regras escopadas
 // em .ds / body.ds-body -- páginas ainda não migradas não são afetadas.
 import '../styles/tokens.css';
@@ -15,7 +16,10 @@ function MyApp({ Component, pageProps }) {
     <AuthProvider>
       {/* Favoritos por usuário (migration 0075): carregados uma vez por sessão. */}
       <FavoritosProvider>
-        <Component {...pageProps} />
+        {/* Central de Notificações (migration 0080): sino + polling de 60 s. */}
+        <NotificacoesProvider>
+          <Component {...pageProps} />
+        </NotificacoesProvider>
       </FavoritosProvider>
     </AuthProvider>
   );

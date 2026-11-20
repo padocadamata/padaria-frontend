@@ -507,6 +507,14 @@
     height: 30px;
     width: auto;
   }
+  .mobileDireita {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ds-sp-1);
+    min-width: 0;
+    margin-right: calc(-1 * var(--ds-sp-2));
+  }
   .mobileTitulo {
     min-width: 0;
     overflow: hidden;

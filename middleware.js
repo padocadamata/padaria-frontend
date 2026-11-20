@@ -17,6 +17,9 @@ const ROTAS_PROTEGIDAS = [
   '/perfil',
   '/admin',
   '/financeiro',
+  // Migration 0080: histórico da Central de Notificações (o conteúdo já é
+  // filtrado pela RLS; aqui só barra quem não está logado).
+  '/notificacoes',
 ];
 
 function ehRotaProtegida(pathname) {

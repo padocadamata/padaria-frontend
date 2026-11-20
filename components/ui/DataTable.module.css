@@ -84,6 +84,20 @@
   background-color: var(--ds-neutral-soft);
 }
 
+/* Registro aberto por link (?id=): realce em tom primário + margem de
+   rolagem para não ficar colado sob o cabeçalho fixo. */
+.linhaFoco td {
+  background-color: var(--ds-primary-soft);
+}
+
+.linhaFoco td:first-child {
+  box-shadow: inset 4px 0 0 var(--ds-primary);
+}
+
+.linhaFoco {
+  scroll-margin-top: calc(var(--ds-topbar-h) + var(--ds-sp-5));
+}
+
 /* 1ª linha de um novo bloco (ex.: outra data): divisória mais forte. */
 .inicioGrupo td {
   border-top: 2px solid var(--ds-border-strong);
@@ -124,6 +138,12 @@
 
 .cartaoInativo {
   background-color: var(--ds-neutral-soft);
+}
+
+.cartaoFoco {
+  border-left: 4px solid var(--ds-primary);
+  background-color: var(--ds-primary-soft);
+  scroll-margin-top: calc(var(--ds-mobile-header-h) + env(safe-area-inset-top, 0px) + var(--ds-sp-4));
 }
 
 .grupoTitulo {

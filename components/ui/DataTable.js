@@ -33,7 +33,10 @@ import styles from './DataTable.module.css';
 // renderAcoes(linha, { cartao }): conteúdo da coluna "Ações" / rodapé do cartão.
 // linhaExtra(linha): nó exibido logo abaixo da linha (ex.: mensagem de erro da linha).
 // destaque(linha): 'aviso' para realçar linhas que pedem atenção.
-// destaque também aceita 'inativo' (linha esmaecida, ex.: dia fechado).
+// destaque também aceita 'inativo' (linha esmaecida, ex.: dia fechado) e
+//   'foco' (o registro aberto por um link, ex.: ?id= vindo de uma notificação).
+// idLinha(linha) (opcional): atributo id do <tr>/<li> -- âncora para rolar
+//   até um registro específico.
 // grupo: { chave(linha), rotulo(linha) } separa visualmente blocos de linhas
 //   consecutivas com a mesma chave (ex.: por data): na tabela a 1ª linha do
 //   bloco ganha uma divisória mais forte; nos cartões, um título de bloco.
@@ -77,6 +80,7 @@ export default function DataTable({
   layoutFixo = false,
   larguraAcoes,
   semControleCartoes = false,
+  idLinha,
 }) {
   // Colunas exibidas na TABELA (as marcadas soCartao ficam só nos cartões).
   const colunasTabela = colunas.filter((c) => !c.soCartao);
@@ -105,10 +109,12 @@ export default function DataTable({
               </li>
             )}
             <li
+              id={idLinha ? idLinha(linha) : undefined}
               className={cx(
                 styles.cartao,
                 marca === 'aviso' && styles.cartaoAviso,
                 marca === 'inativo' && styles.cartaoInativo,
+                marca === 'foco' && styles.cartaoFoco,
                 selecao?.selecionados.has(chaveLinha(linha)) && styles.cartaoSelecionado
               )}
             >
@@ -213,9 +219,11 @@ export default function DataTable({
             return (
               <Fragment key={chaveLinha(linha)}>
               <tr
+                id={idLinha ? idLinha(linha) : undefined}
                 className={cx(
                   marca === 'aviso' && styles.linhaAviso,
                   marca === 'inativo' && styles.linhaInativa,
+                  marca === 'foco' && styles.linhaFoco,
                   novoGrupo && styles.inicioGrupo,
                   selecao?.selecionados.has(chaveLinha(linha)) && styles.linhaSelecionada
                 )}

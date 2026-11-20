@@ -133,6 +133,10 @@ export default function SolicitacoesLista({
   onExcluirPedido,
   selecao,
   ordenacao,
+  // Abertura direta (?id=, link da Central de Notificações): realça a linha
+  // e dá a ela um id DOM estável para a página rolar até ela.
+  idDestaque = null,
+  idDomDaLinha,
 }) {
   if (solicitacoes.length === 0) {
     return <EmptyState>Nenhuma solicitação encontrada.</EmptyState>;
@@ -267,6 +271,8 @@ export default function SolicitacoesLista({
         layoutFixo
         larguraAcoes="152px"
         denso
+        destaque={idDestaque ? (s) => (s.id === idDestaque ? 'foco' : null) : undefined}
+        idLinha={idDomDaLinha}
         renderAcoes={(s, { cartao }) => {
           const acoes = acoesDe(s);
           if (!cartao) return <AcoesLinha acoes={acoes} />;

@@ -1,0 +1,347 @@
+/* Central de Notificações (migration 0080): sino, painel e itens. */
+
+/* ------------------------------- SINO ----------------------------------- */
+
+.sino {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sinoBotao {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ds-touch-min);
+  height: var(--ds-touch-min);
+  padding: 0;
+  border: none;
+  border-radius: var(--ds-radius-md);
+  background-color: transparent;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.sinoBotao:hover,
+.sinoBotao[aria-expanded='true'] {
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-text);
+}
+
+/* Header do celular: fundo da cor primária. */
+.sinoBotaoMobile {
+  color: var(--ds-on-primary);
+  --ds-focus: #ffffff;
+}
+
+.sinoBotaoMobile:hover,
+.sinoBotaoMobile[aria-expanded='true'] {
+  background-color: var(--ds-overlay-on-primary-active);
+  color: var(--ds-on-primary);
+}
+
+.contador {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--ds-radius-pill);
+  background-color: var(--ds-danger);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: var(--ds-fw-bold);
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--ds-surface);
+  pointer-events: none;
+}
+
+.sinoBotaoMobile .contador {
+  box-shadow: 0 0 0 2px var(--ds-primary);
+}
+
+/* ------------------------------ PAINEL ---------------------------------- */
+
+.painel {
+  position: absolute;
+  top: calc(100% + var(--ds-sp-2));
+  right: 0;
+  z-index: var(--ds-z-dropdown);
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 2 * var(--ds-sp-4)));
+  max-height: min(560px, calc(100vh - var(--ds-topbar-h) - 2 * var(--ds-sp-4)));
+  max-height: min(560px, calc(100dvh - var(--ds-topbar-h) - 2 * var(--ds-sp-4)));
+  background-color: var(--ds-surface);
+  color: var(--ds-text);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-md);
+  --ds-focus: var(--ds-primary);
+}
+
+/* Celular: largura da tela, entre o header e a navegação inferior (que
+   continua visível e utilizável). */
+.painelMobile {
+  position: fixed;
+  top: calc(var(--ds-mobile-header-h) + env(safe-area-inset-top, 0px) + var(--ds-sp-2));
+  left: max(var(--ds-sp-2), env(safe-area-inset-left, 0px));
+  right: max(var(--ds-sp-2), env(safe-area-inset-right, 0px));
+  width: auto;
+  max-height: calc(
+    100vh - var(--ds-mobile-header-h) - var(--ds-bottomnav-h) - env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px) - 2 * var(--ds-sp-2)
+  );
+  max-height: calc(
+    100dvh - var(--ds-mobile-header-h) - var(--ds-bottomnav-h) - env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px) - 2 * var(--ds-sp-2)
+  );
+  box-shadow: var(--ds-shadow-modal);
+}
+
+.painelTopo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+}
+
+.painelTitulo {
+  margin: 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+}
+
+.painelLista {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.painelVazio,
+.painelErro {
+  margin: 0;
+  padding: var(--ds-sp-5) var(--ds-sp-4);
+  font-size: var(--ds-fs-body);
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+
+.painelErro {
+  color: var(--ds-danger);
+}
+
+.painelRodape {
+  display: flex;
+  justify-content: center;
+  padding: var(--ds-sp-2) var(--ds-sp-4);
+  border-top: var(--ds-border-w) solid var(--ds-border);
+}
+
+/* ------------------------------- ITENS ---------------------------------- */
+
+.lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  gap: var(--ds-sp-3);
+  padding: var(--ds-sp-3) var(--ds-sp-4);
+  border-bottom: var(--ds-border-w) solid var(--ds-border);
+}
+
+.lista > .item:last-child {
+  border-bottom: none;
+}
+
+.itemNaoLida {
+  background-color: var(--ds-primary-soft);
+  background-color: color-mix(in srgb, var(--ds-primary-soft) 55%, var(--ds-surface));
+}
+
+.itemIcone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-radius-pill);
+  background-color: var(--ds-neutral-soft);
+  color: var(--ds-primary);
+}
+
+.itemCorpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.itemTopo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+}
+
+.itemTitulo {
+  min-width: 0;
+  font-size: var(--ds-fs-body);
+  font-weight: var(--ds-fw-semibold);
+  line-height: var(--ds-lh-card);
+  color: var(--ds-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a.itemTitulo:hover {
+  text-decoration: underline;
+}
+
+.itemNaoLida .itemTitulo {
+  font-weight: var(--ds-fw-bold);
+}
+
+.pontoNaoLida {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: var(--ds-radius-pill);
+  background-color: var(--ds-danger);
+}
+
+.somenteLeitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.itemDescricao {
+  margin: 0;
+  font-size: var(--ds-fs-body);
+  line-height: var(--ds-lh-body);
+  color: var(--ds-text);
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.itemTipo::before {
+  content: '·';
+  margin-right: var(--ds-sp-2);
+}
+
+.itemResolucao {
+  margin: 0;
+  font-size: var(--ds-fs-aux);
+  color: var(--ds-text-muted);
+}
+
+.itemAcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-sp-1) var(--ds-sp-3);
+  margin-top: var(--ds-sp-1);
+}
+
+.acaoLink,
+.acaoBotao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-1);
+  min-height: 32px;
+  padding: 0 var(--ds-sp-2);
+  margin-left: calc(-1 * var(--ds-sp-2));
+  border: none;
+  border-radius: var(--ds-radius-sm);
+  background-color: transparent;
+  font: inherit;
+  font-size: var(--ds-fs-label);
+  font-weight: var(--ds-fw-semibold);
+  color: var(--ds-primary);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.acaoLink:hover,
+.acaoBotao:hover:not(:disabled) {
+  background-color: var(--ds-neutral-soft);
+}
+
+.acaoBotao:disabled {
+  color: var(--ds-text-disabled, var(--ds-text-muted));
+  cursor: not-allowed;
+}
+
+.painelTopo .acaoBotao {
+  margin-left: 0;
+}
+
+/* --------------------------- PÁGINA /notificacoes ------------------------ */
+
+.pagina {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-4);
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-sp-3) var(--ds-sp-5);
+}
+
+.superficie {
+  background-color: var(--ds-surface);
+  border: var(--ds-border-w) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  overflow: hidden;
+}
+
+.maisWrap {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .sinoBotao {
+    width: var(--ds-touch-min);
+    height: var(--ds-touch-min);
+  }
+
+  .acaoLink,
+  .acaoBotao {
+    min-height: var(--ds-touch-min);
+  }
+
+  .item {
+    padding: var(--ds-sp-3);
+  }
+}
