@@ -20,6 +20,9 @@ const ROTAS_PROTEGIDAS = [
   // Migration 0080: histórico da Central de Notificações (o conteúdo já é
   // filtrado pela RLS; aqui só barra quem não está logado).
   '/notificacoes',
+  // Migration 0081: Central de Importações do G3 (exclusiva do
+  // proprietario_admin -- conferido na página e, de verdade, no banco).
+  '/importacoes',
 ];
 
 function ehRotaProtegida(pathname) {

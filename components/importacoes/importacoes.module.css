@@ -1,0 +1,173 @@
+/* Central de Importações do G3ERP (migration 0081). */
+
+.pilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-5);
+}
+
+.texto {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-body);
+  line-height: var(--ds-lh-body);
+}
+
+.textoPequeno {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-fs-aux);
+  line-height: var(--ds-lh-aux);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+.dado {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dadoRotulo {
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+}
+
+.dadoValor {
+  font-size: var(--ds-fs-body);
+  font-weight: var(--ds-fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.contadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: var(--ds-sp-2);
+}
+
+.contador {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  padding: var(--ds-sp-3);
+  border: var(--ds-border-w, 1px) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.contador:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.contadorAtivo {
+  border-color: var(--ds-border-strong);
+  box-shadow: var(--ds-shadow-sm);
+  background: var(--ds-surface-muted);
+}
+
+.contadorNumero {
+  font-size: 1.5rem;
+  font-weight: var(--ds-fw-bold);
+  line-height: 1.1;
+}
+
+.lista {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  font-size: var(--ds-fs-body);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-2);
+  align-items: center;
+}
+
+.barra {
+  height: 10px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-neutral-soft);
+  overflow: hidden;
+}
+
+.barraPreenchida {
+  height: 100%;
+  background: var(--ds-info);
+  transition: width 0.2s ease;
+}
+
+.arquivo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-2);
+  padding: var(--ds-sp-4);
+  border: 2px dashed var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-muted);
+}
+
+.arquivo input[type='file'] {
+  font: inherit;
+  max-width: 100%;
+}
+
+.relatorios {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--ds-sp-3);
+}
+
+.relatorio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sp-1);
+  padding: var(--ds-sp-3);
+  border: var(--ds-border-w, 1px) solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.relatorioTitulo {
+  margin: 0;
+  font-size: var(--ds-fs-card);
+  font-weight: var(--ds-fw-semibold);
+}
+
+.numero {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-1);
+}
+
+.rodapePagina {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ds-sp-2);
+  align-items: center;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-sp-3);
+  align-items: flex-end;
+}

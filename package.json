@@ -22,7 +22,8 @@
     "@fullcalendar/timegrid": "^6.1.15",
     "@fullcalendar/interaction": "^6.1.15",
     "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.8"
+    "jspdf-autotable": "^5.0.8",
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

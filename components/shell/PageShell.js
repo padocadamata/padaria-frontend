@@ -40,8 +40,8 @@ export default function PageShell({ titulo, children }) {
   const { permissoes, perfilUsuario, usuarioAuth, signOut } = useAuth();
   const pathname = router.pathname;
 
-  const navegacao = useMemo(() => navegacaoDoUsuario(permissoes), [permissoes]);
-  const mobile = useMemo(() => destinosMobile(permissoes), [permissoes]);
+  const navegacao = useMemo(() => navegacaoDoUsuario(permissoes, perfilUsuario), [permissoes, perfilUsuario]);
+  const mobile = useMemo(() => destinosMobile(permissoes, perfilUsuario), [permissoes, perfilUsuario]);
 
   // Sidebar: preferência explícita do usuário (salva neste navegador) ou,
   // sem preferência, compacta abaixo de 1024px e expandida acima.
