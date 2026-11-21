@@ -1693,6 +1693,13 @@ begin
   if char_length(v_nome) not between 6 and 255 or lower(v_nome) !~ '\.xlsx$' then
     raise exception 'Somente arquivos .xlsx sao aceitos.' using errcode = '22023';
   end if;
+  -- Privacidade: o nome recebido so serve para conferir a extensao. Nunca e
+  -- gravado (nem em logs_auditoria): alguem pode ter renomeado o arquivo com
+  -- nome/CPF de cliente. Guarda-se um nome padrao pelo layout; o lote e
+  -- identificado por relatorio, periodo, geracao no G3 e sha256.
+  v_nome := case p_layout when 'vendas_produto_cliente' then 'Vendas_ProdCliente.xlsx'
+                          when 'faturamento_geral' then 'FaturamGeral.xlsx'
+                          else 'Vendas_Periodo.xlsx' end;
   if p_arquivo_tamanho is null or p_arquivo_tamanho not between 1 and 31457280 then
     raise exception 'Arquivo vazio ou maior que 30 MB.' using errcode = '22023';
   end if;
@@ -1725,7 +1732,15 @@ begin
   values (p_layout, v_nome, p_arquivo_tamanho, p_arquivo_sha256,
           jsonb_build_object(
             'original', coalesce((p_metadados ->> 'original')::boolean, false),
-            'produtor', left(p_metadados ->> 'produtor', 60),
+            -- produtor (propriedade editavel do .xlsx): so um rotulo de lista fechada, nunca o texto livre
+            'produtor', case
+                          when p_metadados ->> 'produtor' is null then null
+                          when p_metadados ->> 'produtor' = 'SheetJS' then 'SheetJS'
+                          when p_metadados ->> 'produtor' ~* '^microsoft( macintosh)? excel' then 'Microsoft Excel'
+                          when p_metadados ->> 'produtor' ~* '^libreoffice' then 'LibreOffice'
+                          when p_metadados ->> 'produtor' ~* '^openpyxl' then 'openpyxl'
+                          else 'outro'
+                        end,
             'abas', 1,
             'textos_compartilhados', coalesce((p_metadados ->> 'textos_compartilhados')::boolean, false),
             'formulas', 0,
@@ -1852,9 +1867,14 @@ end;
 $$;
 
 -- 7.4 Lista a previa (lote em previa) ou o que o lote atestou (confirmado/
--- revertido), paginado e filtrado por acao.
+-- revertido), filtrado por acao e paginado NO SERVIDOR: devolve so a pagina
+-- pedida e, em cada linha, "total" = quantidade de registros do filtro inteiro
+-- (contada antes do limit/offset). Ordem estavel e total: data, numero
+-- (numerico via lpad), chave, faceta, acao -- (faceta, chave) e unico no lote,
+-- entao a mesma pagina devolve sempre os mesmos registros. Pagina alem do fim
+-- devolve zero linhas (a tela volta para a pagina 1).
 create function public.g3_listar_lote(p_lote uuid, p_acao text default null, p_limite integer default 100, p_deslocamento integer default 0)
-returns table (faceta text, chave text, data date, acao text, motivo text, detalhe jsonb, linhas integer[], valor numeric)
+returns table (faceta text, chave text, data date, acao text, motivo text, detalhe jsonb, linhas integer[], valor numeric, total bigint)
 language plpgsql
 stable
 security definer
@@ -1874,13 +1894,14 @@ begin
 
   if v_status in ('confirmado', 'revertido') then
     return query
-    select * from (
-      select a.faceta, a.chave, a.data, a.acao, null::text, null::jsonb, null::integer[],
+    select x.faceta, x.chave, x.data, x.acao, x.motivo, x.detalhe, x.linhas, x.valor, count(*) over ()
+    from (
+      select a.faceta, a.chave, a.data, a.acao, null::text as motivo, null::jsonb as detalhe, null::integer[] as linhas,
              case a.faceta
                when 'itens' then (select sum((i ->> 'v')::numeric) from jsonb_array_elements(c.conteudo -> 'itens') i)
                when 'faturamento' then (c.conteudo ->> 'liquido')::numeric
                else (c.conteudo ->> 'venda')::numeric
-             end
+             end as valor
       from public.g3_atestados a
       left join public.g3_conteudos c on c.id = a.conteudo_id
       where a.lote_id = p_lote and (p_acao is null or a.acao = p_acao)
@@ -1889,14 +1910,14 @@ begin
       from public.g3_pendencias p
       where p.lote_id = p_lote and (p_acao is null or p_acao = 'bloqueada')
     ) x
-    order by x.data nulls first, lpad(x.chave, 20, '0')
+    order by x.data nulls first, lpad(x.chave, 20, '0'), x.chave, x.faceta, x.acao
     limit p_limite offset p_deslocamento;
   else
     return query
-    select p.faceta, p.chave, p.data, p.acao, p.motivo, p.detalhe, p.linhas, p.valor::numeric
+    select p.faceta, p.chave, p.data, p.acao, p.motivo, p.detalhe, p.linhas, p.valor::numeric, count(*) over ()
     from public.g3_previa p
     where p.lote_id = p_lote and (p_acao is null or p.acao = p_acao)
-    order by p.data nulls first, lpad(p.chave, 20, '0')
+    order by p.data nulls first, lpad(p.chave, 20, '0'), p.chave, p.faceta, p.acao
     limit p_limite offset p_deslocamento;
   end if;
 end;
@@ -2117,9 +2138,16 @@ as $$
   )
 $$;
 
-create function public.g3_listar_pendencias()
+-- Pendencias abertas paginadas NO SERVIDOR (nunca o conjunto inteiro: a API
+-- do Supabase corta respostas em 1000 linhas). Filtros opcionais por motivo e
+-- por layout; em cada linha, "total" = pendencias do filtro e "total_geral" =
+-- todas as abertas (contados antes do limit/offset). Ordem estavel e total:
+-- data, faceta, numero (lpad), chave, id (unico). Pagina alem do fim devolve
+-- zero linhas (a tela volta para a pagina 1).
+create function public.g3_listar_pendencias(p_motivo text default null, p_layout text default null,
+                                            p_limite integer default 20, p_deslocamento integer default 0)
 returns table (id bigint, lote_id uuid, layout text, faceta text, chave text, data date, motivo text,
-               detalhe jsonb, linhas integer[], valor numeric)
+               detalhe jsonb, linhas integer[], valor numeric, total bigint, total_geral bigint)
 language plpgsql
 stable
 security definer
@@ -2128,7 +2156,21 @@ set statement_timeout = '20s'
 as $$
 begin
   perform public.g3_exigir_admin();
-  return query select * from public.g3_pendencias_abertas_int() x order by x.data nulls first, x.faceta, lpad(x.chave, 20, '0');
+  if p_motivo is not null and p_motivo not in ('valor_nao_positivo', 'aritmetica_linha', 'datas_divergentes', 'conflito_numero') then
+    raise exception 'Motivo de pendencia invalido.' using errcode = '22023';
+  end if;
+  if p_layout is not null and p_layout not in ('vendas_produto_cliente', 'faturamento_geral', 'vendas_periodo') then
+    raise exception 'Layout invalido.' using errcode = '22023';
+  end if;
+  p_limite := least(greatest(coalesce(p_limite, 20), 1), 500);
+  p_deslocamento := greatest(coalesce(p_deslocamento, 0), 0);
+  return query
+  select y.id, y.lote_id, y.layout, y.faceta, y.chave, y.data, y.motivo, y.detalhe, y.linhas, y.valor,
+         count(*) over (), y.total_geral
+  from (select x.*, count(*) over () as total_geral from public.g3_pendencias_abertas_int() x) y
+  where (p_motivo is null or y.motivo = p_motivo) and (p_layout is null or y.layout = p_layout)
+  order by y.data nulls first, y.faceta, lpad(y.chave, 20, '0'), y.chave, y.id
+  limit p_limite offset p_deslocamento;
 end;
 $$;
 
@@ -2349,7 +2391,7 @@ grant execute on function public.g3_listar_lote(uuid, text, integer, integer) to
 grant execute on function public.g3_confirmar_importacao(uuid, bigint, boolean) to authenticated;
 grant execute on function public.g3_descartar_importacao(uuid) to authenticated;
 grant execute on function public.g3_reverter_importacao(uuid, text) to authenticated;
-grant execute on function public.g3_listar_pendencias() to authenticated;
+grant execute on function public.g3_listar_pendencias(text, text, integer, integer) to authenticated;
 grant execute on function public.g3_cobertura(date, date) to authenticated;
 grant execute on function public.g3_conciliacao_diaria(date, date) to authenticated;
 grant execute on function public.g3_espaco_ocupado() to authenticated;
@@ -2366,7 +2408,7 @@ COMMIT;
 -- drop function if exists public.g3_conciliacao_diaria(date, date);
 -- drop function if exists public.g3_cobertura(date, date);
 -- drop function if exists public.g3_cobertura_int(date, date);
--- drop function if exists public.g3_listar_pendencias();
+-- drop function if exists public.g3_listar_pendencias(text, text, integer, integer);
 -- drop function if exists public.g3_pendencias_abertas_int();
 -- drop function if exists public.g3_reverter_importacao(uuid, text);
 -- drop function if exists public.g3_descartar_importacao(uuid);

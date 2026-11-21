@@ -372,7 +372,7 @@ test('validações de entrada do início: layout, extensão, abas, fórmulas, ma
     await assert.rejects(iniciar('vendas_periodo', 'a.xlsx', { abas: 1, macros: true }), /macros/);
     await assert.rejects(iniciar('vendas_periodo', 'a.xlsx', { abas: 1 }, 500000), /limite/);
     const id = await valor(db, "select public.g3_iniciar_importacao('vendas_periodo', 'C:\\pasta\\Relatorio.XLSX', 100, $1, '{\"abas\":1}'::jsonb, 10)", [sha('x')]);
-    assert.equal(await valor(db, 'select arquivo_nome from public.g3_importacoes where id = $1', [id]), 'Relatorio.XLSX', 'só o nome, sem caminho');
+    assert.equal(await valor(db, 'select arquivo_nome from public.g3_importacoes where id = $1', [id]), 'Vendas_Periodo.xlsx', 'nome padrão pelo layout, nunca o recebido');
   });
 });
 
@@ -819,6 +819,15 @@ test('desempenho: ~42 mil linhas de itens (14 mil vendas) em um lote, prévia e 
   await confirmar(db, lote);
   const tConfirmar = Date.now() - t;
   assert.equal(await valor(db, 'select count(*)::int from public.g3_venda_itens'), 42000);
+  // paginação no servidor num lote confirmado de 14 mil registros: página do meio, total correto
+  t = Date.now();
+  const meio = await comoAutenticado(db, ADMIN, async () =>
+    (await db.query('select * from public.g3_listar_lote($1, null, 20, 7000)', [lote.id])).rows);
+  const tPagina = Date.now() - t;
+  assert.equal(meio.length, 20);
+  assert.equal(Number(meio[0].total), 14000);
+  console.log(`[0081 desempenho] página 351 de 700 (lote confirmado de 14 mil registros) em ${tPagina}ms`);
+  assert.ok(tPagina < 5000, `página em ${tPagina}ms`);
 
   const linhas2 = vendasProdutoCliente({ inicio: '2026-06-01', fim: '2026-07-31', gerado: '2026-08-02 08:00', itens: c.itens });
   t = Date.now();
@@ -829,6 +838,230 @@ test('desempenho: ~42 mil linhas de itens (14 mil vendas) em um lote, prévia e 
   console.log(`[0081 desempenho] envio+previa=${tPrevia}ms confirmar=${tConfirmar}ms reenvio(envio+previa+confirmar)=${tReenvio}ms`);
   // limites folgados para o PGlite (WASM, 1 thread); no Supabase cada RPC tem teto de 30-45 s
   assert.ok(tConfirmar < 30000, `confirmar em ${tConfirmar}ms`);
+});
+
+// Listagem paginada NO SERVIDOR (g3_listar_lote): contagem do filtro inteiro
+// em cada linha, ordem estável e total, páginas disjuntas que cobrem tudo.
+async function pagina(db, id, { acao = null, limite = 20, deslocamento = 0 } = {}) {
+  return comoAutenticado(db, ADMIN, async () =>
+    (await db.query('select * from public.g3_listar_lote($1, $2, $3, $4)', [id, acao, limite, deslocamento])).rows);
+}
+
+async function varrer(db, id, acao, limite) {
+  const todas = [];
+  let total = null;
+  for (let desl = 0; ; desl += limite) {
+    const linhas = await pagina(db, id, { acao, limite, deslocamento: desl });
+    if (linhas.length === 0) break;
+    for (const l of linhas) {
+      if (total === null) total = Number(l.total);
+      assert.equal(Number(l.total), total, 'total igual em todas as páginas');
+    }
+    assert.ok(linhas.length <= limite);
+    todas.push(...linhas);
+    if (linhas.length < limite) break;
+  }
+  return { todas, total: total ?? 0 };
+}
+
+const chaveOrdem = (l) => `${l.data ? new Date(l.data).toISOString().slice(0, 10) : '0000-00-00'}|${l.chave.padStart(20, '0')}|${l.faceta}|${l.acao}`;
+
+function conferirVarredura({ todas, total }, esperado, rotulo) {
+  assert.equal(total, esperado, `${rotulo}: total`);
+  assert.equal(todas.length, esperado, `${rotulo}: páginas cobrem tudo`);
+  assert.equal(new Set(todas.map((l) => `${l.faceta}:${l.chave}:${l.acao}`)).size, esperado, `${rotulo}: sem repetição entre páginas`);
+  for (let i = 1; i < todas.length; i += 1) {
+    assert.ok(chaveOrdem(todas[i - 1]) < chaveOrdem(todas[i]), `${rotulo}: ordem estável e total (posição ${i})`);
+  }
+}
+
+test('listagem paginada no servidor: milhares de registros, filtros por situação, tamanhos de página, contagem e ordem estável', async () => {
+  const db = await novoBanco();
+  const vendas = vendasEmMassa({ quantidade: 3000, dias: 30, itensPorVenda: 3 });
+  const per = { inicio: '2026-06-01', fim: '2026-06-30' };
+  await importarEConfirmar(db, 'vendas_produto_cliente', vendasProdutoCliente({ ...per, gerado: '2026-07-01 08:00', itens: cenario(vendas).itens }));
+
+  // reexportação: 30 alteradas, 30 sumidas (ausentes), 30 com item zerado (bloqueadas), 25 novas
+  const v2 = vendas
+    .filter((v) => v.numero % 100 !== 2)
+    .map((v) => {
+      if (v.numero % 100 === 1) return { ...v, itens: [{ ...v.itens[0], valor: Math.round((v.itens[0].valor + 1) * 100) / 100 }, ...v.itens.slice(1)] };
+      if (v.numero % 100 === 3) return { ...v, itens: [{ ...v.itens[0], valor: 0 }, ...v.itens.slice(1)] };
+      return v;
+    })
+    .concat(Array.from({ length: 25 }, (_, k) => ({ numero: 5001 + k, dataHora: '2026-06-10 23:00', itens: [{ produto: 'PRODUTO NOVO', codigo: 999, qtd: 1, valor: 7 }] })));
+  const lote = await importar(db, 'vendas_produto_cliente', vendasProdutoCliente({ ...per, gerado: '2026-07-05 08:00', itens: cenario(v2).itens }));
+  const por = acoes(lote);
+  assert.deepEqual(por, { igual: 2910, alterada: 30, ausente: 30, bloqueada: 30, nova: 25 });
+  const totalGeral = Object.values(por).reduce((a, b) => a + b, 0);
+
+  // sem filtro, em páginas de 100 (e de 500 = teto), e cada filtro em páginas de 20
+  conferirVarredura(await varrer(db, lote.id, null, 100), totalGeral, 'prévia/todas/100');
+  conferirVarredura(await varrer(db, lote.id, null, 500), totalGeral, 'prévia/todas/500');
+  for (const [acao, n] of Object.entries(por)) {
+    if (acao === 'igual') continue;
+    const v = await varrer(db, lote.id, acao, 20);
+    conferirVarredura(v, n, `prévia/${acao}/20`);
+    assert.ok(v.todas.every((l) => l.acao === acao), `${acao}: só registros do filtro`);
+  }
+  conferirVarredura(await varrer(db, lote.id, 'igual', 50), por.igual, 'prévia/igual/50');
+
+  // mesma página pedida duas vezes = mesmos registros; páginas vizinhas não se sobrepõem
+  const p5a = await pagina(db, lote.id, { limite: 20, deslocamento: 80 });
+  const p5b = await pagina(db, lote.id, { limite: 20, deslocamento: 80 });
+  assert.deepEqual(p5a.map(chaveOrdem), p5b.map(chaveOrdem));
+  // trocar o tamanho de página não muda a ordem: página 3 de 50 = páginas 6..10 de 10
+  const de50 = await pagina(db, lote.id, { limite: 50, deslocamento: 100 });
+  const de10 = [];
+  for (let k = 10; k < 15; k += 1) de10.push(...await pagina(db, lote.id, { limite: 10, deslocamento: k * 10 }));
+  assert.deepEqual(de50.map(chaveOrdem), de10.map(chaveOrdem));
+
+  // além do fim: zero linhas; limite acima do teto: 500; valores inválidos normalizados
+  assert.equal((await pagina(db, lote.id, { limite: 20, deslocamento: totalGeral })).length, 0);
+  assert.equal((await pagina(db, lote.id, { limite: 5000 })).length, 500);
+  assert.equal((await pagina(db, lote.id, { limite: 0, deslocamento: -10 })).length, 1);
+  const ultima = await pagina(db, lote.id, { limite: 20, deslocamento: Math.floor((totalGeral - 1) / 20) * 20 });
+  assert.equal(ultima.length, totalGeral % 20 || 20, 'última página parcial');
+
+  // uma página do meio de um lote grande responde rápido (não carrega o lote inteiro no cliente)
+  const t = Date.now();
+  const meio = await pagina(db, lote.id, { limite: 20, deslocamento: 1500 });
+  const tPagina = Date.now() - t;
+  assert.equal(meio.length, 20);
+  console.log(`[0081 paginação] página do meio (3.025 registros) em ${tPagina}ms`);
+  assert.ok(tPagina < 5000, `página em ${tPagina}ms`);
+
+  // lote CONFIRMADO: atestados + pendências (bloqueadas), mesmas garantias
+  await confirmar(db, lote, { reconhecer: true });
+  const conf = await varrer(db, lote.id, null, 100);
+  const nConf = await valor(db, 'select (select count(*) from public.g3_atestados where lote_id = $1) + (select count(*) from public.g3_pendencias where lote_id = $1)', [lote.id]);
+  conferirVarredura(conf, Number(nConf), 'confirmado/todas/100');
+  conferirVarredura(await varrer(db, lote.id, 'bloqueada', 20), 30, 'confirmado/bloqueada/20');
+  const alt = await varrer(db, lote.id, 'alterada', 10);
+  conferirVarredura(alt, Number(await valor(db, "select count(*) from public.g3_atestados where lote_id = $1 and acao = 'alterada'", [lote.id])), 'confirmado/alterada/10');
+});
+
+test('privacidade do nome do arquivo e do produtor: nada do que o usuário digitou no nome chega ao banco nem ao log de auditoria', async () => {
+  const db = await novoBanco();
+  const NOME = 'C:\\Users\\fulano\\MARIA DA SILVA SAURO CPF 123.456.789-09 vendas.xlsx';
+  const { vpc, fat, vp } = relatorios();
+  const a = await importarEConfirmar(db, 'vendas_produto_cliente', vpc, { nome: NOME, metadados: { produtor: 'Notebook da MARIA DA SILVA SAURO' } });
+  await reverter(db, a.id, 'conferencia de privacidade');
+  const b = await importar(db, 'faturamento_geral', fat, { nome: NOME, original: false, metadados: { produtor: 'Microsoft Excel 16.0 - MARIA DA SILVA SAURO' } });
+  await comoAutenticado(db, ADMIN, () => valor(db, 'select public.g3_descartar_importacao($1)', [b.id]));
+  const c = await importar(db, 'vendas_periodo', vp, { nome: 'relatorio.xlsx', metadados: { produtor: 'LibreOffice/7.6.4.1$Windows_X86_64' } });
+  assert.equal(c.previa.status, 'previa');
+
+  const lotes = (await db.query('select arquivo_nome, arquivo_metadados from public.g3_importacoes order by seq')).rows;
+  assert.deepEqual(lotes.map((l) => l.arquivo_nome), ['Vendas_ProdCliente.xlsx', 'FaturamGeral.xlsx', 'Vendas_Periodo.xlsx']);
+  assert.deepEqual(lotes.map((l) => l.arquivo_metadados.produtor), ['outro', 'Microsoft Excel', 'LibreOffice'], 'produtor só como rótulo de lista fechada');
+  for (const termo of ['MARIA', 'SAURO', '123.456.789', 'fulano']) {
+    const achados = await valor(db, `select count(*)::int from (
+        select to_jsonb(i)::text t from public.g3_importacoes i
+        union all select to_jsonb(g)::text from public.logs_auditoria g where g.entidade = 'g3_importacao') x
+      where t ilike $1`, [`%${termo}%`]);
+    assert.equal(achados, 0, `"${termo}" não pode estar em g3_importacoes nem em logs_auditoria`);
+  }
+  assert.ok(await valor(db, "select count(*)::int from public.logs_auditoria where entidade = 'g3_importacao'") >= 3, 'confirmou/reverteu/descartou registrados');
+  await comoAutenticado(db, ADMIN, async () => {
+    await assert.rejects(db.query("select public.g3_iniciar_importacao('vendas_periodo', 'MARIA.csv', 100, $1, '{\"abas\":1}'::jsonb, 10)", [sha('csv')]), /xlsx/, 'a extensão continua conferida');
+  });
+});
+
+// Pendências abertas paginadas NO SERVIDOR: mais de 1.000 (o teto padrão da API
+// do Supabase), filtros por motivo/layout, páginas vazias e ordem estável.
+async function paginaPendencias(db, { motivo = null, layout = null, limite = 20, deslocamento = 0 } = {}) {
+  return comoAutenticado(db, ADMIN, async () =>
+    (await db.query('select * from public.g3_listar_pendencias($1, $2, $3, $4)', [motivo, layout, limite, deslocamento])).rows);
+}
+
+async function varrerPendencias(db, filtro, limite) {
+  const todas = [];
+  let total = null;
+  let totalGeral = null;
+  for (let desl = 0; ; desl += limite) {
+    const linhas = await paginaPendencias(db, { ...filtro, limite, deslocamento: desl });
+    if (linhas.length === 0) break;
+    for (const l of linhas) {
+      total ??= Number(l.total);
+      totalGeral ??= Number(l.total_geral);
+      assert.equal(Number(l.total), total, 'total igual em todas as páginas');
+      assert.equal(Number(l.total_geral), totalGeral, 'total geral igual em todas as páginas');
+    }
+    todas.push(...linhas);
+    if (linhas.length < limite) break;
+  }
+  return { todas, total: total ?? 0, totalGeral };
+}
+
+const ordemPendencia = (l) => `${new Date(l.data).toISOString().slice(0, 10)}|${l.faceta}|${l.chave.padStart(20, '0')}|${String(l.id).padStart(12, '0')}`;
+
+function conferirPendencias({ todas, total }, esperado, rotulo) {
+  assert.equal(total, esperado, `${rotulo}: total`);
+  assert.equal(todas.length, esperado, `${rotulo}: páginas cobrem tudo`);
+  assert.equal(new Set(todas.map((l) => String(l.id))).size, esperado, `${rotulo}: sem repetição`);
+  for (let i = 1; i < todas.length; i += 1) assert.ok(ordemPendencia(todas[i - 1]) < ordemPendencia(todas[i]), `${rotulo}: ordem estável (posição ${i})`);
+}
+
+test('pendências abertas paginadas no servidor: mais de 1.000, filtros, páginas vazias, ordem estável e sem truncamento', async () => {
+  const db = await novoBanco();
+  const vendas = vendasEmMassa({ quantidade: 1300, dias: 30, itensPorVenda: 2 });
+  const per = { inicio: '2026-06-01', fim: '2026-06-30' };
+  // itens: 1.200 vendas com item zerado (valor_nao_positivo); faturamento: vendas com o líquido errado (aritmetica_linha)
+  const itensRuins = cenario(vendas.map((v) => (v.numero % 13 === 0 ? v : { ...v, itens: [{ ...v.itens[0], valor: 0 }, ...v.itens.slice(1)] }))).itens;
+  const li = await importarEConfirmar(db, 'vendas_produto_cliente', vendasProdutoCliente({ ...per, gerado: '2026-07-01 08:00', itens: itensRuins }));
+  assert.equal(acoes(li).bloqueada, 1200);
+  const fatRuim = cenario(vendas).fat.map((v) => (v.numero % 9 === 0 ? { ...v, liquido: Math.round((v.prod + 5) * 100) / 100 } : v));
+  const lf = await importarEConfirmar(db, 'faturamento_geral', faturamentoGeral({ ...per, gerado: '2026-07-01 08:00', vendas: fatRuim }));
+  const nFat = acoes(lf).bloqueada;
+  assert.equal(nFat, 144, 'faturamento: 1.300 / 9 vendas bloqueadas');
+  const totalGeral = 1200 + nFat;
+  assert.ok(totalGeral > 1000);
+
+  // sem filtro: páginas de 100 e de 500 (teto) cobrem todas, sem truncar em 1.000
+  const v100 = await varrerPendencias(db, {}, 100);
+  conferirPendencias(v100, totalGeral, 'todas/100');
+  assert.equal(v100.totalGeral, totalGeral);
+  conferirPendencias(await varrerPendencias(db, {}, 500), totalGeral, 'todas/500');
+  // filtros por motivo e por layout; total_geral continua o de todas
+  const porMotivo = await varrerPendencias(db, { motivo: 'valor_nao_positivo' }, 50);
+  conferirPendencias(porMotivo, 1200, 'valor_nao_positivo/50');
+  assert.equal(porMotivo.totalGeral, totalGeral);
+  assert.ok(porMotivo.todas.every((l) => l.motivo === 'valor_nao_positivo' && l.layout === 'vendas_produto_cliente'));
+  conferirPendencias(await varrerPendencias(db, { motivo: 'aritmetica_linha' }, 20), nFat, 'aritmetica_linha/20');
+  conferirPendencias(await varrerPendencias(db, { layout: 'faturamento_geral' }, 10), nFat, 'layout faturamento/10');
+  // filtro sem resultados e página além do fim: zero linhas
+  assert.equal((await paginaPendencias(db, { motivo: 'conflito_numero' })).length, 0);
+  assert.equal((await paginaPendencias(db, { deslocamento: totalGeral })).length, 0);
+  assert.equal((await paginaPendencias(db, { limite: 20, deslocamento: Math.floor((totalGeral - 1) / 20) * 20 })).length, totalGeral % 20 || 20, 'última página parcial');
+  // limites normalizados, filtro inválido recusado
+  assert.equal((await paginaPendencias(db, { limite: 5000 })).length, 500);
+  assert.equal((await paginaPendencias(db, { limite: 0, deslocamento: -5 })).length, 1);
+  await assert.rejects(paginaPendencias(db, { motivo: 'qualquer' }), /Motivo de pendencia invalido/);
+  await assert.rejects(paginaPendencias(db, { layout: 'estoque' }), /Layout invalido/);
+  // estabilidade: mesma página duas vezes; página 3 de 50 = páginas 11..15 de 10
+  const p1 = await paginaPendencias(db, { limite: 50, deslocamento: 100 });
+  assert.deepEqual(p1.map(ordemPendencia), (await paginaPendencias(db, { limite: 50, deslocamento: 100 })).map(ordemPendencia));
+  const de10 = [];
+  for (let k = 10; k < 15; k += 1) de10.push(...await paginaPendencias(db, { limite: 10, deslocamento: k * 10 }));
+  assert.deepEqual(p1.map(ordemPendencia), de10.map(ordemPendencia));
+  // uma página do meio responde rápido
+  const t = Date.now();
+  const meio = await paginaPendencias(db, { limite: 20, deslocamento: 700 });
+  const tPagina = Date.now() - t;
+  assert.equal(meio.length, 20);
+  console.log(`[0081 pendências] página do meio (${totalGeral} pendências abertas) em ${tPagina}ms`);
+  assert.ok(tPagina < 5000);
+  // mesma fonte das pendências da conferência diária
+  const somaDias = (await conciliacao(db, '2026-06-01', '2026-06-30')).reduce((a, d) => a + Number(d.pendencias), 0);
+  assert.equal(somaDias, totalGeral);
+
+  // resolver as dos itens com um relatório posterior válido: o total cai e as páginas se ajustam
+  await importarEConfirmar(db, 'vendas_produto_cliente', vendasProdutoCliente({ ...per, gerado: '2026-07-02 08:00', itens: cenario(vendas).itens }));
+  const depois = await varrerPendencias(db, {}, 100);
+  conferirPendencias(depois, nFat, 'após resolver itens');
+  assert.equal(depois.totalGeral, nFat);
+  assert.equal((await paginaPendencias(db, { motivo: 'valor_nao_positivo' })).length, 0);
 });
 
 // ---------------------------------------------------------------------------

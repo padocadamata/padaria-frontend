@@ -171,3 +171,56 @@
   gap: var(--ds-sp-3);
   align-items: flex-end;
 }
+
+/* Lista paginada dos registros do lote: o topo fica abaixo do cabeçalho fixo
+   ao trocar de página; rodapé com contador, páginas e tamanho da página. */
+.topoTabela {
+  scroll-margin-top: calc(var(--ds-topbar-h) + var(--ds-sp-3));
+}
+
+.tabelaCarregando {
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.rodapeTabela {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-sp-3);
+}
+
+.rodapeTabela > nav {
+  margin-top: 0;
+}
+
+.porPagina {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-sp-2);
+  font-size: var(--ds-fs-label);
+  color: var(--ds-text-muted);
+  white-space: nowrap;
+}
+
+.porPagina .porPaginaSelect {
+  width: auto;
+  min-width: 5rem;
+}
+
+@media (max-width: 768px) {
+  .topoTabela {
+    scroll-margin-top: calc(var(--ds-mobile-header-h) + env(safe-area-inset-top, 0px) + var(--ds-sp-3));
+  }
+
+  .rodapeTabela {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .porPagina {
+    justify-content: center;
+  }
+}

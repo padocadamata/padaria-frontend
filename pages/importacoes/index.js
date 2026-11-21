@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import RequireAuth from '../../components/RequireAuth';
 import SomenteAdmin from '../../components/importacoes/SomenteAdmin';
 import PageShell from '../../components/shell/PageShell';
@@ -13,12 +12,13 @@ import EmptyState from '../../components/ui/EmptyState';
 import Field from '../../components/ui/Field';
 import Input from '../../components/ui/Input';
 import Checkbox from '../../components/ui/Checkbox';
+import PendenciasAbertas from '../../components/importacoes/PendenciasAbertas';
 import styles from '../../components/importacoes/importacoes.module.css';
 import { createClient } from '../../lib/supabase/client';
 import {
-  COBERTURA, ESTADO_DIA, FACETAS, MOTIVOS, ROTULOS_LAYOUT, STATUS,
+  COBERTURA, ESTADO_DIA, ROTULOS_LAYOUT, STATUS,
   conciliacaoDiaria, espacoOcupado, formatarBytes, formatarData, formatarDataHora, formatarMoeda,
-  hojeSP, limparExpirados, listarImportacoes, listarPendencias, mensagemDeErro, somarDias,
+  hojeSP, limparExpirados, listarImportacoes, mensagemDeErro, somarDias,
 } from '../../lib/importacoes/consultas';
 
 // Central de Importações do G3ERP (migration 0081) -- painel: conferência
@@ -50,7 +50,7 @@ function PainelImportacoes() {
   const [fim, setFim] = useState(() => hojeSP());
   const [soProblemas, setSoProblemas] = useState(true);
   const [dias, setDias] = useState([]);
-  const [pendencias, setPendencias] = useState([]);
+  const [versaoPendencias, setVersaoPendencias] = useState(0);
   const [lotes, setLotes] = useState([]);
   const [temMais, setTemMais] = useState(false);
   const [espaco, setEspaco] = useState(null);
@@ -69,14 +69,12 @@ function PainelImportacoes() {
     setCarregando(true);
     setErro('');
     try {
-      const [conc, pend, bytes] = await Promise.all([
+      const [conc, bytes] = await Promise.all([
         conciliacaoDiaria(supabase, inicio, fim),
-        listarPendencias(supabase),
         espacoOcupado(supabase),
         carregarLotes(0),
       ]);
       setDias(conc);
-      setPendencias(pend);
       setEspaco(bytes);
     } catch (e) {
       setErro(mensagemDeErro(e));
@@ -102,6 +100,7 @@ function PainelImportacoes() {
       const r = await limparExpirados(supabase);
       setAviso(`Limpeza concluída: ${r.expirados} lote(s) interrompido(s) expirado(s), ${r.revertidos_purgados} lote(s) revertido(s) sem linhas brutas.`);
       await carregar();
+      setVersaoPendencias((v) => v + 1);
     } catch (e) {
       setErro(mensagemDeErro(e));
     }
@@ -140,14 +139,6 @@ function PainelImportacoes() {
     { chave: 'periodo_venda', rotulo: 'Diário (venda)', alinhar: 'direita', render: (d) => <span className={styles.numero}>{formatarMoeda(d.periodo_venda)}</span> },
     { chave: 'soma_liquido', rotulo: 'Faturamento líquido', alinhar: 'direita', render: (d) => <span className={styles.numero}>{formatarMoeda(d.soma_liquido)}</span> },
     { chave: 'periodo_liquido', rotulo: 'Diário (líquido)', alinhar: 'direita', render: (d) => <span className={styles.numero}>{formatarMoeda(d.periodo_liquido)}</span> },
-  ];
-
-  const colunasPendencias = [
-    { chave: 'data', rotulo: 'Data', mobile: 'titulo', semQuebra: true, render: (p) => formatarData(p.data) },
-    { chave: 'faceta', rotulo: 'Registro', render: (p) => `${FACETAS[p.faceta] || p.faceta} ${p.faceta === 'dia' ? '' : `nº ${p.chave}`}` },
-    { chave: 'motivo', rotulo: 'Motivo', render: (p) => MOTIVOS[p.motivo] || p.motivo },
-    { chave: 'valor', rotulo: 'Valor', alinhar: 'direita', render: (p) => <span className={styles.numero}>{formatarMoeda(p.valor)}</span> },
-    { chave: 'lote', rotulo: 'Lote', render: (p) => <Link href={`/importacoes/${p.lote_id}`}>{ROTULOS_LAYOUT[p.layout] || 'Abrir'}</Link> },
   ];
 
   const colunasLotes = [
@@ -194,13 +185,7 @@ function PainelImportacoes() {
           </div>
         </Card>
 
-        <Card titulo={`Pendências abertas (${pendencias.length})`} subtitulo="Vendas ou dias bloqueados. A última versão válida continua valendo; a pendência só se resolve com um relatório posterior válido.">
-          {pendencias.length === 0 ? (
-            <EmptyState>Nenhuma pendência aberta.</EmptyState>
-          ) : (
-            <DataTable colunas={colunasPendencias} linhas={pendencias} chaveLinha={(p) => p.id} rotulo="Pendências abertas" />
-          )}
-        </Card>
+        <PendenciasAbertas supabase={supabase} versao={versaoPendencias} />
 
         <Card titulo="Histórico de importações">
           <div className={styles.pilha}>

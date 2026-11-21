@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import RequireAuth from '../../components/RequireAuth';
 import SomenteAdmin from '../../components/importacoes/SomenteAdmin';
@@ -13,20 +13,23 @@ import DataTable from '../../components/ui/DataTable';
 import EmptyState from '../../components/ui/EmptyState';
 import Field from '../../components/ui/Field';
 import Modal from '../../components/ui/Modal';
+import Paginacao from '../../components/Paginacao';
+import Select from '../../components/ui/Select';
 import Textarea from '../../components/ui/Textarea';
 import styles from '../../components/importacoes/importacoes.module.css';
 import { createClient } from '../../lib/supabase/client';
 import {
   ACOES, MOTIVOS, ROTULOS_LAYOUT, STATUS,
   confirmarImportacao, contagensDoResumo, descartarImportacao, formatarBytes, formatarData, formatarDataHora,
-  formatarMoeda, gerarPrevia, listarLote, mensagemDeErro, obterImportacao, reverterImportacao,
+  formatarMoeda, gerarPrevia, listarLotePaginado, mensagemDeErro, obterImportacao, reverterImportacao,
 } from '../../lib/importacoes/consultas';
+import {
+  TAMANHOS_PAGINA, TAMANHO_PAGINA_PADRAO, calcularPaginacao, chaveContexto, normalizarTamanho, paginaEfetiva, precisaRolar, textoContador,
+} from '../../lib/importacoes/paginacao';
 
 // Detalhe de um lote da Central de Importações G3 (migration 0081): prévia
 // (conferir -> confirmar ou descartar), lote confirmado (o que ele atestou ->
 // reverter) e lotes rejeitados/encerrados (motivos).
-
-const POR_PAGINA = 100;
 
 function Dado({ rotulo, children }) {
   return (
@@ -60,28 +63,59 @@ function Contadores({ resumo, filtro, onFiltrar }) {
   );
 }
 
+// Lista paginada NO SERVIDOR: cada troca de página/filtro/tamanho pede só a
+// página atual a g3_listar_lote, que devolve também o total do filtro.
 function TabelaRegistros({ supabase, loteId, acao, versao }) {
-  const [linhas, setLinhas] = useState([]);
-  const [temMais, setTemMais] = useState(false);
+  const [tamanho, setTamanho] = useState(TAMANHO_PAGINA_PADRAO);
+  const contexto = chaveContexto({ acao, tamanho, versao });
+  const [estadoPagina, setEstadoPagina] = useState(null); // { contexto, pagina }
+  const pagina = paginaEfetiva(estadoPagina, contexto);
+  const [resultado, setResultado] = useState(null); // { contexto, pagina, registros, total }
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
-
-  const buscar = useCallback(async (deslocamento) => {
-    const lista = await listarLote(supabase, loteId, { acao, limite: POR_PAGINA + 1, deslocamento });
-    setTemMais(lista.length > POR_PAGINA);
-    return lista.slice(0, POR_PAGINA);
-  }, [supabase, loteId, acao]);
+  const topoRef = useRef(null);
+  const rolarAoCarregar = useRef(false);
 
   useEffect(() => {
     let ativo = true;
     setCarregando(true);
     setErro('');
-    buscar(0)
-      .then((p) => { if (ativo) setLinhas(p); })
+    listarLotePaginado(supabase, loteId, { acao, pagina, tamanho })
+      .then((r) => {
+        if (!ativo) return;
+        // página que deixou de existir (ex.: lote recarregado): volta para a 1
+        if (r.registros.length === 0 && pagina > 1) {
+          setEstadoPagina({ contexto, pagina: 1 });
+          return;
+        }
+        setResultado({ contexto, pagina, ...r });
+      })
       .catch((e) => { if (ativo) setErro(mensagemDeErro(e)); })
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, [buscar, versao]);
+  }, [supabase, loteId, acao, pagina, tamanho, contexto]);
+
+  // depois que a nova página chega, mantém o usuário no início da tabela
+  useEffect(() => {
+    if (!rolarAoCarregar.current || carregando || !resultado) return;
+    rolarAoCarregar.current = false;
+    const el = topoRef.current;
+    if (!el || typeof el.getBoundingClientRect !== 'function') return;
+    const margem = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+    if (precisaRolar(el.getBoundingClientRect().top, { alturaCabecalho: margem, alturaTela: window.innerHeight })) {
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [carregando, resultado]);
+
+  function irPara(nova) {
+    rolarAoCarregar.current = true;
+    setEstadoPagina({ contexto, pagina: nova });
+  }
+
+  function mudarTamanho(evento) {
+    rolarAoCarregar.current = true;
+    setTamanho(normalizarTamanho(evento.target.value)); // novo contexto: volta para a página 1
+  }
 
   const colunas = [
     { chave: 'data', rotulo: 'Data', mobile: 'titulo', semQuebra: true, render: (l) => formatarData(l.data) },
@@ -99,22 +133,41 @@ function TabelaRegistros({ supabase, loteId, acao, versao }) {
     { chave: 'valor', rotulo: 'Valor', alinhar: 'direita', render: (l) => <span className={styles.numero}>{formatarMoeda(l.valor)}</span> },
   ];
 
-  async function mais() {
-    try {
-      const p = await buscar(linhas.length);
-      setLinhas((a) => [...a, ...p]);
-    } catch (e) {
-      setErro(mensagemDeErro(e));
-    }
+  // enquanto a próxima página carrega, a anterior continua na tela (sem saltos)
+  const atual = resultado && resultado.contexto === contexto ? resultado : null;
+  const exibido = atual || (resultado && resultado.contexto.split('|')[0] === contexto.split('|')[0] ? resultado : null);
+  const info = calcularPaginacao({ pagina: exibido ? exibido.pagina : pagina, tamanho, total: exibido ? exibido.total : 0 });
+
+  let corpo;
+  if (erro) corpo = <Alert tom="danger">{erro}</Alert>;
+  else if (!exibido) corpo = <p className={styles.texto}>Carregando…</p>;
+  else if (exibido.registros.length === 0) corpo = <EmptyState>Nenhum registro {acao ? `com a situação "${ACOES[acao]?.rotulo}"` : ''}.</EmptyState>;
+  else {
+    corpo = (
+      <div className={carregando ? styles.tabelaCarregando : undefined} aria-busy={carregando}>
+        <DataTable colunas={colunas} linhas={exibido.registros} chaveLinha={(l) => `${l.faceta}:${l.chave}:${l.acao}`} rotulo="Registros do lote" denso />
+      </div>
+    );
   }
 
-  if (erro) return <Alert tom="danger">{erro}</Alert>;
-  if (carregando) return <p className={styles.texto}>Carregando…</p>;
-  if (linhas.length === 0) return <EmptyState>Nenhum registro {acao ? `com a situação "${ACOES[acao]?.rotulo}"` : ''}.</EmptyState>;
   return (
-    <div className={styles.pilha}>
-      <DataTable colunas={colunas} linhas={linhas} chaveLinha={(l) => `${l.faceta}:${l.chave}:${l.acao}`} rotulo="Registros do lote" denso />
-      {temMais && <div className={styles.acoes}><Button variante="secondary" onClick={mais}>Carregar mais</Button></div>}
+    <div className={`${styles.pilha} ${styles.topoTabela}`} ref={topoRef}>
+      {corpo}
+      {exibido && exibido.total > 0 && (
+        <div className={styles.rodapeTabela}>
+          <p className={styles.textoPequeno} aria-live="polite">
+            {textoContador(info)}
+            {info.totalPaginas > 1 ? ` — página ${info.paginaAtual} de ${info.totalPaginas}` : ''}
+          </p>
+          <Paginacao paginaAtual={info.paginaAtual} totalPaginas={info.totalPaginas} onMudarPagina={irPara} desabilitado={carregando} />
+          <label className={styles.porPagina}>
+            <span>Por página</span>
+            <Select value={tamanho} onChange={mudarTamanho} disabled={carregando} aria-label="Registros por página" className={styles.porPaginaSelect}>
+              {TAMANHOS_PAGINA.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </label>
+        </div>
+      )}
     </div>
   );
 }
