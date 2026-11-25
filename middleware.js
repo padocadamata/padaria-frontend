@@ -23,6 +23,9 @@ const ROTAS_PROTEGIDAS = [
   // Migration 0081: Central de Importações do G3 (exclusiva do
   // proprietario_admin -- conferido na página e, de verdade, no banco).
   '/importacoes',
+  // Migrations 0083/0084: BI Gerencial (exclusivo do proprietario_admin --
+  // conferido na página e, de verdade, em cada RPC no banco).
+  '/bi',
 ];
 
 function ehRotaProtegida(pathname) {

@@ -23,6 +23,7 @@
     "@fullcalendar/interaction": "^6.1.15",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "recharts": "2.15.4",
     "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "devDependencies": {

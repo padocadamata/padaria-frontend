@@ -227,6 +227,13 @@ const CAMINHOS = {
       <path d="M14 20v-5h5" />
     </>
   ),
+  // BI Gerencial (gráfico de linha sobre eixos).
+  chart: (
+    <>
+      <path d="M4 4v16h16" />
+      <path d="m8 15 4-5 3 3 5-6" />
+    </>
+  ),
   download: (
     <>
       <path d="M12 4v11" />
