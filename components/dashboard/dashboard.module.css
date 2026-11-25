@@ -9,6 +9,9 @@
 .atalhos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* Todas as linhas com a mesma altura: um atalho na 2ª linha (ex.: BI
+     Gerencial) fica com as mesmas dimensões dos da 1ª. */
+  grid-auto-rows: 1fr;
   gap: var(--ds-sp-3);
 }
 

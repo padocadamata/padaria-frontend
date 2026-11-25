@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Bloco, { AvisoLimite, EstadoConsulta } from './Bloco';
-import { useBi } from './contexto';
+import { useBi, useRegistroExportacao } from './contexto';
 import { useConsulta, useVisivel } from '../../lib/bi/useConsulta';
 import {
   LETRA_DIA, LIMITES, NOMES_DIA, TODOS_OS_DIAS, dataValida, diaDaSemana, diasNoIntervalo, inicioDaSemana, inicioDoMes,
@@ -10,6 +10,7 @@ import { alternarDia } from '../../lib/bi/filtros';
 import {
   AVISO_COMPARACAO, MOTIVO_COMPARACAO, intervalo, moeda, nomeDosDias, numero, percentual, pontosPercentuais, variacao,
 } from '../../lib/bi/formatos';
+import { INDICADORES_COMPARATIVO, linhaComparativoGeral } from '../../lib/bi/modelos';
 import { cx } from '../../lib/design/cx';
 import s from './bi.module.css';
 
@@ -57,19 +58,16 @@ function Var({ v, bom = true }) {
   return <span className={cx(s.var, cls)}>{x.texto}</span>;
 }
 
-const LINHAS_GERAL = [
-  { campo: 'bruto', rotulo: 'Faturamento bruto', fmt: moeda, total: true },
-  { campo: 'liquido', rotulo: 'Faturamento líquido', fmt: moeda, total: true },
-  { campo: 'vendas', rotulo: 'Vendas', fmt: (v) => numero(v), total: true },
-  { campo: 'descontos', rotulo: 'Descontos', fmt: moeda, total: true, bom: false },
-  { campo: 'media_diaria_bruto', rotulo: 'Média diária bruto', fmt: moeda },
-  { campo: 'media_diaria_vendas', rotulo: 'Média diária vendas', fmt: (v) => numero(v, 1) },
-  { campo: 'ticket', rotulo: 'Ticket médio', fmt: moeda },
-  { campo: 'media_diaria_descontos', rotulo: 'Média diária descontos', fmt: moeda, bom: false },
-];
+// Linhas e regras do comparativo geral vêm de lib/bi/modelos (as mesmas da
+// exportação geral); aqui só a formatação.
+const FMT = {
+  moeda,
+  numero: (v) => numero(v),
+  numero1: (v) => numero(v, 1),
+  percentual: (v) => percentual(v, 2),
+};
 
 function TabelaGeral({ c }) {
-  const g = c.geral;
   const pareado = c.criterio === 'pareado';
   return (
     <div className={s.rolagemX}>
@@ -84,32 +82,26 @@ function TabelaGeral({ c }) {
           </tr>
         </thead>
         <tbody>
-          {LINHAS_GERAL.map((l) => {
-            const semTotal = l.total && !pareado;
-            const dif = g.diferencas ? g.diferencas[l.campo] : null;
+          {INDICADORES_COMPARATIVO.map((def) => {
+            const l = linhaComparativoGeral(c, def);
+            const fmt = FMT[def.tipo];
+            const semTotal = def.total && !pareado;
             return (
-              <tr key={l.campo}>
+              <tr key={def.campo}>
                 <td>
-                  {l.rotulo}
+                  {def.rotulo}
                   {semTotal && <span className={s.cod}> (total)</span>}
                 </td>
-                <td className={s.n}>{l.fmt(g.a[l.campo])}</td>
-                <td className={s.n}>{l.fmt(g.b[l.campo])}</td>
-                <td className={s.n}>{g.comparavel && dif !== null && dif !== undefined ? l.fmt(dif) : '—'}</td>
-                <td className={s.n}>{semTotal ? <span className={s.cod}>durações diferentes</span> : g.comparavel ? <Var v={g.variacoes ? g.variacoes[l.campo] : null} bom={l.bom !== false} /> : '—'}</td>
+                <td className={s.n}>{fmt(l.a)}</td>
+                <td className={s.n}>{fmt(l.b)}</td>
+                <td className={s.n}>{l.diferenca === null ? '—' : def.tipo === 'percentual' ? pontosPercentuais(l.diferenca) : fmt(l.diferenca)}</td>
+                <td className={s.n}>{semTotal ? <span className={s.cod}>durações diferentes</span> : c.geral.comparavel ? <Var v={l.variacao} bom={def.bom !== false} /> : '—'}</td>
               </tr>
             );
           })}
-          <tr>
-            <td>% de desconto sobre o bruto</td>
-            <td className={s.n}>{percentual(g.a.percentual_descontos, 2)}</td>
-            <td className={s.n}>{percentual(g.b.percentual_descontos, 2)}</td>
-            <td className={s.n}>{g.comparavel && g.diferencas ? pontosPercentuais(g.diferencas.percentual_descontos) : '—'}</td>
-            <td className={s.n}>{g.comparavel ? <Var v={g.variacoes ? g.variacoes.percentual_descontos : null} bom={false} /> : '—'}</td>
-          </tr>
         </tbody>
       </table>
-      {g.base_zero && <p className={s.cod}>Algum indicador da referência é zero: a variação percentual desse indicador não é calculada (divisão por zero).</p>}
+      {c.geral.base_zero && <p className={s.cod}>Algum indicador da referência é zero: a variação percentual desse indicador não é calculada (divisão por zero).</p>}
     </div>
   );
 }
@@ -168,7 +160,20 @@ export function Comparativo() {
   const p = periodosDoModo(modo, { geral, ultimoCompleto: ultimo, livre });
   const okDatas = p && [p.a.de, p.a.ate, p.b.de, p.b.ate].every(dataValida) && p.a.de <= p.a.ate && p.b.de <= p.b.ate;
   const acima = okDatas && (diasNoIntervalo(p.a.de, p.a.ate) > LIMITES.comparacao || diasNoIntervalo(p.b.de, p.b.ate) > LIMITES.comparacao);
-  const c = useConsulta(cliente, 'comparar', visivel && okDatas && !acima ? { a: p.a, b: p.b, dias: p.dias, codigos: selecionados.length ? selecionados : null } : null);
+  const argsComp = okDatas && !acima ? { a: p.a, b: p.b, dias: p.dias, codigos: selecionados.length ? selecionados : null } : null;
+  const c = useConsulta(cliente, 'comparar', visivel ? argsComp : null);
+  useRegistroExportacao('comparativo', {
+    filtros: null,
+    parametros: { modo, rotuloModo: (MODOS_COMPARATIVO.find((m) => m.valor === modo) || {}).rotulo, periodos: p, selecionados },
+    consultas: { comparar: argsComp && { tipo: 'comparar', args: argsComp } },
+    indisponivel: !p || !okDatas
+      ? !ultimo && modo !== 'livre' && modo !== 'anterior'
+        ? 'Ainda não há dia completo importado para montar esta comparação.'
+        : 'Períodos inválidos para comparar.'
+      : acima
+        ? `A comparação aceita períodos de até ${numero(LIMITES.comparacao)} dias em cada lado.`
+        : null,
+  });
   const d = c.status === 'ok' ? c.dados : null;
 
   return (

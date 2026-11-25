@@ -2,7 +2,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import Bloco, { AvisoLimite, EstadoConsulta, useFiltrosDoBloco } from './Bloco';
 import { ComparacaoDica, GraficoColunas, GraficoLinhas, Legenda, LinhaDica } from './Graficos';
 import { ProdutosSelecionados } from './Produtos';
-import { useBi } from './contexto';
+import { useBi, useRegistroExportacao } from './contexto';
 import { useConsulta, useVisivel } from '../../lib/bi/useConsulta';
 import { LIMITES, NOMES_DIA, diasNoIntervalo, periodoReferencia } from '../../lib/bi/datas';
 import { analisarHorarios, curvasProdutoHorario, escalaCalor, faixaDeHoras, topPorHora } from '../../lib/bi/modelos';
@@ -26,10 +26,18 @@ export function CurvaHorario() {
   const [metrica, setMetrica] = useState('bruto');
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
   const ref = periodoReferencia({ de: f.de, ate: f.ate }, f.referencia, { atalho: f.atalho, livre: f.referenciaLivre });
-  const ativo = visivel && n > 0 && n <= LIMITES.geral;
   // Mesma consulta do mapa de calor e da média por dia da semana (cache).
-  const a = useConsulta(cliente, 'horarios', ativo ? { de: f.de, ate: f.ate, dias: f.dias } : null);
-  const b = useConsulta(cliente, 'horarios', ativo && ref && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.geral ? { de: ref.de, ate: ref.ate, dias: f.dias } : null);
+  const argsA = n > 0 && n <= LIMITES.geral ? { de: f.de, ate: f.ate, dias: f.dias } : null;
+  const argsB = argsA && ref && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.geral ? { de: ref.de, ate: ref.ate, dias: f.dias } : null;
+  const a = useConsulta(cliente, 'horarios', visivel ? argsA : null);
+  const b = useConsulta(cliente, 'horarios', visivel ? argsB : null);
+  useRegistroExportacao('curva', {
+    filtros: f,
+    ref: argsB ? ref : null,
+    parametros: { metrica },
+    consultas: { a: argsA && { tipo: 'horarios', args: argsA }, b: argsB && { tipo: 'horarios', args: argsB } },
+    indisponivel: n > LIMITES.geral ? `Período acima de ${numero(LIMITES.geral)} dias.` : null,
+  });
   const ha = a.status === 'ok' ? analisarHorarios(a.dados) : null;
   const hb = b.status === 'ok' ? analisarHorarios(b.dados) : null;
   const faixa = faixaDeHoras(ha ? ha.curva : [], hb ? hb.curva : []);
@@ -112,7 +120,14 @@ export function MapaCalor() {
   const caixa = useRef(null);
   const idPadrao = `hachura${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
-  const a = useConsulta(cliente, 'horarios', visivel && n > 0 && n <= LIMITES.geral ? { de: f.de, ate: f.ate, dias: f.dias } : null);
+  const argsCalor = n > 0 && n <= LIMITES.geral ? { de: f.de, ate: f.ate, dias: f.dias } : null;
+  const a = useConsulta(cliente, 'horarios', visivel ? argsCalor : null);
+  useRegistroExportacao('calor', {
+    filtros: f,
+    parametros: { indicador },
+    consultas: { horarios: argsCalor && { tipo: 'horarios', args: argsCalor } },
+    indisponivel: n > LIMITES.geral ? `Período acima de ${numero(LIMITES.geral)} dias.` : null,
+  });
   const h = a.status === 'ok' ? analisarHorarios(a.dados) : null;
   const faixa = faixaDeHoras(h ? h.curva : []);
   const horas = [];
@@ -289,16 +304,30 @@ export function ProdutosPorHorario() {
   const [modo, setModo] = useState('escolhidos');
   const [compararB, setCompararB] = useState(true);
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
-  const okPeriodo = visivel && n > 0 && n <= LIMITES.geral;
+  const periodoOk = n > 0 && n <= LIMITES.geral;
   const ref = periodoReferencia({ de: f.de, ate: f.ate }, f.referencia === 'nenhuma' ? 'anterior' : f.referencia, { atalho: f.atalho, livre: f.referenciaLivre });
   const unico = selecionados[0];
-  const top = useConsulta(cliente, 'produtosHorario', okPeriodo && modo === 'top' ? { de: f.de, ate: f.ate, limite: 3, dias: f.dias } : null);
-  const esc = useConsulta(cliente, 'produtoHorarios', okPeriodo && modo === 'escolhidos' && selecionados.length ? { codigos: selecionados, de: f.de, ate: f.ate, dias: f.dias } : null);
-  const escB = useConsulta(
-    cliente,
-    'produtoHorarios',
-    okPeriodo && modo === 'escolhidos' && compararB && unico && ref && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.geral ? { codigos: [unico], de: ref.de, ate: ref.ate, dias: f.dias } : null
-  );
+  const argsTop = periodoOk && modo === 'top' ? { de: f.de, ate: f.ate, limite: 3, dias: f.dias } : null;
+  const argsEsc = periodoOk && modo === 'escolhidos' && selecionados.length ? { codigos: selecionados, de: f.de, ate: f.ate, dias: f.dias } : null;
+  const argsEscB = argsEsc && compararB && unico && ref && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.geral ? { codigos: [unico], de: ref.de, ate: ref.ate, dias: f.dias } : null;
+  const top = useConsulta(cliente, 'produtosHorario', visivel ? argsTop : null);
+  const esc = useConsulta(cliente, 'produtoHorarios', visivel ? argsEsc : null);
+  const escB = useConsulta(cliente, 'produtoHorarios', visivel ? argsEscB : null);
+  useRegistroExportacao('prodhora', {
+    filtros: f,
+    ref: argsEscB ? ref : null,
+    parametros: { modo, compararB, unico: unico || null, selecionados },
+    consultas: {
+      top: argsTop && { tipo: 'produtosHorario', args: argsTop },
+      escolhidos: argsEsc && { tipo: 'produtoHorarios', args: argsEsc },
+      referencia: argsEscB && { tipo: 'produtoHorarios', args: argsEscB },
+    },
+    indisponivel: n > LIMITES.geral
+      ? `Período acima de ${numero(LIMITES.geral)} dias.`
+      : modo === 'escolhidos' && !selecionados.length
+        ? 'Nenhum produto selecionado.'
+        : null,
+  });
   const curvas = esc.status === 'ok' ? curvasProdutoHorario(esc.dados) : null;
   const curvasB = escB.status === 'ok' ? curvasProdutoHorario(escB.dados) : null;
   const dados = useMemo(() => {

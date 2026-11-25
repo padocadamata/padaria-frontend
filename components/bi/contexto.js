@@ -17,11 +17,28 @@ export function useBi() {
   return ctx;
 }
 
+// Exportação geral: cada bloco publica (a cada render, sem re-render) o que
+// está usando AGORA -- filtros efetivos, parâmetros da tela (métrica,
+// ordenação, Top N, modo...) e os argumentos EXATOS das consultas (os mesmos
+// passados ao useConsulta, sem a condição de visibilidade). A exportação lê
+// esse registro uma única vez no clique (instantâneo consistente).
+export function useRegistroExportacao(nome, registro) {
+  const { registrarExportacao } = useBi();
+  useEffect(() => {
+    registrarExportacao(nome, registro);
+  });
+}
+
 export function ProvedorBi({ cliente, status, atualizacao = null, children }) {
   const estado = useFiltrosPersistidos('bi', FILTROS_BI);
   const { valores, definir, redefinir } = estado;
   const valoresRef = useRef(valores);
   valoresRef.current = valores;
+  const registroExportacao = useRef({});
+  const registrarExportacao = useCallback((nome, registro) => {
+    registroExportacao.current[nome] = registro;
+  }, []);
+  const lerRegistroExportacao = useCallback(() => registroExportacao.current, []);
 
   // Atalho (≠ personalizado): datas recalculadas a partir de bi_status a cada
   // abertura -- "últimos 7 dias completos" acompanha a última importação.
@@ -179,8 +196,10 @@ export function ProvedorBi({ cliente, status, atualizacao = null, children }) {
       porPagina: valores.porPagina,
       definirPreferencia: definir,
       atualizacao,
+      registrarExportacao,
+      lerRegistroExportacao,
     }),
-    [cliente, status, geral, definirGeral, valores.blocos, definirBloco, restaurarTudo, redefinir, valores.selecionados, alternarSelecionado, cores, descricoes, lembrarDescricoes, valores.rankingTop, valores.porPagina, definir, atualizacao]
+    [cliente, status, geral, definirGeral, valores.blocos, definirBloco, restaurarTudo, redefinir, valores.selecionados, alternarSelecionado, cores, descricoes, lembrarDescricoes, valores.rankingTop, valores.porPagina, definir, atualizacao, registrarExportacao, lerRegistroExportacao]
   );
 
   return <ContextoBi.Provider value={valor}>{children}</ContextoBi.Provider>;

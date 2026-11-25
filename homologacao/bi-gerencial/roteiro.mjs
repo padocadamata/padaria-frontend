@@ -19,6 +19,34 @@ const passarMouseNoPonto = (nome, i, n) => `(() => {
   w.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y }));
 })()`;
 
+// Exportação geral: clica no botão e espera a geração terminar (botão volta
+// a ficar habilitado). Guarda tempo e memória JS (Chrome) da geração.
+const exportarGeral = (formato) => `await (async () => {
+  const rotulo = 'Exportar o BI Gerencial completo em ${formato === 'pdf' ? 'PDF' : 'Excel'}';
+  const b = [...document.querySelectorAll('button')].find((x) => x.getAttribute('aria-label') === rotulo);
+  if (!b) throw new Error('botão de exportação geral ausente');
+  const memAntes = performance.memory ? performance.memory.usedJSHeapSize : null;
+  const outro = [...document.querySelectorAll('button')].find((x) => x.getAttribute('aria-label') && x.getAttribute('aria-label').startsWith('Exportar o BI Gerencial') && x !== b);
+  b.click();
+  await Promise.resolve();
+  window.__biOcupadoDurante = window.__biOcupadoDurante || b.disabled || /Gerando|Coletando|Montando/.test(b.closest('[class*="exportacaoGeral"]').innerText);
+  window.__biOutroBloqueado = window.__biOutroBloqueado || (outro && outro.disabled);
+  b.click(); // clique repetido durante a geração deve ser ignorado (sem segunda geração)
+  for (let i = 0; i < 480 && b.disabled; i += 1) await new Promise((r) => setTimeout(r, 250));
+  const memDepois = performance.memory ? performance.memory.usedJSHeapSize : null;
+  window.__biExportacoes = [...(window.__biExportacoes || []), { formato: '${formato}', ...(window.__biUltimaExportacao || {}), memoriaAntesMB: memAntes && Math.round(memAntes / 1048576), memoriaDepoisMB: memDepois && Math.round(memDepois / 1048576) }];
+  await new Promise((r) => setTimeout(r, 1500));
+})()`;
+const medirExportacoes = `(window.__biExportacoes || []).map((e) => ({ formato: e.formato, ms: e.ms, completo: e.completo, memoriaAntesMB: e.memoriaAntesMB, memoriaDepoisMB: e.memoriaDepoisMB }))`;
+const conferirExportacoes = (esperaCompleto = true) => `(() => { const f = []; const ex = window.__biExportacoes || [];
+  if (ex.length < 2) f.push('esperava 2 exportações, houve ' + ex.length);
+  if (!window.__biOcupadoDurante) f.push('sem indicação de processamento');
+  if (!window.__biOutroBloqueado) f.push('o outro formato não ficou bloqueado durante a geração');
+  ${esperaCompleto ? "if (ex.some((e) => e.completo === false)) f.push('exportação marcada como incompleta: ' + JSON.stringify(ex.map((e) => (e.situacoes || []).filter((s) => s.estado === 'erro' || s.estado === 'parcial'))));" : ''}
+  if (document.body.innerText.includes('Não foi possível gerar')) f.push('erro na geração');
+  return f; })()`;
+const definirData = (rotulo, valor) => `(() => { const el = document.querySelector('[aria-label="Filtros gerais"] input[aria-label="${rotulo}"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, '${valor}'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()`;
+
 export const ROTEIRO = [
   {
     nome: '01_desktop_padrao',
@@ -304,6 +332,133 @@ export const ROTEIRO = [
       if (part.querySelector('table').getBoundingClientRect().right > 390) f.push('legenda transborda');
       const modos = [...document.querySelectorAll('${bloco('comparativo')} [aria-label="Modo de comparação"] button')];
       if (modos.some((b) => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1)) f.push('texto cortado nos modos do comparativo');
+      return f; })()`,
+  },
+  {
+    nome: '20_exportacao_geral_padrao',
+    rota: '/bi',
+    largura: 1440,
+    altura: 1100,
+    recortes: { cabecalho: '[class*="_cab__"]' },
+    // Blocos fora da tela ainda não carregaram: a exportação consulta o que falta.
+    acao: `window.scrollTo(0, 0); ${exportarGeral('xlsx')}; ${exportarGeral('pdf')}`,
+    medir: medirExportacoes,
+    conferir: conferirExportacoes(true),
+    downloads: ['bi-gerencial_2026-11-18_a_2026-11-24.xlsx', 'bi-gerencial_2026-11-18_a_2026-11-24.pdf'],
+  },
+  {
+    nome: '21_exportacao_filtros_proprios_produtos_livre',
+    rota: '/bi',
+    largura: 1440,
+    altura: 4800,
+    acao: `${setSelect('#bi-atalho', '30')}; ${esperar(1500)};
+      ${clicar(`${bloco('evolucao')} button[aria-label^="Filtros do bloco"]`)}; ${esperar(300)}; ${clicar(`${bloco('evolucao')} [role=dialog] button`, 8)}; ${esperar(300)}; ${clicar(`${bloco('evolucao')} [role=dialog] button[class*="btnPrim"]`)}; ${esperar(800)};
+      ${setSelect(`${bloco('ranking')} select[aria-label^="Quantidade de produtos"]`, '20')}; ${esperar(800)};
+      ${clicar(`${bloco('ranking')} input[type=checkbox]`, 4)}; ${esperar(500)};
+      ${clicar(`${bloco('calor')} [aria-label="Indicador do mapa de calor"] button`, 1)}; ${esperar(300)};
+      ${clicar(`${bloco('comparativo')} [aria-label="Modo de comparação"] button`, 4)}; ${esperar(1500)};
+      ${exportarGeral('xlsx')}; ${exportarGeral('pdf')}`,
+    medir: medirExportacoes,
+    conferir: conferirExportacoes(true),
+    downloads: ['bi-gerencial_2026-10-26_a_2026-11-24.xlsx', 'bi-gerencial_2026-10-26_a_2026-11-24.pdf'],
+  },
+  {
+    nome: '22_exportacao_todo_o_periodo',
+    rota: '/bi',
+    largura: 1440,
+    altura: 1100,
+    acao: `${definirData('Data inicial', '2026-07-01')}; ${esperar(400)}; ${definirData('Data final', '2026-11-25')}; ${esperar(2500)}; ${exportarGeral('xlsx')}; ${exportarGeral('pdf')}`,
+    medir: medirExportacoes,
+    conferir: conferirExportacoes(true),
+    downloads: ['bi-gerencial_2026-07-01_a_2026-11-25.xlsx', 'bi-gerencial_2026-07-01_a_2026-11-25.pdf'],
+  },
+  {
+    nome: '23_exportacao_periodo_sem_dados',
+    rota: '/bi',
+    largura: 1440,
+    altura: 1100,
+    acao: `${definirData('Data inicial', '2026-06-01')}; ${esperar(400)}; ${definirData('Data final', '2026-06-30')}; ${esperar(2500)}; ${exportarGeral('xlsx')}; ${exportarGeral('pdf')}`,
+    medir: medirExportacoes,
+    conferir: conferirExportacoes(true),
+    downloads: ['bi-gerencial_2026-06-01_a_2026-06-30.xlsx', 'bi-gerencial_2026-06-01_a_2026-06-30.pdf'],
+  },
+  {
+    nome: '24_exportacao_hoje_parcial',
+    rota: '/bi',
+    largura: 1440,
+    altura: 1100,
+    acao: `${setSelect('#bi-atalho', 'hoje')}; ${esperar(2000)}; ${exportarGeral('xlsx')}; ${exportarGeral('pdf')}`,
+    medir: medirExportacoes,
+    conferir: conferirExportacoes(true),
+    downloads: ['bi-gerencial_2026-11-25_a_2026-11-25.xlsx', 'bi-gerencial_2026-11-25_a_2026-11-25.pdf'],
+  },
+  {
+    nome: '25_cabecalho_celular',
+    rota: '/bi',
+    largura: 390,
+    altura: 1200,
+    movel: true,
+    recortes: { cabecalho: '[class*="_cab__"]' },
+    conferir: `(() => { const f = []; if (document.documentElement.scrollWidth > 391) f.push('rolagem horizontal: ' + document.documentElement.scrollWidth);
+      const bs = [...document.querySelectorAll('button')].filter((x) => (x.getAttribute('aria-label') || '').startsWith('Exportar o BI Gerencial'));
+      if (bs.length !== 2) f.push('botões de exportação no celular');
+      if (bs.some((b) => b.getBoundingClientRect().right > 390)) f.push('botão fora da tela');
+      return f; })()`,
+  },
+  {
+    nome: '26_dashboard_acesso_rapido_admin',
+    rota: '/dashboard',
+    esperar: '#atalhos-titulo',
+    largura: 1440,
+    altura: 1200,
+    recortes: { acesso_rapido: 'section[aria-labelledby="atalhos-titulo"]' },
+    conferir: `(() => { const f = []; const sec = document.querySelector('section[aria-labelledby="atalhos-titulo"]');
+      if (!sec) return ['seção Acesso rápido ausente'];
+      const links = [...sec.querySelectorAll('a')];
+      const bi = links.find((a) => a.textContent.trim() === 'BI Gerencial');
+      if (!bi) f.push('atalho BI Gerencial ausente para admin');
+      else {
+        if (new URL(bi.href).pathname !== '/bi') f.push('atalho não aponta para /bi');
+        const iFin = links.findIndex((a) => a.textContent.trim() === 'Financeiro');
+        if (iFin >= 0 ? links[iFin + 1] !== bi : links[links.length - 1] !== bi) f.push('BI deveria ficar imediatamente após Financeiro');
+        const ra = links[0].getBoundingClientRect(); const rb = bi.getBoundingClientRect();
+        if (Math.abs(ra.width - rb.width) > 1 || Math.abs(ra.height - rb.height) > 1) f.push('dimensões diferentes dos demais atalhos');
+        if (getComputedStyle(links[0]).fontSize !== getComputedStyle(bi).fontSize) f.push('tipografia diferente');
+        const outro = links[0];
+        if (outro && outro.className !== bi.className) f.push('padrão visual diferente dos demais atalhos');
+        const iconeMenu = [...document.querySelectorAll('aside a')].find((a) => a.textContent.trim() === 'BI Gerencial');
+        const svgBi = bi.querySelector('svg');
+        if (!svgBi || !iconeMenu || iconeMenu.querySelector('svg').innerHTML !== svgBi.innerHTML) f.push('ícone diferente do menu lateral');
+      }
+      return f; })()`,
+  },
+  {
+    nome: '27_dashboard_acesso_rapido_celular',
+    rota: '/dashboard',
+    esperar: '#atalhos-titulo',
+    largura: 390,
+    altura: 1600,
+    movel: true,
+    recortes: { acesso_rapido: 'section[aria-labelledby="atalhos-titulo"]' },
+    conferir: `(() => { const f = []; if (document.documentElement.scrollWidth > 391) f.push('rolagem horizontal: ' + document.documentElement.scrollWidth);
+      const sec = document.querySelector('section[aria-labelledby="atalhos-titulo"]');
+      const bi = sec && [...sec.querySelectorAll('a')].find((a) => a.textContent.trim() === 'BI Gerencial');
+      if (!bi) f.push('atalho BI ausente no celular');
+      else if (bi.getBoundingClientRect().right > 390) f.push('atalho fora da tela');
+      return f; })()`,
+  },
+  {
+    nome: '28_dashboard_sem_bi_para_gestao',
+    rota: '/dashboard',
+    esperar: 'main',
+    largura: 1440,
+    altura: 1200,
+    antes: `localStorage.setItem('homologacao.usuario', '00000000-0000-0000-0000-00000000000c')`,
+    depois: `localStorage.setItem('homologacao.usuario', '00000000-0000-0000-0000-00000000000a')`,
+    recortes: { pagina: 'main' },
+    conferir: `(() => { const f = [];
+      if ([...document.querySelectorAll('a')].some((a) => a.textContent.trim() === 'BI Gerencial')) f.push('BI Gerencial visível para o perfil gestão');
+      if (!document.querySelector('section[aria-labelledby="atalhos-titulo"]')) f.push('acesso rápido do perfil gestão deveria existir (com os outros módulos)');
       return f; })()`,
   },
   {

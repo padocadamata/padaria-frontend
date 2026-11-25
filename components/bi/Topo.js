@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useBi } from './contexto';
+import { useBi, useRegistroExportacao } from './contexto';
 import { Minigrafico } from './Graficos';
+import BotoesExportacaoGeral from './ExportacaoGeral';
 import { useConsulta } from '../../lib/bi/useConsulta';
 import { ATALHOS, ATALHOS_ATE_ULTIMO_COMPLETO, LETRA_DIA, LIMITES, NOMES_DIA, REFERENCIAS, TODOS_OS_DIAS, dataValida, diaDaSemana, diasNoIntervalo, periodoReferencia } from '../../lib/bi/datas';
 import { AGRUPAMENTOS, alternarDia } from '../../lib/bi/filtros';
@@ -8,7 +9,7 @@ import {
   AVISO_COMPARACAO, AVISO_PERIODO, MOTIVO_COMPARACAO, MOTIVO_PERIODO, ROTULO_AGRUPAMENTO, ROTULO_CLASSE,
   data, dataCurta, dataHora, intervalo, intervaloCurto, moeda, nomeDosDias, numero, percentual, plural, variacao,
 } from '../../lib/bi/formatos';
-import { contagemCobertura, diasForaDasMedias, situacaoComparacao, variacaoValida } from '../../lib/bi/modelos';
+import { contagemCobertura, diasForaDasMedias, situacaoVariacaoCartao } from '../../lib/bi/modelos';
 import { cx } from '../../lib/design/cx';
 import s from './bi.module.css';
 
@@ -54,8 +55,11 @@ export function Cabecalho() {
   }, [status]);
   return (
     <div className={s.cab}>
-      <div>
-        <h1>BI Gerencial</h1>
+      <div className={s.cabCorpo}>
+        <div className={s.cabTitulo}>
+          <h1>BI Gerencial</h1>
+          <BotoesExportacaoGeral />
+        </div>
         <div className={s.sub}>
           <span>
             <span className={cx(s.ponto, !status.padrao_ate && s.pontoAviso)} />
@@ -306,7 +310,23 @@ export function Indicadores({ resumo }) {
   const n = geral.de && geral.ate ? diasNoIntervalo(geral.de, geral.ate) : 0;
   const ref = periodoReferencia({ de: geral.de, ate: geral.ate }, geral.referencia, { atalho: geral.atalho, livre: { de: geral.refDe, ate: geral.refAte } });
   const podeComparar = !!ref && n <= LIMITES.comparacao && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.comparacao;
-  const comp = useConsulta(cliente, 'comparar', podeComparar ? { a: { de: geral.de, ate: geral.ate }, b: ref, dias: geral.dias } : null);
+  const argsComp = podeComparar ? { a: { de: geral.de, ate: geral.ate }, b: ref, dias: geral.dias } : null;
+  const comp = useConsulta(cliente, 'comparar', argsComp);
+  // Mesmos argumentos do resumo usado pelo painel (PainelBi) e calendário da
+  // faixa de cobertura (até o limite da série diária) para a exportação geral.
+  const argsResumo = n > 0 && n <= LIMITES.geral ? { de: geral.de, ate: geral.ate, dias: geral.dias } : null;
+  useRegistroExportacao('resumo', {
+    filtros: { de: geral.de, ate: geral.ate, dias: geral.dias, agrupamento: geral.agrupamento, referencia: geral.referencia, atalho: geral.atalho, proprios: [] },
+    ref,
+    parametros: { podeComparar, referencia: geral.referencia },
+    consultas: {
+      resumo: argsResumo && { tipo: 'resumo', args: argsResumo },
+      comparar: argsComp && { tipo: 'comparar', args: argsComp },
+      calendario: n > 0 && n <= LIMITES.serieDia ? { tipo: 'calendario', args: { de: geral.de, ate: geral.ate } } : null,
+    },
+    indisponivel: n > LIMITES.geral ? `O período geral tem ${numero(n)} dias; o máximo é ${numero(LIMITES.geral)}.` : null,
+    avisos: ref && !podeComparar ? [`A variação está disponível para períodos de até ${LIMITES.comparacao} dias.`] : [],
+  });
   const serie = useConsulta(cliente, 'serie', n > 0 && n <= LIMITES.serieDia ? { de: geral.de, ate: geral.ate, agrupamento: 'dia', dias: geral.dias } : null);
 
   if (resumo.status !== 'ok') {
@@ -340,22 +360,21 @@ export function Indicadores({ resumo }) {
   const base = r.base_media || {};
   const reg = r.registrado;
   const temBase = Number(base.dias_validos || 0) > 0;
-  const sit = situacaoComparacao(comp.status === 'ok' ? comp.dados : null);
-  const pareado = sit.estado === 'ok' && sit.pareado;
   const sparkDe = (campo) => (serie.status === 'ok' && serie.dados ? serie.dados.map((l) => (l[campo] === null || l[campo] === undefined ? null : Number(l[campo]))) : null);
 
+  // Regra única (lib/bi/modelos: situacaoVariacaoCartao), a mesma da exportação geral.
   const linhaVar = (campo, total, bom = true) => {
     if (!ref) return null;
     if (!podeComparar) return <span className={cx(s.var, s.varNeutra)}>comparação até {LIMITES.comparacao} dias</span>;
     if (comp.status === 'carregando' || comp.status === 'inativo') return <span className={s.cod}>calculando variação…</span>;
     if (comp.status === 'erro') return <span className={cx(s.var, s.varNeutra)}>variação indisponível</span>;
-    if (sit.estado !== 'ok') return <span className={cx(s.var, s.varNeutra)}>não comparável</span>;
-    if (total && !pareado) return <span className={cx(s.var, s.varNeutra)}>só médias comparáveis</span>;
-    const v = variacaoValida(comp.dados, campo);
-    if (v === null) return <span className={cx(s.var, s.varNeutra)}>{comp.dados.geral.base_zero ? 'referência zerada' : '—'}</span>;
+    const v = situacaoVariacaoCartao(comp.dados, campo, { total });
+    if (v.estado === 'nao_comparavel') return <span className={cx(s.var, s.varNeutra)}>não comparável</span>;
+    if (v.estado === 'so_medias') return <span className={cx(s.var, s.varNeutra)}>só médias comparáveis</span>;
+    if (v.estado !== 'ok') return <span className={cx(s.var, s.varNeutra)}>{v.estado === 'base_zero' ? 'referência zerada' : '—'}</span>;
     return (
       <>
-        <Variacao valor={v} bomQuandoSobe={bom} /> vs. ref.
+        <Variacao valor={v.valor} bomQuandoSobe={bom} /> vs. ref.
       </>
     );
   };

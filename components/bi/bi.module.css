@@ -1223,3 +1223,63 @@
     width: 100%;
   }
 }
+
+/* Exportação geral: na linha do título, à direita (o cabeçalho não cresce);
+   no celular os botões quebram para baixo do título, em largura total. */
+.cabCorpo {
+  flex: 1;
+  min-width: 0;
+}
+.cabTitulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.exportacaoGeral {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.exportacaoBotoes {
+  display: flex;
+  gap: 8px;
+  order: 2;
+}
+.exportacaoNota,
+.exportacaoAviso {
+  order: 1;
+  font-size: 12px;
+  text-align: right;
+  max-width: 460px;
+}
+.exportacaoNota {
+  color: var(--ds-text-muted);
+}
+.exportacaoAviso {
+  color: var(--ds-warning);
+  font-weight: 600;
+}
+@media (max-width: 768px) {
+  .exportacaoGeral {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    margin-left: 0;
+    gap: 4px;
+  }
+  .exportacaoBotoes > * {
+    flex: 1 1 0;
+  }
+  .exportacaoNota,
+  .exportacaoAviso {
+    order: 3;
+    text-align: left;
+    max-width: none;
+  }
+  .exportacaoNota:empty {
+    display: none;
+  }
+}

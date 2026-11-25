@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Bloco, { AvisoLimite, EstadoConsulta, useFiltrosDoBloco } from './Bloco';
 import { ComparacaoDica, GraficoColunas, GraficoLinhas, Legenda, LinhaDica, notasDasMarcas } from './Graficos';
-import { useBi } from './contexto';
+import { useBi, useRegistroExportacao } from './contexto';
 import { useConsulta, useVisivel } from '../../lib/bi/useConsulta';
 import { LIMITES, NOMES_DIA, diasNoIntervalo, periodoReferencia } from '../../lib/bi/datas';
 import { METRICAS_SERIE, analisarHorarios, juntarSeries, pontosSerie, situacaoDoDia, situacaoDoGrupo } from '../../lib/bi/modelos';
@@ -21,9 +21,18 @@ export function EvolucaoFaturamento() {
   const acimaDoLimite = n > limite;
   const ref = periodoReferencia({ de: f.de, ate: f.ate }, f.referencia, { atalho: f.atalho, livre: f.referenciaLivre });
   const refAcima = ref && diasNoIntervalo(ref.de, ref.ate) > limite;
-  const ativo = visivel && n > 0 && !acimaDoLimite;
-  const a = useConsulta(cliente, 'serie', ativo ? { de: f.de, ate: f.ate, agrupamento: f.agrupamento, dias: f.dias } : null);
-  const b = useConsulta(cliente, 'serie', ativo && ref && !refAcima ? { de: ref.de, ate: ref.ate, agrupamento: f.agrupamento, dias: f.dias } : null);
+  const argsA = n > 0 && !acimaDoLimite ? { de: f.de, ate: f.ate, agrupamento: f.agrupamento, dias: f.dias } : null;
+  const argsB = argsA && ref && !refAcima ? { de: ref.de, ate: ref.ate, agrupamento: f.agrupamento, dias: f.dias } : null;
+  const a = useConsulta(cliente, 'serie', visivel ? argsA : null);
+  const b = useConsulta(cliente, 'serie', visivel ? argsB : null);
+  useRegistroExportacao('evolucao', {
+    filtros: f,
+    ref: argsB ? ref : null,
+    parametros: { metrica },
+    consultas: { a: argsA && { tipo: 'serie', args: argsA }, b: argsB && { tipo: 'serie', args: argsB } },
+    indisponivel: acimaDoLimite ? `O agrupamento por ${ROTULO_AGRUPAMENTO[f.agrupamento]} aceita até ${numero(limite)} dias e o período tem ${numero(n)}.` : null,
+    avisos: refAcima ? [`Referência acima de ${numero(limite)} dias: não exibida.`] : [],
+  });
   const def = METRICAS_SERIE[metrica];
   const pa = a.status === 'ok' ? pontosSerie(a.dados, metrica, f.agrupamento) : [];
   const pb = b.status === 'ok' ? pontosSerie(b.dados, metrica, f.agrupamento) : null;
@@ -125,9 +134,17 @@ export function MediaDiaSemana() {
   const [refVisivel, visivel] = useVisivel();
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
   const ref = periodoReferencia({ de: f.de, ate: f.ate }, f.referencia, { atalho: f.atalho, livre: f.referenciaLivre });
-  const ativo = visivel && n > 0 && n <= LIMITES.geral;
-  const a = useConsulta(cliente, 'horarios', ativo ? { de: f.de, ate: f.ate, dias: f.dias } : null);
-  const b = useConsulta(cliente, 'horarios', ativo && ref && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.geral ? { de: ref.de, ate: ref.ate, dias: f.dias } : null);
+  const argsA = n > 0 && n <= LIMITES.geral ? { de: f.de, ate: f.ate, dias: f.dias } : null;
+  const argsB = argsA && ref && diasNoIntervalo(ref.de, ref.ate) <= LIMITES.geral ? { de: ref.de, ate: ref.ate, dias: f.dias } : null;
+  const a = useConsulta(cliente, 'horarios', visivel ? argsA : null);
+  const b = useConsulta(cliente, 'horarios', visivel ? argsB : null);
+  useRegistroExportacao('semana', {
+    filtros: f,
+    ref: argsB ? ref : null,
+    parametros: {},
+    consultas: { a: argsA && { tipo: 'horarios', args: argsA }, b: argsB && { tipo: 'horarios', args: argsB } },
+    indisponivel: n > LIMITES.geral ? `Período acima de ${numero(LIMITES.geral)} dias.` : null,
+  });
   const ha = a.status === 'ok' ? analisarHorarios(a.dados) : null;
   const hb = b.status === 'ok' ? analisarHorarios(b.dados) : null;
   const dados = ha ? ha.diaSemana.map((d, i) => ({ rotulo: d.rotulo, dow: d.dow, a: d.media, b: hb ? hb.diaSemana[i].media : null, diasA: d.dias, diasB: hb ? hb.diaSemana[i].dias : 0 })) : [];

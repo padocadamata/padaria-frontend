@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Bloco, { AvisoLimite, EstadoConsulta, useFiltrosDoBloco } from './Bloco';
 import { GraficoLinhas, GraficoRosca, Legenda, LinhaDica } from './Graficos';
-import { useBi } from './contexto';
+import { useBi, useRegistroExportacao } from './contexto';
 import DataTable from '../ui/DataTable';
 import Paginacao from '../Paginacao';
 import { useConsulta, useVisivel } from '../../lib/bi/useConsulta';
@@ -70,9 +70,15 @@ export function RankingProdutos() {
   const [refVisivel, visivel] = useVisivel();
   const [ordem, setOrdem] = useState('bruto');
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
-  const ativo = visivel && n > 0 && n <= LIMITES.geral;
   // A RPC ordena TODO o conjunto elegível e só então aplica o limite (Top N).
-  const c = useConsulta(cliente, 'produtos', ativo ? { de: f.de, ate: f.ate, ordem, direcao: 'desc', limite: rankingTop, deslocamento: 0, dias: f.dias } : null);
+  const argsRanking = n > 0 && n <= LIMITES.geral ? { de: f.de, ate: f.ate, ordem, direcao: 'desc', limite: rankingTop, deslocamento: 0, dias: f.dias } : null;
+  const c = useConsulta(cliente, 'produtos', visivel ? argsRanking : null);
+  useRegistroExportacao('ranking', {
+    filtros: f,
+    parametros: { ordem, rankingTop },
+    consultas: { produtos: argsRanking && { tipo: 'produtos', args: argsRanking } },
+    indisponivel: n > LIMITES.geral ? `Período acima de ${numero(LIMITES.geral)} dias.` : null,
+  });
   const resp = c.status === 'ok' ? c.dados : null;
   useEffect(() => {
     if (resp && resp.produtos) lembrarDescricoes(resp.produtos);
@@ -170,9 +176,15 @@ export function ParticipacaoFaturamento() {
   const f = useFiltrosDoBloco('participacao');
   const [refVisivel, visivel] = useVisivel();
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
-  const ativo = visivel && n > 0 && n <= LIMITES.geral;
   // Mesma consulta do ranking padrão por faturamento (reaproveitada pelo cache).
-  const c = useConsulta(cliente, 'produtos', ativo ? { de: f.de, ate: f.ate, ordem: 'bruto', direcao: 'desc', limite: 10, deslocamento: 0, dias: f.dias } : null);
+  const argsPart = n > 0 && n <= LIMITES.geral ? { de: f.de, ate: f.ate, ordem: 'bruto', direcao: 'desc', limite: 10, deslocamento: 0, dias: f.dias } : null;
+  const c = useConsulta(cliente, 'produtos', visivel ? argsPart : null);
+  useRegistroExportacao('participacao', {
+    filtros: f,
+    parametros: {},
+    consultas: { produtos: argsPart && { tipo: 'produtos', args: argsPart } },
+    indisponivel: n > LIMITES.geral ? `Período acima de ${numero(LIMITES.geral)} dias.` : null,
+  });
   const seg = c.status === 'ok' ? segmentosParticipacao(c.dados, 5) : null;
   // Selecionado = a cor dele (igual nos demais gráficos); não selecionado =
   // tom secundário. O denominador NUNCA muda com a seleção.
@@ -360,7 +372,18 @@ export function EvolucaoProdutos() {
   const n = valido(f) ? diasNoIntervalo(f.de, f.ate) : 0;
   const limite = f.agrupamento === 'dia' ? LIMITES.serieDia : LIMITES.geral;
   const acima = n > limite;
-  const c = useConsulta(cliente, 'produtoSerie', visivel && n > 0 && !acima && selecionados.length ? { codigos: selecionados, de: f.de, ate: f.ate, agrupamento: f.agrupamento, dias: f.dias } : null);
+  const argsEvo = n > 0 && !acima && selecionados.length ? { codigos: selecionados, de: f.de, ate: f.ate, agrupamento: f.agrupamento, dias: f.dias } : null;
+  const c = useConsulta(cliente, 'produtoSerie', visivel ? argsEvo : null);
+  useRegistroExportacao('evoprod', {
+    filtros: f,
+    parametros: { metrica, selecionados },
+    consultas: { serie: argsEvo && { tipo: 'produtoSerie', args: argsEvo } },
+    indisponivel: acima
+      ? `O agrupamento por ${ROTULO_AGRUPAMENTO[f.agrupamento]} aceita até ${numero(limite)} dias.`
+      : !selecionados.length
+        ? 'Nenhum produto selecionado.'
+        : null,
+  });
   const linhas = useMemo(() => (c.status === 'ok' && c.dados ? c.dados : []), [c.status, c.dados]);
   useEffect(() => {
     if (linhas.length) lembrarDescricoes(linhas.filter((l, i, a) => a.findIndex((x) => x.codigo === l.codigo) === i));
@@ -491,6 +514,15 @@ export function TabelaProdutos() {
   useEffect(() => {
     if (resp && resp.produtos) lembrarDescricoes(resp.produtos);
   }, [resp, lembrarDescricoes]);
+  // Exportação geral: o conjunto filtrado INTEIRO, na ordem da tabela (o
+  // mesmo da exportação individual), independentemente da página atual.
+  const argsTodos = n > 0 && n <= LIMITES.geral && buscaValida ? { de: f.de, ate: f.ate, busca: buscaAtrasada || null, ordem, direcao, limite: 500, deslocamento: 0, dias: f.dias } : null;
+  useRegistroExportacao('tabela', {
+    filtros: f,
+    parametros: { busca: buscaAtrasada, ordem, direcao, ordemRotulo: `${ROTULO_ORDEM[ordem]} (${direcao === 'asc' ? 'crescente' : 'decrescente'})`, porPagina, pagina },
+    consultas: { todos: argsTodos && { tipo: 'produtos', args: argsTodos, paginado: true } },
+    indisponivel: n > LIMITES.geral ? `Período acima de ${numero(LIMITES.geral)} dias.` : !buscaValida ? 'Busca com menos de 2 caracteres.' : null,
+  });
   const total = resp ? resp.paginacao.total_linhas : 0;
   const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
 

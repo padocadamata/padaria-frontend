@@ -68,13 +68,13 @@ mkdirSync(PASTA_DOWNLOADS, { recursive: true });
 await cdp('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: PASTA_DOWNLOADS });
 await cdp('Runtime.enable');
 
-async function carregar(url, largura, altura, movel) {
+async function carregar(url, largura, altura, movel, seletor = '[data-bloco]') {
   await cdp('Emulation.setDeviceMetricsOverride', { width: largura, height: altura, deviceScaleFactor: 1, mobile: movel });
   await cdp('Page.navigate', { url: 'about:blank' });
   await cdp('Page.navigate', { url });
   // espera o painel e rola até o fim (carregamento progressivo), devagar
   for (let i = 0; i < 120; i += 1) {
-    if (await avaliar(`!!document.querySelector('[data-bloco]')`)) break;
+    if (await avaliar(`!!document.querySelector(${JSON.stringify(seletor)})`)) break;
     await esperar(500);
   }
   const t0 = Date.now();
@@ -155,13 +155,15 @@ for (const c of cenarios) {
     await carregar(`${BASE}/homologacao`, c.largura, c.altura, !!c.movel);
     await avaliar(c.antes);
   }
-  const tempo = await carregar(`${BASE}${c.rota}`, c.largura, c.altura, !!c.movel);
+  const tempo = await carregar(`${BASE}${c.rota}`, c.largura, c.altura, !!c.movel, c.esperar);
   if (c.acao) {
     await avaliar(`(async () => { ${c.acao}; })()`);
     await esperarOcioso();
   }
   const conf = await conferir();
   const falhas = c.conferir ? await avaliar(c.conferir) : [];
+  // medir: expressão opcional (tempo de geração, memória JS...) gravada no relatório.
+  const medidas = c.medir ? await avaliar(c.medir) : undefined;
   for (const arq of c.downloads || []) if (!existsSync(path.join(PASTA_DOWNLOADS, arq))) falhas.push(`download ausente: ${arq}`);
   falhasTotais += (falhas || []).length;
   const altura = await capturar(c.nome, c.largura, !!c.movel);
@@ -180,8 +182,8 @@ for (const c of cenarios) {
   // Próximo cenário = novo login simulado (filtros persistidos zerados),
   // salvo quando o cenário pede para manter a sessão (teste de persistência).
   if (!c.manterSessao) await avaliar(`localStorage.removeItem('homologacao.sessao')`);
-  relatorio[c.nome] = { rota: c.rota, tempoAteOcioso_ms: tempo, alturaPagina: altura, falhas, ...conf, console: [...consoleErros] };
-  console.log(`[captura] ${c.nome}: ${tempo} ms, ${conf.blocos.length} blocos, falhas=${JSON.stringify(falhas)}, erros=${conf.erros.filter(Boolean).length}, transborda=${conf.transborda}, console=${consoleErros.length}`);
+  relatorio[c.nome] = { rota: c.rota, tempoAteOcioso_ms: tempo, alturaPagina: altura, falhas, medidas, ...conf, console: [...consoleErros] };
+  console.log(`[captura] ${c.nome}: ${tempo} ms, ${conf.blocos.length} blocos, falhas=${JSON.stringify(falhas)}, erros=${conf.erros.filter(Boolean).length}, transborda=${conf.transborda}, console=${consoleErros.length}${medidas ? `, medidas=${JSON.stringify(medidas)}` : ''}`);
 }
 writeFileSync(path.join(SAIDA, 'relatorio.json'), JSON.stringify(relatorio, null, 2));
 ws.close();

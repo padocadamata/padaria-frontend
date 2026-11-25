@@ -50,7 +50,7 @@ Com o servidor no ar:
 node homologacao/bi-gerencial/capturar.mjs --url=http://localhost:3919 --roteiro=todos --saida=<pasta>
 ```
 
-Roda os 20 cenários de `roteiro.mjs` no Chrome instalado (sem dependências; cada cenário começa num login novo, salvo `manterSessao`),
+Roda os 29 cenários de `roteiro.mjs` no Chrome instalado (sem dependências; cada cenário começa num login novo, salvo `manterSessao`),
 grava as capturas e `relatorio.json` (falhas, erros de console, transbordo
 horizontal, blocos com erro). Sai com código 1 se algum cenário falhar.
 
@@ -68,3 +68,5 @@ horizontal, blocos com erro). Sai com código 1 se algum cenário falhar.
 10. Tabela: 10/20/50/100 por página, busca (ex.: "ovo" mostra 311 e 341 separados), ordenação por coluna, paginação, exportação Excel/PDF.
 11. Entrar como **Gestão Teste**: sem o item no menu e "Acesso negado" em `/bi`.
 12. Repetir no celular (ou com a janela estreita).
+13. Cabeçalho: **Exportar Excel** e **Exportar PDF** (BI completo, com os filtros gerais e os de cada bloco) — ver `docs/bi-gerencial/exportacao-geral.md`.
+14. Dashboard (`/dashboard`): atalho **BI Gerencial** no Acesso rápido para o Admin Teste; ausente para o Gestão Teste.

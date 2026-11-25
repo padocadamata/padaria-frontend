@@ -18,7 +18,7 @@ import styles from '../components/dashboard/dashboard.module.css';
 import { PERMISSOES, hasPermissao } from '../lib/auth/permissoes';
 import { useAuth } from '../hooks/useAuth';
 import { dataLocalExibicao } from '../lib/data/dataLocal';
-import { navegacaoDoUsuario } from '../lib/nav/navegacao';
+import { atalhosDashboard } from '../lib/nav/navegacao';
 import { carregarLayoutDashboard, salvarLayoutDashboard } from '../lib/dashboard/layoutDados';
 import { layoutPadrao, mesclarLayout } from '../lib/dashboard/layout';
 
@@ -112,8 +112,8 @@ function DashboardConteudo() {
   }
 
   // Atalhos = os mesmos módulos que a navegação já mostra a este usuário
-  // (exceto o próprio Dashboard).
-  const atalhos = navegacaoDoUsuario(permissoes).principais.filter((modulo) => modulo.chave !== 'dashboard');
+  // (exceto o próprio Dashboard) + BI Gerencial para proprietario_admin.
+  const atalhos = atalhosDashboard(permissoes, perfilUsuario);
 
   const nome = primeiroNome(perfilUsuario?.nome);
   const titulo = nome ? `${saudacaoDoDia()}, ${nome}` : saudacaoDoDia();
